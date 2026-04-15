@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /Users/swiftninedev/Desktop/NewProjects/swiftnine-dashboard-frontend/src/app -name \"page.tsx\" -exec head -5 {} +)"
+    ]
+  }
+}

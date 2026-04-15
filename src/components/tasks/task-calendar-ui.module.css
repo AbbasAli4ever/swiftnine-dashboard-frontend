@@ -1,0 +1,235 @@
+.root {
+  border: 1px solid #eaecf0;
+  border-radius: 14px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border-bottom: 1px solid #f2f4f7;
+}
+
+.nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.navButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+  width: 34px;
+  border-radius: 8px;
+  border: 1px solid #d0d5dd;
+  background: #ffffff;
+  color: #344054;
+  transition: all 0.2s ease;
+}
+
+.navButton:hover {
+  border-color: #98a2b3;
+  background: #f9fafb;
+}
+
+.todayButton {
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid #d0d5dd;
+  background: #ffffff;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.todayButton:hover {
+  border-color: #98a2b3;
+  background: #f9fafb;
+}
+
+.selection {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.selectControl {
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid #d0d5dd;
+  padding: 0 10px;
+  background: #ffffff;
+  color: #101828;
+  font-size: 13px;
+  font-weight: 500;
+  min-width: 108px;
+}
+
+.root :global(.fc.fc-media-screen) {
+  min-height: 0 !important;
+}
+
+.root :global(.fc-dayGridMonth-view.fc-view.fc-daygrid) {
+  min-width: 0 !important;
+}
+
+.root :global(.fc .fc-view-harness) {
+  overflow-x: auto;
+}
+
+.root :global(.fc .fc-scrollgrid) {
+  border-left: 0;
+  border-right: 0;
+  border-bottom: 0;
+  border-radius: 0;
+}
+
+.root :global(.fc-theme-standard td),
+.root :global(.fc-theme-standard th),
+.root :global(.fc-theme-standard .fc-scrollgrid) {
+  border-color: #eaecf0;
+}
+
+.root :global(.fc .fc-scrollgrid-section-header th) {
+  background: #f9fafb;
+}
+
+.root :global(.fc .fc-col-header-cell-cushion) {
+  display: block;
+  padding: 8px 0;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #667085;
+  text-transform: uppercase;
+}
+
+.root :global(.fc .fc-daygrid-day-frame) {
+  min-height: 94px;
+  padding-bottom: 4px;
+}
+
+.root :global(.fc .fc-daygrid-day-top) {
+  justify-content: flex-end;
+}
+
+.root :global(.fc .fc-daygrid-day-number) {
+  padding: 6px 8px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #344054;
+}
+
+.root :global(.fc .fc-day-other) {
+  background: #fcfcfd;
+}
+
+.root :global(.fc .fc-day-other .fc-daygrid-day-number) {
+  color: #98a2b3;
+}
+
+.root :global(.fc .fc-daygrid-day.fc-day-today) {
+  background: #f2f4ff;
+}
+
+.root :global(.fc .fc-daygrid-event-harness) {
+  margin-top: 3px;
+}
+
+.root :global(.fc .fc-daygrid-event) {
+  margin: 0 6px;
+  border: 0;
+  background: transparent;
+}
+
+.root :global(.fc .fc-daygrid-more-link) {
+  margin: 3px 8px 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475467;
+}
+
+.root :global(.taskEvent) {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 6px;
+  padding: 3px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.root :global(.taskEventDot) {
+  display: inline-block;
+  height: 5px;
+  width: 5px;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  background: currentColor;
+  opacity: 0.75;
+}
+
+.root :global(.taskEventTitle) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.root :global(.taskEvent-red) {
+  background: #fee4e2;
+  color: #b42318;
+}
+
+.root :global(.taskEvent-amber) {
+  background: #fef0c7;
+  color: #b54708;
+}
+
+.root :global(.taskEvent-blue) {
+  background: #dbeafe;
+  color: #175cd3;
+}
+
+.root :global(.taskEvent-purple) {
+  background: #f4ebff;
+  color: #7a2eab;
+}
+
+.root :global(.taskEvent-slate) {
+  background: #eaecf0;
+  color: #344054;
+}
+
+@media (max-width: 1024px) {
+  .root :global(.fc .fc-daygrid-day-frame) {
+    min-height: 78px;
+  }
+}
+
+@media (max-width: 640px) {
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .selection {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .selectControl {
+    width: 100%;
+    min-width: 0;
+  }
+}

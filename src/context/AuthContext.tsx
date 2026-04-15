@@ -1,0 +1,147 @@
+"use client";
+
+import { api, refreshSession } from "@/lib/api";
+import { AuthUser, useAuthStore, hasSessionExists } from "@/stores/auth.store";
+import { useRouter, usePathname } from "next/navigation";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
+
+const AUTH_PAGES = ["/signin", "/signup", "/forgot-password", "/verify-otp", "/reset-password", "/auth/callback"];
+
+interface AuthContextValue {
+  user: AuthUser | null;
+  accessToken: string | null;
+  isAuthenticated: boolean;
+  /** true while the initial session restore is in-flight */
+  isLoading: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  register: (fullName: string, email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextValue | null>(null);
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const { accessToken, user, setAuth, clearAuth } = useAuthStore();
+  const router = useRouter();
+  const pathname = usePathname();
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // On auth pages (signin, signup) there is no session to restore — skip entirely
+    if (AUTH_PAGES.some((p) => pathname.startsWith(p))) {
+      setIsLoading(false);
+      return;
+    }
+
+    const state = useAuthStore.getState();
+
+    if (state.accessToken && state.user) {
+      // Token + user already in memory (same-tab navigation) — nothing to do
+      setIsLoading(false);
+      return;
+    }
+
+    if (state.accessToken && !state.user) {
+      // Token survived page refresh via sessionStorage but user profile was lost.
+      // Re-fetch profile only — no need to hit /auth/refresh.
+      api
+        .get<AuthUser>("/user/profile")
+        .then(({ data }) => {
+          setAuth(state.accessToken!, data);
+        })
+        .catch(() => {
+          clearAuth();
+          refreshSession()
+            .then((data) => setAuth(data.accessToken, data.user))
+            .catch(() => clearAuth());
+        })
+        .finally(() => setIsLoading(false));
+      return;
+    }
+
+    // No token — only attempt refresh if the user has logged in before in this
+    // tab. If session_exists is absent they were never authenticated (or explicitly
+    // logged out), so go straight to the loading=false state; the route guard or
+    // middleware will redirect to /signin.
+    if (!hasSessionExists()) {
+      setIsLoading(false);
+      return;
+    }
+
+    refreshSession()
+      .then((data) => setAuth(data.accessToken, data.user))
+      .catch(() => clearAuth())
+      .finally(() => setIsLoading(false));
+
+  // Run once on mount only — deps array intentionally empty
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const login = useCallback(
+    async (email: string, password: string) => {
+      const { data } = await api.post<{ user: AuthUser; accessToken: string }>(
+        "/auth/login",
+        { email, password }
+      );
+      setAuth(data.accessToken, data.user);
+      router.replace("/");
+    },
+    [setAuth, router]
+  );
+
+  const register = useCallback(
+    async (fullName: string, email: string, password: string) => {
+      const { data } = await api.post<{ user: AuthUser; accessToken: string }>(
+        "/auth/register",
+        { fullName, email, password }
+      );
+      setAuth(data.accessToken, data.user);
+      router.replace("/");
+    },
+    [setAuth, router]
+  );
+
+  const logout = useCallback(async () => {
+    try {
+      // Invalidates the refresh_token cookie server-side.
+      // Returns 200 even if the cookie is already gone — safe to always call.
+      await api.post("/auth/logout");
+    } catch {
+      // Swallow errors — we always clear local state regardless
+    } finally {
+      clearAuth();
+      // Hard navigation so the middleware re-evaluates with the cleared cookie
+      // and no RSC prefetch races occur. router.replace would trigger an RSC
+      // fetch against the protected route before the redirect completes.
+      window.location.replace("/signin");
+    }
+  }, [clearAuth]);
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        accessToken,
+        isAuthenticated: !!accessToken,
+        isLoading,
+        login,
+        register,
+        logout,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth(): AuthContextValue {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within <AuthProvider>");
+  return ctx;
+}
