@@ -9,6 +9,7 @@ import TaskDashboardHome from "./TaskDashboardHome";
 import TaskCalendarView from "./TaskCalendarView";
 import TaskForm from "./TaskForm";
 import TaskDetailPanel from "./TaskDetailPanel";
+import type { ReactElement } from "react";
 import {
   LuChevronDown,
   LuCircle,
@@ -28,7 +29,7 @@ type ProjectView = "overview" | "list" | "board" | "calendar";
 const VIEW_TABS: Array<{
   id: ProjectView;
   label: string;
-  icon: JSX.Element;
+  icon: ReactElement;
 }> = [
   { id: "overview", label: "Overview", icon: <LuLayoutDashboard className="h-4 w-4" /> },
   { id: "list", label: "List", icon: <LuList className="h-4 w-4" /> },
