@@ -9,31 +9,29 @@ import { toast } from "sonner";
 function ResetPasswordContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const email = searchParams.get("email") ?? "";
-  const otp = searchParams.get("otp") ?? "";
+  const token = searchParams.get("token") ?? "";
 
-  // Guard: missing params means the user skipped a step
-  if (!email || !otp) {
+  // Guard: token is required from reset link
+  if (!token) {
     router.replace("/forgot-password");
     return null;
   }
 
   const handleSubmit = async (newPassword: string) => {
     try {
-      // Single call — server validates OTP + sets new password atomically
-      await api.post("/auth/reset-password", { email, otp, newPassword });
+      await api.post("/auth/reset-password", { token, newPassword });
       toast.success("Password reset! Please sign in with your new password.");
       // reset-password logs out all sessions server-side, so hard-navigate to signin
       window.location.replace("/signin");
     } catch (err) {
       const { message } = parseApiError(err);
-      // 401 = wrong / expired / already-used OTP → send user back to OTP screen
-      const isOtpError =
+      // 401 = invalid / expired / already-used reset token
+      const isTokenError =
         (err as { response?: { status?: number } })?.response?.status === 401;
 
-      if (isOtpError) {
-        toast.error("Invalid or expired code. Please request a new one.");
-        router.replace(`/verify-otp?email=${encodeURIComponent(email)}`);
+      if (isTokenError) {
+        toast.error("This reset link is invalid or expired. Request a new one.");
+        router.replace("/forgot-password");
         return;
       }
 

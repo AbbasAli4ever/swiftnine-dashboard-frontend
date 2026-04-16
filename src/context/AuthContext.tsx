@@ -11,7 +11,7 @@ import React, {
   useState,
 } from "react";
 
-const AUTH_PAGES = ["/signin", "/signup", "/forgot-password", "/verify-otp", "/reset-password", "/auth/callback"];
+const AUTH_PAGES = ["/signin", "/signup", "/forgot-password", "/verify-otp", "/verify-email", "/reset-password", "/auth/callback"];
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -20,7 +20,12 @@ interface AuthContextValue {
   /** true while the initial session restore is in-flight */
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (fullName: string, email: string, password: string) => Promise<void>;
+  register: (
+    fullName: string,
+    email: string,
+    password: string
+  ) => Promise<string>;
+  verifyEmail: (email: string, otp: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -90,16 +95,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         { email, password }
       );
       setAuth(data.accessToken, data.user);
-      router.replace("/");
     },
-    [setAuth, router]
+    [setAuth]
   );
 
   const register = useCallback(
     async (fullName: string, email: string, password: string) => {
-      const { data } = await api.post<{ user: AuthUser; accessToken: string }>(
+      const { data } = await api.post<{ message: string }>(
         "/auth/register",
         { fullName, email, password }
+      );
+      return data.message;
+    },
+    []
+  );
+
+  const verifyEmail = useCallback(
+    async (email: string, otp: string) => {
+      const { data } = await api.post<{ user: AuthUser; accessToken: string }>(
+        "/auth/verify-email",
+        { email, otp }
       );
       setAuth(data.accessToken, data.user);
       router.replace("/");
@@ -132,6 +147,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         login,
         register,
+        verifyEmail,
         logout,
       }}
     >

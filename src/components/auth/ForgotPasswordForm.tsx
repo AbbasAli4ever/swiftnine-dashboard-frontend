@@ -14,9 +14,13 @@ type FormValues = z.infer<typeof schema>;
 
 interface ForgotPasswordFormProps {
   onSubmit?: (email: string) => Promise<void>;
+  isSuccess?: boolean;
 }
 
-export default function ForgotPasswordForm({ onSubmit }: ForgotPasswordFormProps) {
+export default function ForgotPasswordForm({
+  onSubmit,
+  isSuccess = false,
+}: ForgotPasswordFormProps) {
   const {
     register,
     handleSubmit,
@@ -52,52 +56,71 @@ export default function ForgotPasswordForm({ onSubmit }: ForgotPasswordFormProps
           />
         </div>
 
-        {/* Heading */}
-        <h1 className="text-[22px] font-bold text-gray-900 text-center mb-2">
-          Forgot you password?
-        </h1>
+        {isSuccess ? (
+          <>
+            <h1 className="text-[30px] font-bold text-gray-900 text-center mb-2 leading-none">
+              Recovery link sent!
+            </h1>
+            <p className="text-sm text-gray-400 text-center">
+              Remember password?{" "}
+              <Link
+                href="/signin"
+                className="text-brand-500 font-medium hover:text-brand-600"
+              >
+                Sign in
+              </Link>
+            </p>
+          </>
+        ) : (
+          <>
+            {/* Heading */}
+            <h1 className="text-[22px] font-bold text-gray-900 text-center mb-2">
+              Forgot your password?
+            </h1>
 
-        {/* Sub-heading */}
-        <p className="text-sm text-gray-400 text-center mb-6">
-          Remember password?{" "}
-          <Link
-            href="/signin"
-            className="text-brand-500 font-medium hover:text-brand-600"
-          >
-            Sign in
-          </Link>
-        </p>
+            {/* Sub-heading */}
+            <p className="text-sm text-gray-400 text-center mb-6">
+              Remember password?{" "}
+              <Link
+                href="/signin"
+                className="text-brand-500 font-medium hover:text-brand-600"
+              >
+                Sign in
+              </Link>
+            </p>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit(submit)} noValidate className="w-full space-y-3">
-          {/* Email input */}
-          <div>
-            <input
-              type="email"
-              placeholder="Sufian@swiftnine.com"
-              {...register("email")}
-              className={[
-                "w-full rounded-lg border px-4 py-3 text-sm text-gray-800 placeholder:text-gray-400 outline-none transition-colors",
-                "focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20",
-                errors.email
-                  ? "border-red-400"
-                  : "border-gray-300",
-              ].join(" ")}
-            />
-            {errors.email && (
-              <p className="mt-1 text-xs text-red-500">{errors.email.message}</p>
-            )}
-          </div>
+            {/* Form */}
+            <form onSubmit={handleSubmit(submit)} noValidate className="w-full space-y-3">
+              {/* Email input */}
+              <div>
+                <input
+                  type="email"
+                  placeholder="Sufian@swiftnine.com"
+                  {...register("email")}
+                  className={[
+                    "w-full rounded-lg border px-4 py-3 text-sm text-gray-800 placeholder:text-gray-400 outline-none transition-colors",
+                    "focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20",
+                    errors.email
+                      ? "border-red-400"
+                      : "border-gray-300",
+                  ].join(" ")}
+                />
+                {errors.email && (
+                  <p className="mt-1 text-xs text-red-500">{errors.email.message}</p>
+                )}
+              </div>
 
-          {/* Submit */}
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="flex w-full items-center justify-center rounded-lg bg-brand-500 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-600 disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            {isSubmitting ? "Sending…" : "Send me the link"}
-          </button>
-        </form>
+              {/* Submit */}
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="flex w-full items-center justify-center rounded-lg bg-brand-500 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-600 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? "Sending…" : "Send me the link"}
+              </button>
+            </form>
+          </>
+        )}
       </div>
 
       {/* Need help? — pinned to bottom */}

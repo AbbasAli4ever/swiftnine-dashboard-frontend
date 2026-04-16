@@ -11,7 +11,9 @@ const PUBLIC_PREFIXES = [
   "/signin",
   "/signup",
   "/forgot-password",
+  "/invite",
   "/verify-otp",
+  "/verify-email",
   "/reset-password",
   "/auth/callback", // Google OAuth lands here with refresh_token already set
   "/error-404",

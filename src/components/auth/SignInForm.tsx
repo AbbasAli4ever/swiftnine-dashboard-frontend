@@ -4,9 +4,11 @@ import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import { useAuth } from "@/context/AuthContext";
 import { parseApiError } from "@/lib/api";
+import { useVerificationStore } from "@/stores/verification.store";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -24,7 +26,10 @@ const API_URL =
 
 export default function SignInForm() {
   const [showPassword, setShowPassword] = useState(false);
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { login } = useAuth();
+  const setPendingVerification = useVerificationStore((s) => s.setPending);
 
   const {
     register,
@@ -38,9 +43,15 @@ export default function SignInForm() {
   const onSubmit = async (values: SignInValues) => {
     try {
       await login(values.email, values.password);
+      const redirectTo = searchParams.get("from");
+      const safeRedirect =
+        redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//")
+          ? redirectTo
+          : "/";
       toast.success("Welcome back!");
+      router.replace(safeRedirect);
     } catch (err) {
-      const { message, details } = parseApiError(err);
+      const { message, code, details } = parseApiError(err);
 
       if (details?.length) {
         details.forEach(({ field, message: msg }) => {
@@ -48,6 +59,18 @@ export default function SignInForm() {
             setError(field as "email" | "password", { message: msg });
           }
         });
+      }
+
+      if (code === "FORBIDDEN") {
+        const fallbackFullName = values.email.split("@")[0]?.replace(/[._-]+/g, " ") || "User";
+        setPendingVerification({
+          fullName: fallbackFullName,
+          email: values.email,
+          password: values.password,
+        });
+        toast.error("Please verify your email with OTP before logging in.");
+        router.push(`/verify-email?email=${encodeURIComponent(values.email)}`);
+        return;
       }
 
       toast.error(message);

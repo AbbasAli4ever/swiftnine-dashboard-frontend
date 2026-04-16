@@ -1,5 +1,6 @@
 "use client";
 
+import OtpVerifyForm from "@/components/auth/OtpVerifyForm";
 import Checkbox from "@/components/form/input/Checkbox";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
@@ -32,13 +33,16 @@ const signUpSchema = z.object({
 });
 
 type SignUpValues = z.infer<typeof signUpSchema>;
+type PendingSignUp = Pick<SignUpValues, "fullName" | "email" | "password">;
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3020/api/v1";
 
 export default function SignUpForm() {
   const [showPassword, setShowPassword] = useState(false);
-  const { register: registerUser } = useAuth();
+  const [pendingSignUp, setPendingSignUp] = useState<PendingSignUp | null>(null);
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const { register: registerUser, verifyEmail } = useAuth();
 
   const {
     register,
@@ -56,8 +60,14 @@ export default function SignUpForm() {
 
   const onSubmit = async (values: SignUpValues) => {
     try {
-      await registerUser(values.fullName, values.email, values.password);
-      toast.success("Account created! Welcome to SwiftNine.");
+      const message = await registerUser(values.fullName, values.email, values.password);
+      setPendingSignUp({
+        fullName: values.fullName,
+        email: values.email,
+        password: values.password,
+      });
+      setOtpError(null);
+      toast.success(message || "OTP sent to your email. Please verify to continue.");
     } catch (err) {
       const { message, code, details } = parseApiError(err);
 
@@ -77,6 +87,52 @@ export default function SignUpForm() {
       }
     }
   };
+
+  const handleVerifyOtp = async (otp: string) => {
+    if (!pendingSignUp) return;
+    setOtpError(null);
+    try {
+      await verifyEmail(pendingSignUp.email, otp);
+    } catch (err) {
+      const { message, code } = parseApiError(err);
+      if (code === "UNAUTHORIZED") {
+        setOtpError("Invalid or expired OTP. Please try again.");
+        return;
+      }
+      setOtpError(message);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (!pendingSignUp) return;
+    try {
+      const message = await registerUser(
+        pendingSignUp.fullName,
+        pendingSignUp.email,
+        pendingSignUp.password
+      );
+      setOtpError(null);
+      toast.success(message || "A new OTP has been sent to your email.");
+    } catch (err) {
+      const { message } = parseApiError(err);
+      toast.error(message);
+    }
+  };
+
+  if (pendingSignUp) {
+    return (
+      <OtpVerifyForm
+        email={pendingSignUp.email}
+        error={otpError}
+        onVerify={handleVerifyOtp}
+        onResend={handleResendOtp}
+        onBack={() => {
+          setOtpError(null);
+          setPendingSignUp(null);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="w-full max-w-md mx-auto">

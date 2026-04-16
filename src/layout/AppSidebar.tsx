@@ -2,12 +2,13 @@
 
 import React, { useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { useProjects } from "@/context/ProjectContext";
 import { Project } from "@/services/project.service";
 import { parseApiError } from "@/lib/api";
 import WorkspaceSwitcher from "@/components/workspace/WorkspaceSwitcher";
+import InvitePeopleModal from "@/components/workspace/InvitePeopleModal";
 import CreateSpaceModal from "@/components/projects/CreateSpaceModal";
 import EditSpaceModal from "@/components/projects/EditSpaceModal";
 import SpaceContextMenu from "@/components/projects/SpaceContextMenu";
@@ -73,12 +74,12 @@ const dmUsers = [
 type SettingsNavItem = {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
-  active?: boolean;
+  tab?: string;
 };
 
 const adminSettingsItems: SettingsNavItem[] = [
-  { label: "General", icon: LuSettings, active: true },
-  { label: "People", icon: LuUsers },
+  { label: "General", icon: LuSettings, tab: "general" },
+  { label: "People", icon: LuUsers, tab: "people" },
   { label: "Teams", icon: LuUsers },
   { label: "Upgrade", icon: LuRocket },
   { label: "AI Usage", icon: LuBrush },
@@ -346,6 +347,23 @@ function HomePanelContent() {
 }
 
 function SettingsPanelContent() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const currentTab = (searchParams.get("tab") ?? "general").toLowerCase();
+  const isWorkspaceSettingsRoute = pathname.startsWith("/workspace-settings");
+
+  const navigateToTab = (tab: string) => {
+    const next = new URLSearchParams(searchParams.toString());
+    if (tab === "general") {
+      next.delete("tab");
+    } else {
+      next.set("tab", tab);
+    }
+    const query = next.toString();
+    router.push(`/workspace-settings${query ? `?${query}` : ""}`);
+  };
+
   return (
     <div className="flex flex-1 flex-col overflow-y-auto no-scrollbar px-2 py-2 text-[13px]">
       <h2 className="px-2 py-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
@@ -358,14 +376,22 @@ function SettingsPanelContent() {
         </p>
         {adminSettingsItems.map((item) => {
           const Icon = item.icon;
+          const isActive =
+            isWorkspaceSettingsRoute &&
+            !!item.tab &&
+            currentTab === item.tab;
+
           return (
             <button
               key={item.label}
               type="button"
+              onClick={() => {
+                if (item.tab) navigateToTab(item.tab);
+              }}
               className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-colors ${
-                item.active
-                  ? "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white"
-                  : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+                isActive
+                  ? "bg-violet-100/80 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300"
+                  : "text-gray-600 hover:bg-violet-50 hover:text-violet-700 dark:text-gray-400 dark:hover:bg-violet-500/15 dark:hover:text-violet-300"
               }`}
             >
               <Icon className="h-4 w-4 shrink-0" />
@@ -383,7 +409,7 @@ function SettingsPanelContent() {
           <button
             key={item}
             type="button"
-            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] text-gray-600 transition-colors hover:bg-violet-50 hover:text-violet-700 dark:text-gray-400 dark:hover:bg-violet-500/15 dark:hover:text-violet-300"
           >
             <LuChevronRight className="h-4 w-4 shrink-0 text-gray-300 dark:text-gray-600" />
             <span className="truncate">{item}</span>
@@ -399,7 +425,7 @@ function SettingsPanelContent() {
           <button
             key={item}
             type="button"
-            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] text-gray-600 transition-colors hover:bg-violet-50 hover:text-violet-700 dark:text-gray-400 dark:hover:bg-violet-500/15 dark:hover:text-violet-300"
           >
             <LuChevronRight className="h-4 w-4 shrink-0 text-gray-300 dark:text-gray-600" />
             <span className="truncate">{item}</span>
@@ -407,7 +433,7 @@ function SettingsPanelContent() {
         ))}
         <button
           type="button"
-          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] text-gray-600 transition-colors hover:bg-violet-50 hover:text-violet-700 dark:text-gray-400 dark:hover:bg-violet-500/15 dark:hover:text-violet-300"
         >
           <LuLogOut className="h-4 w-4 shrink-0" />
           <span>Log out</span>
@@ -431,6 +457,7 @@ const AppSidebar: React.FC = () => {
   const router = useRouter();
   const pathname = usePathname();
   const [activeRail, setActiveRail] = useState<string>("home");
+  const [inviteOpen, setInviteOpen] = useState(false);
   const isWorkspaceSettingsRoute = pathname.startsWith("/workspace-settings");
   const isCalendarRoute = pathname.startsWith("/calendar");
 
@@ -487,6 +514,7 @@ const AppSidebar: React.FC = () => {
         <div className="flex flex-col items-center gap-1 pb-3 border-t border-white/10 pt-2">
           <button
             title="Invite"
+            onClick={() => setInviteOpen(true)}
             className="flex flex-col items-center justify-center w-10 h-10 rounded-xl text-gray-400 hover:bg-white/10 hover:text-white transition-all"
           >
             <GoPersonAdd className="w-5 h-5" />
@@ -518,6 +546,11 @@ const AppSidebar: React.FC = () => {
           </>
         )}
       </div>
+
+      <InvitePeopleModal
+        isOpen={inviteOpen}
+        onClose={() => setInviteOpen(false)}
+      />
     </aside>
   );
 };

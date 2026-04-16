@@ -13,6 +13,7 @@
 3. [Error Handling](#3-error-handling)
 4. [Auth Endpoints](#4-auth-endpoints)
    - [POST /auth/register](#post-authregister)
+   - [POST /auth/verify-email](#post-authverify-email)
    - [POST /auth/login](#post-authlogin)
    - [GET /auth/google](#get-authgoogle)
    - [GET /auth/google/callback](#get-authgooglecallback)
@@ -22,6 +23,10 @@
    - [POST /auth/reset-password](#post-authreset-password)
 5. [User Endpoints](#5-user-endpoints)
 6. [Workspace Endpoints](#6-workspace-endpoints)
+   - [POST /workspaces/:workspaceId/invite](#post-workspacesworkspaceidinvite)
+   - [GET /workspaces/invite/:token](#get-workspacesinvitetoken)
+   - [POST /workspaces/invite/claim](#post-workspacesinviteclaim)
+   - [POST /workspaces/invite/accept](#post-workspacesinviteaccept)
 7. [Project Endpoints](#7-project-endpoints)
 8. [System](#8-system)
 
@@ -29,9 +34,9 @@
 
 ## 1. Response Format
 
-There are **two response shapes** in this API. Auth and User endpoints return bare objects (legacy pattern). Workspace and Project endpoints follow the standard contract wrapper.
+There are **two response shapes** in this API. Auth and User endpoints return bare objects. Workspace, Invite, and Project endpoints follow the standard wrapper.
 
-### Standard Wrapper (Workspace + Project)
+### Standard Wrapper (Workspace + Invite + Project)
 
 ```json
 {
@@ -41,20 +46,12 @@ There are **two response shapes** in this API. Auth and User endpoints return ba
 }
 ```
 
-For paginated lists:
+For list endpoints (arrays):
 
 ```json
 {
   "success": true,
   "data": [ ... ],
-  "meta": {
-    "page": 1,
-    "limit": 20,
-    "total": 150,
-    "total_pages": 8,
-    "has_next": true,
-    "has_prev": false
-  },
   "message": null
 }
 ```
@@ -74,6 +71,18 @@ Auth and User endpoints return the data object directly — no `success` or `dat
 
 ## 2. Auth Flow & Token Management
 
+### Registration Flow (Email Verification Required)
+
+Registration is a **two-step flow** — you must verify the OTP before the account is usable:
+
+```
+POST /auth/register  →  OTP sent to email (no token issued yet)
+    ↓
+POST /auth/verify-email  →  accessToken + refresh cookie issued
+    ↓
+Store accessToken in memory, navigate to dashboard
+```
+
 ### Token Architecture
 
 | Token | Where | Lifetime | Purpose |
@@ -82,6 +91,8 @@ Auth and User endpoints return the data object directly — no `success` or `dat
 | Refresh token | `httpOnly` cookie (`refresh_token`) | 7 days | Used only on `POST /auth/refresh` to get a new access token |
 
 **Never store the access token in `localStorage`.** Store it in memory (React state, Zustand, etc.). The browser automatically sends the refresh cookie on requests to the same origin.
+
+The refresh cookie is scoped to path `/api/v1/auth`, so it is only sent on auth requests — not every API call.
 
 ### Token Refresh Strategy
 
@@ -129,9 +140,9 @@ Validation errors (422) include field details:
 
 | Status | Meaning |
 |---|---|
-| 400 | Bad request (malformed body) |
-| 401 | Missing, invalid, or expired access token |
-| 403 | Authenticated but not allowed (wrong role, not a member) |
+| 400 | Bad request (malformed body or missing required field) |
+| 401 | Missing, invalid, or expired token / OTP |
+| 403 | Authenticated but not allowed (wrong role, unverified email, wrong password) |
 | 404 | Resource not found |
 | 409 | Conflict (duplicate email, prefix already taken) |
 | 422 | Validation failed — check `errors` array |
@@ -147,7 +158,9 @@ Auth endpoints are **public** — no `Authorization` header needed.
 
 ### `POST /auth/register`
 
-Create a new account. Returns access token in body and sets `refresh_token` cookie.
+Create a new account. Does **not** issue a token — sends a 6-digit OTP to the email instead. Call `POST /auth/verify-email` next.
+
+If the email was previously registered but never verified, a new OTP is resent.
 
 **Request**
 ```json
@@ -163,6 +176,35 @@ Password rules: min 8 chars, at least one uppercase, one lowercase, one number, 
 **Response `201`**
 ```json
 {
+  "message": "OTP sent to your email. Please verify to complete registration."
+}
+```
+
+**Errors**
+| Status | When |
+|---|---|
+| 409 | Email already registered and verified |
+| 422 | Validation failed |
+
+---
+
+### `POST /auth/verify-email`
+
+Verify the OTP sent during registration. Issues the access token and sets the refresh cookie — this is where the session starts.
+
+**Request**
+```json
+{
+  "email": "zaeem@example.com",
+  "otp": "482931"
+}
+```
+
+`otp` must be exactly 6 numeric digits. Valid for **15 minutes**.
+
+**Response `200`**
+```json
+{
   "user": {
     "id": "uuid",
     "fullName": "Zaeem Hassan",
@@ -174,10 +216,12 @@ Password rules: min 8 chars, at least one uppercase, one lowercase, one number, 
 }
 ```
 
+Sets `refresh_token` httpOnly cookie (path: `/api/v1/auth`, 7-day TTL).
+
 **Errors**
 | Status | When |
 |---|---|
-| 409 | Email already registered |
+| 401 | OTP wrong, expired (>15 min), or already used |
 | 422 | Validation failed |
 
 ---
@@ -192,12 +236,13 @@ Password rules: min 8 chars, at least one uppercase, one lowercase, one number, 
 }
 ```
 
-**Response `200`** — same shape as register
+**Response `200`** — same shape as `/auth/verify-email`
 
 **Errors**
 | Status | When |
 |---|---|
 | 401 | Wrong email or password |
+| 403 | Email not yet verified (must complete OTP flow first) |
 | 422 | Validation failed |
 
 ---
@@ -229,46 +274,50 @@ const accessToken = params.get('token');
 // store in memory (Zustand, React state, etc.)
 ```
 
+**Notes**
+- Google accounts auto-verify email — no OTP step needed
+- If a user with the same email already exists (different Google ID), the server returns 409
+
 **Errors**
 | Status | When |
 |---|---|
 | 401 | Google account could not be authenticated |
-| 409 | Google account conflicts with an existing or inactive account |
+| 409 | Google account conflicts with an existing account |
 
 ---
 
 ### `POST /auth/refresh`
 
-Exchange the `refresh_token` cookie for a new token pair. The browser sends the cookie automatically (same-origin). Call this when a request fails with `401`.
+Exchange the `refresh_token` cookie for a new token pair. The browser sends the cookie automatically (same-origin, cookie path `/api/v1/auth`). Call this when a request fails with `401`.
 
-**Request** — no body required (cookie is sent automatically)
+Token rotation is enforced — the old refresh token is invalidated and a new one is issued.
+
+**Request** — no body required
 
 **Response `200`** — same shape as login (new `accessToken` in body, new cookie set)
 
 **Errors**
 | Status | When |
 |---|---|
-| 401 | Cookie missing, expired, or already used |
+| 401 | Cookie missing, expired, or already rotated |
 
 ---
 
 ### `POST /auth/logout`
 
-Logs out the **current session** only. Invalidates the `refresh_token` cookie and deletes that token from the database. Does **not** affect other active sessions on other devices.
+Logs out the **current session** only. Invalidates the `refresh_token` cookie. Does **not** affect other active sessions on other devices.
 
-Call this when the user clicks "Sign out" on the current device.
-
-**Request** — no body required (cookie is read automatically)
+**Request** — no body required
 
 **Response `200`** — no body
 
-> If the cookie is missing or already invalid, the endpoint still returns `200` — it is safe to call without checking first.
+> If the cookie is missing or already invalid, the endpoint still returns `200`.
 
 ---
 
 ### `POST /auth/forgot-password`
 
-Request a 6-digit OTP for password reset. Always returns `200` regardless of whether the email exists (prevents enumeration).
+Request a password reset link. Always returns `200` regardless of whether the email exists (prevents enumeration).
 
 **Request**
 ```json
@@ -277,26 +326,33 @@ Request a 6-digit OTP for password reset. Always returns `200` regardless of whe
 }
 ```
 
-**Response `200`** — no body (empty)
+**Response `200`** — no body
 
-OTP is currently logged to server console. Valid for **15 minutes**.
+A reset link is emailed to the address (if a password-based account exists). Link format:
+
+```
+<FRONTEND_URL>/reset-password?token=<uuid>
+```
+
+Token is valid for **1 hour**. Only one active reset token per user — previous tokens are revoked on new request.
+
+> Google-only accounts (no password set) receive no email — the response is still `200`.
 
 ---
 
 ### `POST /auth/reset-password`
 
-Reset password using the OTP received on email.
+Reset password using the token from the reset link.
 
 **Request**
 ```json
 {
-  "email": "zaeem@example.com",
-  "otp": "482931",
+  "token": "uuid-from-reset-link",
   "newPassword": "NewSecure123!"
 }
 ```
 
-`otp` must be the exact 6-digit code sent to the email. Password rules same as register.
+Password rules same as register. `token` is the UUID from the email link (not a 6-digit OTP).
 
 **Response `200`** — no body
 
@@ -305,7 +361,7 @@ This endpoint **logs out all active sessions** — the user must log in again af
 **Errors**
 | Status | When |
 |---|---|
-| 401 | OTP wrong, expired (>15 min), or already used |
+| 401 | Token wrong, expired (>1 hour), or already used |
 | 422 | Validation failed |
 
 ---
@@ -319,11 +375,6 @@ All user endpoints require `Authorization: Bearer <accessToken>`.
 ### `POST /user/profile`
 
 Initialize the current user's profile after registration. Call this once after the user completes onboarding.
-
-**Headers**
-```
-Authorization: Bearer <accessToken>
-```
 
 **Request**
 ```json
@@ -372,6 +423,11 @@ Get the current user's profile.
 
 **Response `200`** — same shape as above
 
+**Errors**
+| Status | When |
+|---|---|
+| 404 | User not found |
+
 ---
 
 ### `PATCH /user/profile`
@@ -393,13 +449,23 @@ Update one or more profile fields. Only send fields you want to change — all a
 
 At least one field must be present (server returns 400 otherwise).
 
+**Notes**
+- If `fullName` changes and the user is using an initials avatar, initials are auto-updated
+- Send `"bio": null` or `"designation": null` to clear optional fields
+
 **Response `200`** — updated profile shape
+
+**Errors**
+| Status | When |
+|---|---|
+| 400 | No fields provided / invalid timezone |
+| 404 | User not found |
 
 ---
 
 ### `PATCH /user/status`
 
-Quick status update without touching other profile fields.
+Quick presence update without touching other profile fields. Sets `lastSeenAt` when going offline.
 
 **Request**
 ```json
@@ -417,6 +483,8 @@ Quick status update without touching other profile fields.
 ### `PATCH /user/change-password`
 
 Change the account password. Requires the current password for verification. **Logs out all active sessions** — the user must log in again.
+
+> This endpoint returns `403` for Google-only accounts (accounts with no password).
 
 **Request**
 ```json
@@ -444,7 +512,7 @@ Change the account password. Requires the current password for verification. **L
 
 ### `DELETE /user/profile`
 
-Soft-delete the current user's account. This is irreversible from the frontend — the account is deactivated and all sessions are revoked. Redirect to login after calling this.
+Soft-delete the current user's account. The account is deactivated and all sessions are revoked. Redirect to login after calling this.
 
 **Response `204`** — no body
 
@@ -452,7 +520,7 @@ Soft-delete the current user's account. This is irreversible from the frontend �
 
 ## 6. Workspace Endpoints
 
-**Create workspace** does not require a workspace header. All other workspace endpoints and all project endpoints require `x-workspace-id`.
+**Create workspace** and **list workspaces** do not require the workspace header. All other workspace endpoints require `x-workspace-id`.
 
 ---
 
@@ -623,6 +691,176 @@ x-workspace-id: <workspaceId>
 
 ---
 
+### `POST /workspaces/:workspaceId/invite`
+
+Invite a user to the workspace by email. **OWNER only.**
+
+The server sends an invitation email with a link containing a token. If the email is already a member, the request silently succeeds (no error, no duplicate email). Any previously pending invite for the same email is revoked.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Request**
+```json
+{
+  "email": "colleague@example.com",
+  "role": "MEMBER"
+}
+```
+
+`role` is optional — defaults to `"MEMBER"`. Valid values: `"OWNER"`, `"MEMBER"`.
+
+**Response `200`**
+```json
+{
+  "success": true,
+  "data": null,
+  "message": "Invite sent successfully"
+}
+```
+
+Invite link format sent in the email:
+```
+<FRONTEND_URL>/invite?token=<uuid>
+```
+
+Token is valid for **7 days**.
+
+**Errors**
+| Status | When |
+|---|---|
+| 403 | Not OWNER |
+| 404 | Workspace not found |
+
+---
+
+### `GET /workspaces/invite/:token`
+
+Preview an invite without consuming it. Use this on the `/invite` page to display workspace details before the user decides what to do next.
+
+**Public — no auth required.**
+
+**Response `200`**
+```json
+{
+  "success": true,
+  "data": {
+    "workspaceId": "uuid",
+    "workspaceName": "Acme Corp",
+    "invitedEmail": "colleague@example.com",
+    "role": "MEMBER",
+    "inviterName": "Zaeem Hassan",
+    "nextStep": "claim_account"
+  },
+  "message": null
+}
+```
+
+**`nextStep` drives your frontend routing:**
+
+| Value | Meaning | What to show |
+|---|---|---|
+| `"claim_account"` | No verified account exists for this email | Show a sign-up form (name + password) → call `POST /invite/claim` |
+| `"login"` | A verified account already exists for this email | Show login prompt → after login call `POST /invite/accept` |
+
+**Errors**
+| Status | When |
+|---|---|
+| 404 | Token not found, already used, or expired |
+
+---
+
+### `POST /workspaces/invite/claim`
+
+For **new users** who don't have an account yet. Creates the account and joins the workspace in a single step — no OTP or email verification needed (the invite itself proves email ownership).
+
+**Public — no auth required.**
+
+**Request**
+```json
+{
+  "token": "uuid-from-invite-link",
+  "fullName": "Jane Doe",
+  "password": "Secure123!"
+}
+```
+
+| Field | Required | Rules |
+|---|---|---|
+| `token` | Yes | UUID from the invite link |
+| `fullName` | Yes | 2–100 chars |
+| `password` | Yes | Min 8 chars, uppercase, lowercase, number, special char |
+
+**Response `200`**
+```json
+{
+  "success": true,
+  "data": {
+    "user": {
+      "id": "uuid",
+      "fullName": "Jane Doe",
+      "email": "colleague@example.com",
+      "avatarUrl": null,
+      "avatarColor": "#6366f1"
+    },
+    "accessToken": "eyJ...",
+    "workspaceId": "uuid"
+  },
+  "message": "Invite claimed successfully"
+}
+```
+
+Sets `refresh_token` httpOnly cookie (same as login). Store the `accessToken` in memory and redirect the user to the workspace using the returned `workspaceId`.
+
+**Errors**
+| Status | When |
+|---|---|
+| 404 | Token not found, already used, or expired |
+| 409 | A verified account already exists for this email — use `POST /invite/accept` instead |
+| 422 | Validation failed |
+
+---
+
+### `POST /workspaces/invite/accept`
+
+For **existing users** who already have a verified account. The logged-in user's email must match the invited email.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+```
+
+**Request**
+```json
+{
+  "token": "uuid-from-invite-link"
+}
+```
+
+**Response `200`**
+```json
+{
+  "success": true,
+  "data": {
+    "workspaceId": "uuid"
+  },
+  "message": "Invite accepted successfully"
+}
+```
+
+Redirect the user to the workspace using the returned `workspaceId`.
+
+**Errors**
+| Status | When |
+|---|---|
+| 400 | Logged-in user's email does not match the invite email |
+| 404 | Token not found, already used, or expired |
+
+---
+
 ## 7. Project Endpoints
 
 All project endpoints require both the `Authorization` header and the `x-workspace-id` header. Any workspace member can create, view, and edit projects. Only the workspace OWNER can delete.
@@ -654,7 +892,7 @@ x-workspace-id: <workspaceId>
 |---|---|---|
 | `name` | Yes | 1–100 chars |
 | `description` | No | max 500 chars |
-| `color` | No | hex color string, default `#6366f1` |
+| `color` | No | hex color `#RRGGBB`, default `#6366f1` |
 | `icon` | No | max 50 chars, any icon identifier string |
 | `taskIdPrefix` | Yes | 2–6 uppercase letters/numbers (e.g. `API`, `FH`, `PROJ`). Auto-uppercased. Must be unique in the workspace. |
 
@@ -835,6 +1073,13 @@ No auth required. Returns database connectivity status. Use for uptime monitorin
 ```
 
 **Response `503`** — database unreachable
+```json
+{
+  "status": "error",
+  "database": "disconnected",
+  "message": "<error details>"
+}
+```
 
 ---
 
@@ -847,20 +1092,59 @@ No auth required. Returns database connectivity status. Use for uptime monitorin
 | Auth endpoints | None |
 | User endpoints | `Authorization: Bearer <token>` |
 | Workspace create/list | `Authorization: Bearer <token>` |
-| Workspace get/update/delete | `Authorization: Bearer <token>` + `x-workspace-id` |
+| Workspace get/update/delete/invite | `Authorization: Bearer <token>` + `x-workspace-id` |
+| Invite preview (`GET /invite/:token`) | None |
+| Invite claim (new user) | None |
+| Invite accept (existing user) | `Authorization: Bearer <token>` |
 | All project endpoints | `Authorization: Bearer <token>` + `x-workspace-id` |
 
 ### Who Can Do What
 
 | Action | Required Role |
 |---|---|
+| Register / verify email / login | Public |
 | Create workspace | Any authenticated user |
 | List / view workspaces | Member of that workspace |
 | Update workspace | OWNER |
 | Delete workspace | OWNER |
+| Invite members | OWNER |
+| Claim invite (new user, no account) | Public |
+| Accept invite (existing user) | Any authenticated user (email must match) |
 | Create project | Any workspace member |
 | View / update project | Any workspace member |
 | Delete project | OWNER |
+
+### Registration Flow Summary
+
+```
+POST /auth/register         → sends OTP to email (no token)
+POST /auth/verify-email     → issues accessToken + sets refresh cookie
+                            → navigate to /onboarding or /dashboard
+POST /user/profile          → (optional) set designation, bio, timezone
+```
+
+### Invite Flow Summary
+
+```
+OWNER:  POST /workspaces/:id/invite        → email sent with link
+
+User opens link → GET /workspaces/invite/:token  (public — preview details)
+                       ↓
+              check "nextStep" field
+                 /              \
+   "claim_account"            "login"
+  (no account yet)        (account exists)
+         ↓                       ↓
+POST /invite/claim          log in via
+ { token, fullName,        POST /auth/login
+   password }                    ↓
+         ↓               POST /invite/accept
+  account created +         { token }
+  workspace joined               ↓
+         ↓               workspace joined
+  redirect to workspace  redirect to workspace
+  (workspaceId in data)  (workspaceId in data)
+```
 
 ### profilePicture Format (User Module)
 
@@ -895,3 +1179,13 @@ useEffect(() => {
 ### Task ID Format
 
 Tasks (coming soon) will have a display ID like `API-1`, `API-2`, computed from `taskIdPrefix + '-' + taskNumber`. This is not stored in the DB — it is computed at query time. The `taskIdPrefix` set on project creation is permanent.
+
+### Password Rules (All Endpoints)
+
+Min 8 characters, must contain:
+- At least one uppercase letter
+- At least one lowercase letter
+- At least one number
+- At least one special character
+
+Applies to: register, verify-email (password set at register), reset-password, change-password.

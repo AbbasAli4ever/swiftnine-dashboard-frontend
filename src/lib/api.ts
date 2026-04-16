@@ -84,6 +84,7 @@ api.interceptors.response.use(
     const isAuthEndpoint =
       url.includes("/auth/login") ||
       url.includes("/auth/register") ||
+      url.includes("/auth/verify-email") ||
       url.includes("/auth/refresh") ||
       url.includes("/auth/logout") ||
       url.includes("/auth/forgot-password") ||

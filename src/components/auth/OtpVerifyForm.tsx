@@ -10,6 +10,7 @@ interface OtpVerifyFormProps {
   onVerify?: (otp: string) => Promise<void>;
   onResend?: () => Promise<void>;
   onBack?: () => void;
+  showResend?: boolean;
 }
 
 export default function OtpVerifyForm({
@@ -18,6 +19,7 @@ export default function OtpVerifyForm({
   onVerify,
   onResend,
   onBack,
+  showResend = true,
 }: OtpVerifyFormProps) {
   const OTP_LENGTH = 6;
   const [digits, setDigits] = useState<string[]>(Array(OTP_LENGTH).fill(""));
@@ -80,12 +82,13 @@ export default function OtpVerifyForm({
   };
 
   const handleResend = async () => {
+    if (!onResend) return;
     setIsResending(true);
     // Clear digits so user starts fresh with the new code
     setDigits(Array(OTP_LENGTH).fill(""));
     inputRefs.current[0]?.focus();
     try {
-      await onResend?.();
+      await onResend();
     } finally {
       setIsResending(false);
     }
@@ -177,18 +180,20 @@ export default function OtpVerifyForm({
         </button>
 
         {/* Resend / Back */}
-        <p className="mt-4 text-center text-sm text-gray-400">
-          <button
-            type="button"
-            onClick={handleResend}
-            disabled={isResending}
-            className="text-brand-500 hover:text-brand-600 font-medium disabled:opacity-60"
-          >
-            {isResending ? "Sending..." : "Resend code"}
-          </button>
-          {onBack && (
-            <>
-              {" or "}
+        {(showResend || onBack) && (
+          <p className="mt-4 text-center text-sm text-gray-400">
+            {showResend && (
+              <button
+                type="button"
+                onClick={handleResend}
+                disabled={isResending}
+                className="text-brand-500 hover:text-brand-600 font-medium disabled:opacity-60"
+              >
+                {isResending ? "Sending..." : "Resend code"}
+              </button>
+            )}
+            {showResend && onBack && " or "}
+            {onBack && (
               <button
                 type="button"
                 onClick={onBack}
@@ -196,9 +201,9 @@ export default function OtpVerifyForm({
               >
                 Go back
               </button>
-            </>
-          )}
-        </p>
+            )}
+          </p>
+        )}
       </div>
     </div>
   );

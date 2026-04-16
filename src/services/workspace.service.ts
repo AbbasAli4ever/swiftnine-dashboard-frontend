@@ -1,37 +1,50 @@
 import { api } from "@/lib/api";
+import { AuthUser } from "@/stores/auth.store";
 import { Workspace } from "@/stores/workspace.store";
 
-interface WorkspaceResponse {
+interface ApiWrapper<T> {
   success: boolean;
-  data: Workspace;
+  data: T;
   message: string | null;
 }
 
-interface WorkspacesResponse {
-  success: boolean;
-  data: Workspace[];
-  message: string | null;
+export type WorkspaceInviteRole = "OWNER" | "MEMBER";
+export type WorkspaceInviteNextStep = "claim_account" | "login";
+
+export interface WorkspaceInvitePreview {
+  workspaceId: string;
+  workspaceName: string;
+  invitedEmail: string;
+  role: WorkspaceInviteRole;
+  inviterName: string;
+  nextStep: WorkspaceInviteNextStep;
+}
+
+export interface WorkspaceInviteClaimResult {
+  user: AuthUser;
+  accessToken: string;
+  workspaceId: string;
 }
 
 export const workspaceService = {
   list: () =>
-    api.get<WorkspacesResponse>("/workspaces").then((r) => r.data.data),
+    api.get<ApiWrapper<Workspace[]>>("/workspaces").then((r) => r.data.data),
 
   get: (id: string) =>
     api
-      .get<WorkspaceResponse>(`/workspaces/${id}`, {
+      .get<ApiWrapper<Workspace>>(`/workspaces/${id}`, {
         headers: { "x-workspace-id": id },
       })
       .then((r) => r.data.data),
 
   create: (payload: { name: string; logoUrl?: string }) =>
     api
-      .post<WorkspaceResponse>("/workspaces", payload)
+      .post<ApiWrapper<Workspace>>("/workspaces", payload)
       .then((r) => r.data.data),
 
   update: (id: string, payload: { name?: string; logoUrl?: string | null }) =>
     api
-      .patch<WorkspaceResponse>(`/workspaces/${id}`, payload, {
+      .patch<ApiWrapper<Workspace>>(`/workspaces/${id}`, payload, {
         headers: { "x-workspace-id": id },
       })
       .then((r) => r.data.data),
@@ -42,4 +55,26 @@ export const workspaceService = {
         headers: { "x-workspace-id": id },
       })
       .then((r) => r.data),
+
+  invite: (workspaceId: string, payload: { email: string; role?: WorkspaceInviteRole }) =>
+    api
+      .post<ApiWrapper<null>>(`/workspaces/${workspaceId}/invite`, payload, {
+        headers: { "x-workspace-id": workspaceId },
+      })
+      .then((r) => r.data.message),
+
+  previewInvite: (token: string) =>
+    api
+      .get<ApiWrapper<WorkspaceInvitePreview>>(`/workspaces/invite/${token}`)
+      .then((r) => r.data.data),
+
+  claimInvite: (payload: { token: string; fullName: string; password: string }) =>
+    api
+      .post<ApiWrapper<WorkspaceInviteClaimResult>>("/workspaces/invite/claim", payload)
+      .then((r) => r.data.data),
+
+  acceptInvite: (token: string) =>
+    api
+      .post<ApiWrapper<{ workspaceId: string }>>("/workspaces/invite/accept", { token })
+      .then((r) => r.data.data),
 };
