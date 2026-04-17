@@ -8,6 +8,7 @@ import { useProjects } from "@/context/ProjectContext";
 import { Project } from "@/services/project.service";
 import { parseApiError } from "@/lib/api";
 import WorkspaceSwitcher from "@/components/workspace/WorkspaceSwitcher";
+import CreateWorkspaceModal from "@/components/workspace/CreateWorkspaceModal";
 import InvitePeopleModal from "@/components/workspace/InvitePeopleModal";
 import CreateSpaceModal from "@/components/projects/CreateSpaceModal";
 import EditSpaceModal from "@/components/projects/EditSpaceModal";
@@ -208,6 +209,7 @@ function SpaceRow({ project }: { project: Project }) {
 
 function WorkspacePanelHeader() {
   const [switcherOpen, setSwitcherOpen] = useState(false);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
   const { activeWorkspace } = useWorkspace();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const wsName    = activeWorkspace?.name ?? "Workspace";
@@ -227,13 +229,17 @@ function WorkspacePanelHeader() {
         <LuChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />
       </button>
 
-      {switcherOpen && (
-        <WorkspaceSwitcher
-          isOpen={switcherOpen}
-          onClose={() => setSwitcherOpen(false)}
-          anchorRef={triggerRef}
-        />
-      )}
+      <WorkspaceSwitcher
+        isOpen={switcherOpen}
+        onClose={() => setSwitcherOpen(false)}
+        onCreateWorkspace={() => { setSwitcherOpen(false); setCreateModalOpen(true); }}
+        anchorRef={triggerRef}
+      />
+
+      <CreateWorkspaceModal
+        isOpen={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+      />
     </div>
   );
 }

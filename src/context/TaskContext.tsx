@@ -1,9 +1,8 @@
 "use client";
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useState } from "react";
 import {
   Task, TaskStatus, TaskFilters,
   Subtask, ChecklistItem, Checklist, TaskComment, TaskAttachment,
-  SAMPLE_TAGS, SAMPLE_ASSIGNEES,
 } from "@/types/task";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -27,99 +26,6 @@ export function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-// ─── seed data ──────────────────────────────────────────────────────────────
-const SEED: Task[] = [
-  {
-    id: "1", title: "Design new landing page mockup",
-    description: "Create wireframes and high-fidelity mockups for the updated landing page in Figma. Include desktop and mobile variants.",
-    status: "todo", priority: "high",
-    assignees: [SAMPLE_ASSIGNEES[0], SAMPLE_ASSIGNEES[2]],
-    dueDate: tod(3), tags: [SAMPLE_TAGS[0], SAMPLE_TAGS[4]],
-    subtasks: [
-      { id: "s1", title: "Create wireframes", completed: true },
-      { id: "s2", title: "Design desktop layout", completed: false },
-      { id: "s3", title: "Design mobile layout", completed: false },
-    ],
-    checklists: [
-      { id: "cl1", name: "Design checklist", items: [
-        { id: "ci1", text: "Review brand guidelines", completed: true },
-        { id: "ci2", text: "Export assets", completed: false },
-      ]},
-    ],
-    comments: [
-      { id: "cm1", author: SAMPLE_ASSIGNEES[0], content: "Starting with the hero section first.", createdAt: tod(-1) },
-    ],
-    attachments: [], createdAt: tod(-2),
-  },
-  {
-    id: "2", title: "Fix login page validation bug",
-    description: "Users report that the email validation error message does not disappear after correction. Investigate and patch the form validation logic.",
-    status: "in-progress", priority: "urgent",
-    assignees: [SAMPLE_ASSIGNEES[1]],
-    dueDate: tod(1), tags: [SAMPLE_TAGS[3], SAMPLE_TAGS[1]],
-    subtasks: [
-      { id: "s4", title: "Reproduce bug", completed: true },
-      { id: "s5", title: "Write regression test", completed: false },
-    ],
-    checklists: [], comments: [
-      { id: "cm2", author: SAMPLE_ASSIGNEES[1], content: "Found the issue — missing `onChange` reset handler.", createdAt: tod(-1) },
-      { id: "cm3", author: SAMPLE_ASSIGNEES[0], content: "PR ready for review.", createdAt: tod(0) },
-    ],
-    attachments: [], createdAt: tod(-3),
-  },
-  {
-    id: "3", title: "Implement dashboard charts",
-    description: "Integrate ApexCharts to display monthly sales, user growth, and revenue data. Connect to mock API endpoints.",
-    status: "in-progress", priority: "normal",
-    assignees: [SAMPLE_ASSIGNEES[2]],
-    dueDate: tod(5), tags: [SAMPLE_TAGS[1], SAMPLE_TAGS[4]],
-    subtasks: [], checklists: [], comments: [], attachments: [], createdAt: tod(-1),
-  },
-  {
-    id: "4", title: "Write API documentation",
-    description: "Document all REST endpoints using OpenAPI/Swagger spec. Include request/response examples and authentication details.",
-    status: "todo", priority: "low",
-    assignees: [SAMPLE_ASSIGNEES[3]],
-    dueDate: tod(10), tags: [SAMPLE_TAGS[2]],
-    subtasks: [], checklists: [], comments: [], attachments: [], createdAt: tod(-4),
-  },
-  {
-    id: "5", title: "Set up CI/CD pipeline",
-    description: "Configure GitHub Actions for automated build, test, and deployment to staging environment.",
-    status: "done", priority: "high",
-    assignees: [SAMPLE_ASSIGNEES[4]],
-    dueDate: tod(-2), tags: [SAMPLE_TAGS[2], SAMPLE_TAGS[5]],
-    subtasks: [
-      { id: "s6", title: "Setup GitHub Actions", completed: true },
-      { id: "s7", title: "Configure staging deploy", completed: true },
-    ],
-    checklists: [], comments: [], attachments: [], createdAt: tod(-10),
-  },
-  {
-    id: "6", title: "User profile settings page",
-    description: "Build settings page allowing users to update avatar, name, email, and password.",
-    status: "done", priority: "normal",
-    assignees: [SAMPLE_ASSIGNEES[0]],
-    dueDate: tod(-5), tags: [SAMPLE_TAGS[1], SAMPLE_TAGS[4]],
-    subtasks: [], checklists: [], comments: [], attachments: [], createdAt: tod(-12),
-  },
-  {
-    id: "7", title: "Mobile responsive audit",
-    description: "Review and fix layout breakpoints across all pages for mobile and tablet viewports.",
-    status: "review", priority: "normal",
-    assignees: [SAMPLE_ASSIGNEES[1], SAMPLE_ASSIGNEES[3]],
-    dueDate: tod(7), tags: [SAMPLE_TAGS[0], SAMPLE_TAGS[1]],
-    subtasks: [], checklists: [], comments: [], attachments: [], createdAt: tod(-1),
-  },
-  {
-    id: "8", title: "Database query optimisation",
-    description: "Profile slow queries and add indexes. Target P95 latency under 50ms for all dashboard queries.",
-    status: "in-progress", priority: "urgent",
-    assignees: [SAMPLE_ASSIGNEES[3]],
-    dueDate: tod(2), tags: [SAMPLE_TAGS[2], SAMPLE_TAGS[5]],
-    subtasks: [], checklists: [], comments: [], attachments: [], createdAt: tod(-2),
-  },
-];
 
 // ─── context value ───────────────────────────────────────────────────────────
 interface TaskCtx {
@@ -157,18 +63,8 @@ const DEFAULT_FILTERS: TaskFilters = { search: "", status: "all", priority: "all
 
 // ─── provider ────────────────────────────────────────────────────────────────
 export function TaskProvider({ children }: { children: React.ReactNode }) {
-  const [tasks, setTasks] = useState<Task[]>(() => {
-    if (typeof window === "undefined") return SEED;
-    try {
-      const s = localStorage.getItem("cu_tasks");
-      return s ? (JSON.parse(s) as Task[]) : SEED;
-    } catch { return SEED; }
-  });
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [filters, setF] = useState<TaskFilters>(DEFAULT_FILTERS);
-
-  useEffect(() => {
-    localStorage.setItem("cu_tasks", JSON.stringify(tasks));
-  }, [tasks]);
 
   const filteredTasks = tasks.filter((t) => {
     if (filters.search && !t.title.toLowerCase().includes(filters.search.toLowerCase())) return false;

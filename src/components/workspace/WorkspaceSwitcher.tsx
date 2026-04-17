@@ -5,8 +5,6 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { Workspace } from "@/stores/workspace.store";
-import { parseApiError } from "@/lib/api";
-import { toast } from "sonner";
 import { LuSettings, LuUsers, LuCheck, LuPlus } from "react-icons/lu";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -63,73 +61,18 @@ function WorkspaceAvatar({
   );
 }
 
-// ── CreateWorkspaceForm ───────────────────────────────────────────────────────
-
-function CreateWorkspaceForm({ onCreated }: { onCreated: () => void }) {
-  const { createWorkspace } = useWorkspace();
-  const [name, setName] = useState("");
-  const [loading, setLoading] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmed = name.trim();
-    if (!trimmed) return;
-
-    setLoading(true);
-    try {
-      await createWorkspace(trimmed);
-      toast.success(`Workspace "${trimmed}" created`);
-      onCreated();
-    } catch (err) {
-      const { message } = parseApiError(err);
-      toast.error(message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="px-4 pb-4 pt-2">
-      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-        New Workspace
-      </p>
-      <input
-        ref={inputRef}
-        type="text"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="Workspace name"
-        maxLength={60}
-        className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2 text-sm text-gray-800 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-500/10 transition-colors"
-      />
-      <button
-        type="submit"
-        disabled={loading || !name.trim()}
-        className="mt-2 w-full rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        {loading ? "Creating..." : "Create Workspace"}
-      </button>
-    </form>
-  );
-}
-
 // ── Main WorkspaceSwitcher ────────────────────────────────────────────────────
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
+  onCreateWorkspace: () => void;
   anchorRef: React.RefObject<HTMLButtonElement | null>;
 }
 
-export default function WorkspaceSwitcher({ isOpen, onClose, anchorRef }: Props) {
+export default function WorkspaceSwitcher({ isOpen, onClose, onCreateWorkspace, anchorRef }: Props) {
   const router = useRouter();
   const { workspaces, activeWorkspace, switchWorkspace, isLoading } = useWorkspace();
-  const [showCreate, setShowCreate] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -157,8 +100,6 @@ export default function WorkspaceSwitcher({ isOpen, onClose, anchorRef }: Props)
     return () => document.removeEventListener("mousedown", handler);
   }, [isOpen, onClose, anchorRef]);
 
-  if (!isOpen) return null;
-
   const handleSwitch = (id: string) => {
     switchWorkspace(id);
     onClose();
@@ -169,7 +110,7 @@ export default function WorkspaceSwitcher({ isOpen, onClose, anchorRef }: Props)
     router.push("/workspace-settings");
   };
 
-  const dropdown = (
+  const dropdown = isOpen ? (
     <div
       ref={panelRef}
       style={{ top: position.top, left: position.left }}
@@ -238,20 +179,16 @@ export default function WorkspaceSwitcher({ isOpen, onClose, anchorRef }: Props)
 
       {/* Create workspace */}
       <div className="border-t border-gray-100 dark:border-gray-800">
-        {showCreate ? (
-          <CreateWorkspaceForm onCreated={onClose} />
-        ) : (
-          <button
-            onClick={() => setShowCreate(true)}
-            className="flex w-full items-center gap-2 px-4 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-          >
-            <LuPlus className="w-4 h-4" />
-            Create Workspace
-          </button>
-        )}
+        <button
+          onClick={onCreateWorkspace}
+          className="flex w-full items-center gap-2 px-4 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+        >
+          <LuPlus className="w-4 h-4" />
+          Create Workspace
+        </button>
       </div>
     </div>
-  );
+  ) : null;
 
   return createPortal(dropdown, document.body);
 }

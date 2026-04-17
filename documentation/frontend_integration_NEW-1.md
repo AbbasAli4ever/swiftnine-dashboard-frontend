@@ -24,11 +24,13 @@
 5. [User Endpoints](#5-user-endpoints)
 6. [Workspace Endpoints](#6-workspace-endpoints)
    - [POST /workspaces/:workspaceId/invite](#post-workspacesworkspaceidinvite)
+   - [POST /workspaces/:workspaceId/invites](#post-workspacesworkspaceidinvites)
    - [GET /workspaces/invite/:token](#get-workspacesinvitetoken)
    - [POST /workspaces/invite/claim](#post-workspacesinviteclaim)
    - [POST /workspaces/invite/accept](#post-workspacesinviteaccept)
 7. [Project Endpoints](#7-project-endpoints)
-8. [System](#8-system)
+8. [Status Endpoints](#8-status-endpoints)
+9. [System](#9-system)
 
 ---
 
@@ -537,11 +539,21 @@ Authorization: Bearer <accessToken>
 ```json
 {
   "name": "Acme Corp",
-  "logoUrl": "https://cdn.example.com/logo.png"
+  "logoUrl": "https://cdn.example.com/logo.png",
+  "workspaceUse": "WORK",
+  "managementType": "SOFTWARE_DEVELOPMENT"
 }
 ```
 
-`logoUrl` is optional.
+| Field | Required | Rules |
+|---|---|---|
+| `name` | Yes | 1–100 chars |
+| `logoUrl` | No | valid URL |
+| `workspaceUse` | Yes | `"WORK"`, `"PERSONAL"`, `"SCHOOL"` |
+| `managementType` | Yes | See values below |
+
+**`managementType` values:**
+`HR_RECRUITING`, `CREATIVE_DESIGN`, `PROFESSIONAL_SERVICES`, `FINANCE_ACCOUNTING`, `OPERATIONS`, `SOFTWARE_DEVELOPMENT`, `IT`, `SALES_CRM`, `PERSONAL_USE`, `SUPPORT`, `STARTUP`, `PMO`, `MARKETING`, `OTHER`
 
 **Response `201`**
 ```json
@@ -551,6 +563,8 @@ Authorization: Bearer <accessToken>
     "id": "uuid",
     "name": "Acme Corp",
     "logoUrl": "https://cdn.example.com/logo.png",
+    "workspaceUse": "WORK",
+    "managementType": "SOFTWARE_DEVELOPMENT",
     "createdBy": "user-uuid",
     "createdAt": "2026-04-14T12:00:00.000Z",
     "updatedAt": "2026-04-14T12:00:00.000Z"
@@ -641,11 +655,13 @@ x-workspace-id: <workspaceId>
 ```json
 {
   "name": "Acme Corporation",
-  "logoUrl": null
+  "logoUrl": null,
+  "workspaceUse": "PERSONAL",
+  "managementType": "OTHER"
 }
 ```
 
-Send `"logoUrl": null` to remove the logo.
+Send `"logoUrl": null` to remove the logo. `workspaceUse` and `managementType` accept the same values as workspace creation.
 
 **Response `200`**
 ```json
@@ -734,6 +750,60 @@ Token is valid for **7 days**.
 |---|---|
 | 403 | Not OWNER |
 | 404 | Workspace not found |
+
+---
+
+### `POST /workspaces/:workspaceId/invites`
+
+Invite multiple users at once (up to 50). **OWNER only.** Returns a per-email result so the frontend can show exactly who was invited, who was already a member, and who failed.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Request**
+```json
+{
+  "emails": ["alice@example.com", "bob@example.com"],
+  "role": "MEMBER"
+}
+```
+
+| Field | Required | Rules |
+|---|---|---|
+| `emails` | Yes | Array of valid emails, 1–50 items |
+| `role` | No | `"OWNER"` or `"MEMBER"`, defaults to `"MEMBER"` |
+
+**Response `200`**
+```json
+{
+  "success": true,
+  "data": {
+    "results": [
+      { "email": "alice@example.com", "status": "invited",        "message": null },
+      { "email": "bob@example.com",   "status": "already_member", "message": null }
+    ],
+    "summary": {
+      "total": 2,
+      "invited": 1,
+      "alreadyMember": 1,
+      "failed": 0
+    }
+  },
+  "message": null
+}
+```
+
+`status` per email: `"invited"` | `"already_member"` | `"failed"`
+
+**Errors**
+| Status | When |
+|---|---|
+| 403 | Not OWNER |
+| 404 | Workspace not found |
+| 422 | Validation failed (empty array, >50 emails, invalid email) |
 
 ---
 
@@ -1058,7 +1128,283 @@ x-workspace-id: <workspaceId>
 
 ---
 
-## 8. System
+## 8. Status Endpoints
+
+All status endpoints require `Authorization: Bearer <accessToken>` and `x-workspace-id`. Status write operations (create, update, delete, reorder, reset) are **OWNER only**. Read operations are available to any workspace member.
+
+Statuses belong to a project and are organized into four **groups** that represent lifecycle stages:
+
+| Group | Meaning | Mutable? |
+|---|---|---|
+| `NOT_STARTED` | Work hasn't begun | Yes — create/move statuses here |
+| `ACTIVE` | Work in progress | Yes |
+| `DONE` | Work finished | Yes |
+| `CLOSED` | Permanently closed (e.g. Cancelled) | No — cannot create statuses here; only the system-managed closed status lives here |
+
+---
+
+### `POST /statuses`
+
+Create a custom status in a project. **OWNER only.**
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Request**
+```json
+{
+  "projectId": "uuid",
+  "name": "Blocked",
+  "color": "#ef4444",
+  "group": "ACTIVE"
+}
+```
+
+| Field | Required | Rules |
+|---|---|---|
+| `projectId` | Yes | UUID of the project |
+| `name` | Yes | 1–100 chars |
+| `color` | No | Hex color `#RGB` or `#RRGGBB` |
+| `group` | Yes | `"NOT_STARTED"`, `"ACTIVE"`, or `"DONE"` (cannot create in `"CLOSED"`) |
+
+**Response `201`**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "projectId": "uuid",
+    "name": "Blocked",
+    "color": "#ef4444",
+    "group": "ACTIVE",
+    "position": 3500,
+    "isDefault": false,
+    "isProtected": false,
+    "isClosed": false,
+    "createdAt": "2026-04-14T12:00:00.000Z",
+    "updatedAt": "2026-04-14T12:00:00.000Z"
+  },
+  "message": "Status created successfully"
+}
+```
+
+**Errors**
+| Status | When |
+|---|---|
+| 403 | Not OWNER |
+| 404 | Project not found |
+| 422 | Validation failed |
+
+---
+
+### `GET /statuses`
+
+List all statuses for a project, grouped by lifecycle stage.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Query params**
+```
+?projectId=<uuid>
+```
+
+**Response `200`**
+```json
+{
+  "success": true,
+  "data": {
+    "projectId": "uuid",
+    "groups": {
+      "notStarted": [
+        { "id": "uuid", "name": "To Do", "color": "#94a3b8", "group": "NOT_STARTED", "position": 1000, "isDefault": true, "isProtected": false, "isClosed": false }
+      ],
+      "active": [
+        { "id": "uuid", "name": "In Progress", "color": "#3b82f6", "group": "ACTIVE", "position": 2000, "isDefault": true, "isProtected": false, "isClosed": false },
+        { "id": "uuid", "name": "Blocked",     "color": "#ef4444", "group": "ACTIVE", "position": 2500, "isDefault": false, "isProtected": false, "isClosed": false }
+      ],
+      "done": [
+        { "id": "uuid", "name": "Review", "color": "#f59e0b", "group": "DONE", "position": 3000, "isDefault": true, "isProtected": false, "isClosed": false }
+      ],
+      "closed": [
+        { "id": "uuid", "name": "Completed", "color": "#22c55e", "group": "CLOSED", "position": 4000, "isDefault": true, "isProtected": true, "isClosed": true }
+      ]
+    }
+  },
+  "message": null
+}
+```
+
+`isProtected: true` means the status cannot be deleted or moved to a different group.
+
+**Errors**
+| Status | When |
+|---|---|
+| 400 | `projectId` query param missing |
+| 403 | Not a workspace member |
+| 404 | Project not found |
+
+---
+
+### `GET /statuses/:id`
+
+Get a single status by ID.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Response `200`** — single status object (same shape as items in `GET /statuses` groups)
+
+**Errors**
+| Status | When |
+|---|---|
+| 403 | Not a workspace member |
+| 404 | Status not found |
+
+---
+
+### `PUT /statuses/:id`
+
+Update a status name and/or color. **OWNER only.** At least one field must be provided.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Request** — at least one field required
+```json
+{
+  "name": "In Review",
+  "color": "#a855f7"
+}
+```
+
+**Response `200`** — updated status object
+
+**Errors**
+| Status | When |
+|---|---|
+| 400 | No fields provided |
+| 403 | Not OWNER |
+| 404 | Status not found |
+| 422 | Validation failed |
+
+---
+
+### `DELETE /statuses/:id`
+
+Delete a status. **OWNER only.** Protected statuses (`isProtected: true`) cannot be deleted.
+
+If the status has tasks assigned to it, you must provide a `replacementStatusId` to reassign those tasks — otherwise the request will fail.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Request body** — optional
+```json
+{
+  "replacementStatusId": "uuid"
+}
+```
+
+**Response `200`**
+```json
+{
+  "success": true,
+  "data": null,
+  "message": "Status deleted successfully"
+}
+```
+
+**Errors**
+| Status | When |
+|---|---|
+| 400 | Status is protected / tasks exist but no replacementStatusId given |
+| 403 | Not OWNER |
+| 404 | Status not found |
+
+---
+
+### `PUT /statuses/reorder`
+
+Reorder statuses within and across groups. **OWNER only.** You must include **every** status UUID for the project exactly once — partial updates are rejected.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Request**
+```json
+{
+  "projectId": "uuid",
+  "groups": {
+    "notStarted": ["uuid-1"],
+    "active":     ["uuid-2", "uuid-3"],
+    "done":       ["uuid-4"],
+    "closed":     ["uuid-5"]
+  }
+}
+```
+
+The order within each array determines display order. Moving a UUID to a different group changes its `group` value (except `closed` — protected statuses cannot be moved out of `closed`).
+
+**Response `200`** — grouped statuses (same shape as `GET /statuses`)
+
+**Errors**
+| Status | When |
+|---|---|
+| 400 | Missing statuses / duplicate UUIDs / attempt to move protected status |
+| 403 | Not OWNER |
+| 404 | Project not found |
+
+---
+
+### `POST /statuses/default`
+
+Reset statuses to the default template. **OWNER only.** Applies: `To Do` (NOT_STARTED), `In Progress` (ACTIVE), `Complete` (CLOSED).
+
+> Warning: this may remove custom statuses. Tasks on deleted statuses must be handled — check if `replacementStatusId` is needed first.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Request**
+```json
+{
+  "projectId": "uuid"
+}
+```
+
+**Response `200`** — grouped statuses after reset
+
+**Errors**
+| Status | When |
+|---|---|
+| 403 | Not OWNER |
+| 404 | Project not found |
+
+---
+
+## 9. System
 
 ### `GET /health`
 
@@ -1097,6 +1443,7 @@ No auth required. Returns database connectivity status. Use for uptime monitorin
 | Invite claim (new user) | None |
 | Invite accept (existing user) | `Authorization: Bearer <token>` |
 | All project endpoints | `Authorization: Bearer <token>` + `x-workspace-id` |
+| All status endpoints | `Authorization: Bearer <token>` + `x-workspace-id` |
 
 ### Who Can Do What
 
@@ -1107,12 +1454,14 @@ No auth required. Returns database connectivity status. Use for uptime monitorin
 | List / view workspaces | Member of that workspace |
 | Update workspace | OWNER |
 | Delete workspace | OWNER |
-| Invite members | OWNER |
+| Invite members (single or batch) | OWNER |
 | Claim invite (new user, no account) | Public |
 | Accept invite (existing user) | Any authenticated user (email must match) |
 | Create project | Any workspace member |
 | View / update project | Any workspace member |
 | Delete project | OWNER |
+| View statuses | Any workspace member |
+| Create / update / delete / reorder statuses | OWNER |
 
 ### Registration Flow Summary
 

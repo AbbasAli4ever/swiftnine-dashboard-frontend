@@ -1,8 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Task, TaskStatus } from "@/types/task";
 import { useModal } from "@/hooks/useModal";
+import { statusService, StatusItem, flattenGroupedStatuses } from "@/services/status.service";
 import TaskListView from "./TaskListView";
 import TaskBoard from "./TaskBoard";
 import TaskDashboardHome from "./TaskDashboardHome";
@@ -44,9 +45,21 @@ export default function TasksPage() {
   const [viewTask, setViewTask] = useState<Task | null>(null);
   const [defaultStatus, setDefaultStatus] = useState<TaskStatus | undefined>();
   const [panelOpen, setPanelOpen] = useState(false);
+  const [statuses, setStatuses] = useState<StatusItem[]>([]);
   const formModal = useModal();
   const projectName = searchParams.get("projectName")?.trim() || "Project 1";
+  const projectId = searchParams.get("projectId") ?? null;
   const projectInitial = projectName.charAt(0).toUpperCase();
+
+  useEffect(() => {
+    if (!projectId) return;
+    statusService
+      .list(projectId)
+      .then((grouped) => setStatuses(flattenGroupedStatuses(grouped)))
+      .catch(() => {
+        // Silently fail — views will fall back to local status grouping
+      });
+  }, [projectId]);
 
   function openCreate(status?: TaskStatus) {
     setEditTask(null);
@@ -170,9 +183,16 @@ export default function TasksPage() {
             onView={openDetail}
             onAdd={openCreate}
             projectName={projectName}
+            statuses={statuses}
           />
         )}
-        {view === "board" && <TaskBoard onView={openDetail} onAdd={openCreate} />}
+        {view === "board" && (
+          <TaskBoard
+            onView={openDetail}
+            onAdd={openCreate}
+            statuses={statuses}
+          />
+        )}
         {view === "calendar" && <TaskCalendarView onView={openDetail} />}
       </div>
 

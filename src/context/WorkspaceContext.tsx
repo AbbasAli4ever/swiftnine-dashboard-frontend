@@ -8,7 +8,7 @@ import React, {
   useState,
 } from "react";
 import { Workspace, useWorkspaceStore } from "@/stores/workspace.store";
-import { workspaceService } from "@/services/workspace.service";
+import { workspaceService, WorkspaceUse, WorkspaceManagementType } from "@/services/workspace.service";
 import { useAuth } from "@/context/AuthContext";
 
 interface WorkspaceContextValue {
@@ -16,7 +16,7 @@ interface WorkspaceContextValue {
   activeWorkspace: Workspace | null;
   isLoading: boolean;
   switchWorkspace: (id: string) => void;
-  createWorkspace: (name: string, logoUrl?: string) => Promise<Workspace>;
+  createWorkspace: (name: string, workspaceUse: WorkspaceUse, managementType: WorkspaceManagementType, logoUrl?: string) => Promise<Workspace>;
   updateWorkspace: (
     id: string,
     payload: { name?: string; logoUrl?: string | null }
@@ -79,12 +79,11 @@ export function WorkspaceProvider({
   );
 
   const createWorkspace = useCallback(
-    async (name: string, logoUrl?: string) => {
+    async (name: string, workspaceUse: WorkspaceUse, managementType: WorkspaceManagementType, logoUrl?: string) => {
       const workspace = await workspaceService.create(
-        logoUrl ? { name, logoUrl } : { name }
+        logoUrl ? { name, workspaceUse, managementType, logoUrl } : { name, workspaceUse, managementType }
       );
       addWorkspace(workspace);
-      // Auto-switch to the newly created workspace
       setActiveWorkspaceId(workspace.id);
       return workspace;
     },

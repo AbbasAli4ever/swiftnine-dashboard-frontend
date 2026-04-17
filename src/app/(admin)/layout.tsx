@@ -1,8 +1,10 @@
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
+import { useWorkspace } from "@/context/WorkspaceContext";
 import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
+import CreateWorkspaceModal from "@/components/workspace/CreateWorkspaceModal";
 import React, { useEffect } from "react";
 
 export default function AdminLayout({
@@ -11,6 +13,7 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const { isAuthenticated, isLoading } = useAuth();
+  const { workspaces, isLoading: workspacesLoading } = useWorkspace();
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -31,6 +34,8 @@ export default function AdminLayout({
 
   if (!isAuthenticated) return null;
 
+  const forcedModal = !workspacesLoading && isAuthenticated && workspaces.length === 0;
+
   return (
     <div className="flex h-screen overflow-hidden bg-white dark:bg-gray-900">
       {/* Dual-column sidebar: 56px rail + 232px panel = 288px total */}
@@ -44,6 +49,9 @@ export default function AdminLayout({
           {children}
         </main>
       </div>
+
+      {/* Forced workspace creation — cannot be dismissed */}
+      <CreateWorkspaceModal isOpen={forcedModal} />
     </div>
   );
 }
