@@ -49,7 +49,7 @@ export default function SignInForm() {
           ? redirectTo
           : "/";
       toast.success("Welcome back!");
-      router.replace(safeRedirect);
+      window.location.replace(safeRedirect);
     } catch (err) {
       const { message, code, details } = parseApiError(err);
 
