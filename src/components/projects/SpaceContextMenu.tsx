@@ -159,7 +159,7 @@ export default function SpaceContextMenu({
       <div className="px-3 pt-2 pb-1">
         <button
           onClick={onClose}
-          className="w-full py-2 rounded-xl bg-brand-500 text-white text-sm font-semibold hover:bg-brand-600 transition-colors"
+          className="w-full py-2 rounded-xl bg-brand-500 text-white text-sm font-normal hover:bg-brand-600 transition-colors"
         >
           Sharing &amp; Permissions
         </button>

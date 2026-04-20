@@ -32,6 +32,7 @@ interface TaskCtx {
   tasks: Task[];
   filters: TaskFilters;
   filteredTasks: Task[];
+  getFilteredTasks: (scope?: { projectId?: string; listId?: string | null }) => Task[];
   // CRUD
   addTask: (t: Omit<Task, "id" | "createdAt">) => void;
   updateTask: (id: string, updates: Partial<Task>) => void;
@@ -73,6 +74,18 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
     if (filters.assignee && !t.assignees.some((a) => a.toLowerCase().includes(filters.assignee.toLowerCase()))) return false;
     return true;
   });
+
+  const getFilteredTasks = useCallback((scope?: { projectId?: string; listId?: string | null }) => {
+    return tasks.filter((t) => {
+      if (scope?.projectId && t.projectId !== scope.projectId) return false;
+      if (scope?.listId && t.listId !== scope.listId) return false;
+      if (filters.search && !t.title.toLowerCase().includes(filters.search.toLowerCase())) return false;
+      if (filters.status !== "all" && t.status !== filters.status) return false;
+      if (filters.priority !== "all" && t.priority !== filters.priority) return false;
+      if (filters.assignee && !t.assignees.some((a) => a.toLowerCase().includes(filters.assignee.toLowerCase()))) return false;
+      return true;
+    });
+  }, [filters.assignee, filters.priority, filters.search, filters.status, tasks]);
 
   const mut = useCallback((fn: (prev: Task[]) => Task[]) => setTasks(fn), []);
 
@@ -167,6 +180,7 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
   return (
     <Ctx.Provider value={{
       tasks, filters, filteredTasks,
+      getFilteredTasks,
       addTask, updateTask, deleteTask, updateTaskStatus,
       addSubtask, toggleSubtask, deleteSubtask,
       addChecklist, addChecklistItem, toggleChecklistItem, deleteChecklistItem,

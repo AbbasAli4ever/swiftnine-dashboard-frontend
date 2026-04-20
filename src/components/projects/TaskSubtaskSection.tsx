@@ -21,7 +21,7 @@ export default function TaskSubtaskSection({ task }: { task: Task }) {
     <div className="border-b border-gray-100 dark:border-gray-800 py-4">
       <button
         onClick={() => setOpen((p) => !p)}
-        className="flex w-full items-center justify-between text-sm font-semibold text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white"
+        className="flex w-full items-center justify-between text-sm font-normal text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white"
       >
         <span className="flex items-center gap-2">
           <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -29,7 +29,7 @@ export default function TaskSubtaskSection({ task }: { task: Task }) {
           </svg>
           Subtasks
           {task.subtasks.length > 0 && (
-            <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+            <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-xs font-normal text-gray-500 dark:bg-gray-800 dark:text-gray-400">
               {done}/{task.subtasks.length}
             </span>
           )}

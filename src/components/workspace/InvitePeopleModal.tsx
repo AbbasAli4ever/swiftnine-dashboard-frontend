@@ -194,12 +194,12 @@ export default function InvitePeopleModal({
           <LuX className="h-3.5 w-3.5" />
         </button>
 
-        <h2 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">
+        <h2 className="text-2xl font-normal tracking-tight text-gray-900 dark:text-white">
           Invite people for free
         </h2>
 
         <div className="mt-3">
-          <p className="mb-1.5 text-xs font-medium text-gray-700 dark:text-gray-300">
+          <p className="mb-1.5 text-xs font-normal text-gray-700 dark:text-gray-300">
             Invite by email
           </p>
           <input
@@ -221,7 +221,7 @@ export default function InvitePeopleModal({
         </div>
 
         <div ref={roleMenuRef} className="relative mt-3">
-          <p className="mb-1.5 text-xs font-medium text-gray-700 dark:text-gray-300">
+          <p className="mb-1.5 text-xs font-normal text-gray-700 dark:text-gray-300">
             Invite as
           </p>
           <button
@@ -233,7 +233,7 @@ export default function InvitePeopleModal({
               <LuUserPlus className="h-3.5 w-3.5" />
             </div>
             <div className="flex-1">
-              <p className="text-base font-medium leading-none text-gray-900 dark:text-white">
+              <p className="text-base font-normal leading-none text-gray-900 dark:text-white">
                 {currentRole.label}
               </p>
               <p className="mt-1 text-[11px] text-gray-600 dark:text-gray-400">
@@ -251,7 +251,7 @@ export default function InvitePeopleModal({
             <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-20 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900">
               <div className="border-b border-gray-200 px-3 py-2.5 dark:border-gray-800">
                 <div>
-                  <p className="text-xs font-semibold text-gray-900 dark:text-gray-100">
+                  <p className="text-xs font-normal text-gray-900 dark:text-gray-100">
                     {currentRole.label}
                   </p>
                   <p className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">
@@ -272,11 +272,11 @@ export default function InvitePeopleModal({
                     className="w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800/70"
                   >
                     <div className="flex items-center gap-2">
-                      <p className="text-xs font-semibold text-gray-900 dark:text-gray-100">
+                      <p className="text-xs font-normal text-gray-900 dark:text-gray-100">
                         {option.label}
                       </p>
                       {option.badge && (
-                        <span className="rounded bg-violet-100 px-1.5 py-0.5 text-[9px] font-semibold text-violet-600 dark:bg-violet-500/20 dark:text-violet-300">
+                        <span className="rounded bg-violet-100 px-1.5 py-0.5 text-[9px] font-normal text-violet-600 dark:bg-violet-500/20 dark:text-violet-300">
                           {option.badge}
                         </span>
                       )}
@@ -288,7 +288,7 @@ export default function InvitePeopleModal({
                 ))}
                 <button
                   type="button"
-                  className="flex w-full items-center gap-2 border-t border-gray-200 px-3 py-2 text-left text-xs font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-gray-800/70"
+                  className="flex w-full items-center gap-2 border-t border-gray-200 px-3 py-2 text-left text-xs font-normal text-gray-600 hover:bg-gray-50 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-gray-800/70"
                 >
                   <LuPlus className="h-3.5 w-3.5" />
                   Add custom role
@@ -307,7 +307,7 @@ export default function InvitePeopleModal({
             type="button"
             onClick={onClose}
             disabled={isSending}
-            className="rounded-full px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-800 disabled:opacity-60 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white"
+            className="rounded-full px-3 py-1.5 text-xs font-normal text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-800 disabled:opacity-60 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white"
           >
             Cancel
           </button>
@@ -315,7 +315,7 @@ export default function InvitePeopleModal({
             type="button"
             onClick={handleSend}
             disabled={isSending || !activeWorkspace}
-            className="rounded-md bg-violet-500 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-violet-600 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-md bg-violet-500 px-3 py-1.5 text-xs font-normal text-white transition-colors hover:bg-violet-600 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSending ? "Sending..." : "Send free invite"}
           </button>

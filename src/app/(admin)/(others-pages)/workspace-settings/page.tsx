@@ -1,11 +1,5 @@
-import { Metadata } from "next";
-import WorkspaceSettingsPage from "@/components/workspace/WorkspaceSettingsPage";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "Workspace Settings | FocusHub",
-  description: "Manage workspace profile, branding, and danger zone settings.",
-};
-
-export default function WorkspaceSettings() {
-  return <WorkspaceSettingsPage />;
+export default function WorkspaceSettingsPage() {
+  redirect("/settings");
 }

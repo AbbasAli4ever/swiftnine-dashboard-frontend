@@ -54,7 +54,7 @@ function WorkspaceAvatar({
 
   return (
     <span
-      className={`${sizeClass} ${workspaceColor(workspace.id)} flex items-center justify-center rounded-lg text-white font-bold shrink-0`}
+      className={`${sizeClass} ${workspaceColor(workspace.id)} flex items-center justify-center rounded-lg text-white font-normal shrink-0`}
     >
       {workspaceInitial(workspace.name)}
     </span>
@@ -107,7 +107,7 @@ export default function WorkspaceSwitcher({ isOpen, onClose, onCreateWorkspace, 
 
   const handleOpenWorkspaceSettings = () => {
     onClose();
-    router.push("/workspace-settings");
+    router.push("/settings");
   };
 
   const dropdown = isOpen ? (
@@ -121,7 +121,7 @@ export default function WorkspaceSwitcher({ isOpen, onClose, onCreateWorkspace, 
         <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 dark:border-gray-800">
           <WorkspaceAvatar workspace={activeWorkspace} size="lg" />
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+            <p className="text-sm font-normal text-gray-900 dark:text-gray-100 truncate">
               {activeWorkspace.name}
             </p>
             <p className="text-xs text-gray-400">Free Forever · <span className="text-brand-500 cursor-pointer hover:underline">Upgrade</span></p>
@@ -134,12 +134,12 @@ export default function WorkspaceSwitcher({ isOpen, onClose, onCreateWorkspace, 
         <button
           type="button"
           onClick={handleOpenWorkspaceSettings}
-          className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+          className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-xs font-normal text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
         >
           <LuSettings className="w-3.5 h-3.5" />
           Settings
         </button>
-        <button className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+        <button className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-xs font-normal text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
           <LuUsers className="w-3.5 h-3.5" />
           People
         </button>
@@ -153,7 +153,7 @@ export default function WorkspaceSwitcher({ isOpen, onClose, onCreateWorkspace, 
           </div>
         ) : (
           <>
-            <p className="px-4 pt-1 pb-1 text-[11px] uppercase tracking-wide text-gray-400 font-medium">
+            <p className="px-4 pt-1 pb-1 text-[11px] uppercase tracking-wide text-gray-400 font-normal">
               Your Workspaces
             </p>
             {workspaces.map((ws) => (
@@ -167,7 +167,7 @@ export default function WorkspaceSwitcher({ isOpen, onClose, onCreateWorkspace, 
                   }`}
               >
                 <WorkspaceAvatar workspace={ws} size="sm" />
-                <span className="flex-1 text-left truncate font-medium">{ws.name}</span>
+                <span className="flex-1 text-left truncate font-normal">{ws.name}</span>
                 {ws.id === activeWorkspace?.id && (
                   <LuCheck className="w-4 h-4 text-brand-500 shrink-0" />
                 )}
@@ -181,7 +181,7 @@ export default function WorkspaceSwitcher({ isOpen, onClose, onCreateWorkspace, 
       <div className="border-t border-gray-100 dark:border-gray-800">
         <button
           onClick={onCreateWorkspace}
-          className="flex w-full items-center gap-2 px-4 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+          className="flex w-full items-center gap-2 px-4 py-3 text-sm font-normal text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
         >
           <LuPlus className="w-4 h-4" />
           Create Workspace

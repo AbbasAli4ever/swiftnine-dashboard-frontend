@@ -5,6 +5,8 @@ import { useWorkspace } from "@/context/WorkspaceContext";
 import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
 import CreateWorkspaceModal from "@/components/workspace/CreateWorkspaceModal";
+import UserProfilePanel from "@/components/user-profile/UserProfilePanel";
+import { useUiStore } from "@/stores/ui.store";
 import React, { useEffect } from "react";
 
 export default function AdminLayoutClient({
@@ -14,16 +16,14 @@ export default function AdminLayoutClient({
 }) {
   const { isAuthenticated, isLoading } = useAuth();
   const { workspaces, isLoading: workspacesLoading } = useWorkspace();
+  const { profilePanelOpen, closeProfilePanel } = useUiStore();
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      // Hard navigation — avoids RSC prefetch firing against the protected
-      // route before the redirect, which would show a flash or extra requests.
       window.location.replace("/signin");
     }
   }, [isLoading, isAuthenticated]);
 
-  // Still restoring session from the refresh cookie — don't flash the login page
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-white dark:bg-gray-900">
@@ -38,19 +38,19 @@ export default function AdminLayoutClient({
 
   return (
     <div className="flex h-screen overflow-hidden bg-white dark:bg-gray-900">
-      {/* Dual-column sidebar: 56px rail + 232px panel = 288px total */}
       <AppSidebar />
 
-      {/* Main area */}
-      <div className="flex flex-col flex-1 min-w-0 ml-72">
+      {/* Main area — shrinks when profile panel is open */}
+      <div className={`flex flex-col min-w-0 ml-72 transition-all duration-200 ease-in-out ${profilePanelOpen ? "flex-1" : "flex-1"}`}>
         <AppHeader />
-        {/* Full-height content — no extra padding so inbox fills the pane */}
         <main className="flex-1 overflow-hidden">
           {children}
         </main>
       </div>
 
-      {/* Forced workspace creation — cannot be dismissed */}
+      {/* Profile panel — slides in beside the content (not over it) */}
+      <UserProfilePanel isOpen={profilePanelOpen} onClose={closeProfilePanel} />
+
       <CreateWorkspaceModal isOpen={forcedModal} />
     </div>
   );

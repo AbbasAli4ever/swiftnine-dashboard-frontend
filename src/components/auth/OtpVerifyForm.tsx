@@ -100,7 +100,7 @@ export default function OtpVerifyForm({
   return (
     <div className="w-full max-w-md mx-auto">
       <div className="rounded-2xl bg-white shadow-[0_-4px_20px_rgba(0,0,0,0.08),0_4px_20px_rgba(0,0,0,0.08)] p-8 sm:p-10">
-        <h1 className="text-center text-2xl font-bold text-gray-900 mb-6">
+        <h1 className="text-center text-2xl font-normal text-gray-900 mb-6">
           Check your email
         </h1>
 
@@ -127,13 +127,13 @@ export default function OtpVerifyForm({
         </div>
 
         {/* Copy */}
-        <p className="text-center text-[15px] font-semibold text-gray-900 mb-1">
+        <p className="text-center text-[15px] font-normal text-gray-900 mb-1">
           We just emailed you.
         </p>
         <p className="text-center text-sm text-gray-400 mb-1">
           Please enter the code we emailed you:
         </p>
-        <p className="text-center text-sm text-gray-700 font-medium mb-1">
+        <p className="text-center text-sm text-gray-700 font-normal mb-1">
           {email}
         </p>
         <p className="text-center text-xs text-gray-400 mb-6">
@@ -154,7 +154,7 @@ export default function OtpVerifyForm({
               onKeyDown={(e) => handleKeyDown(i, e)}
               onPaste={handlePaste}
               className={[
-                "w-11 h-11 rounded-lg border text-center text-lg font-semibold text-gray-900 outline-none transition-colors caret-transparent",
+                "w-11 h-11 rounded-lg border text-center text-lg font-normal text-gray-900 outline-none transition-colors caret-transparent",
                 hasError
                   ? "border-red-400 focus:border-red-400 focus:ring-2 focus:ring-red-400/20"
                   : "border-gray-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20",
@@ -174,7 +174,7 @@ export default function OtpVerifyForm({
           type="button"
           onClick={handleSubmit}
           disabled={!isComplete || isSubmitting}
-          className="flex w-full items-center justify-center rounded-lg bg-brand-500 px-4 py-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-brand-600 disabled:opacity-60 disabled:cursor-not-allowed"
+          className="flex w-full items-center justify-center rounded-lg bg-brand-500 px-4 py-3 text-sm font-normal text-white shadow-sm transition-colors hover:bg-brand-600 disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {isSubmitting ? "Verifying..." : "Verify"}
         </button>
@@ -187,7 +187,7 @@ export default function OtpVerifyForm({
                 type="button"
                 onClick={handleResend}
                 disabled={isResending}
-                className="text-brand-500 hover:text-brand-600 font-medium disabled:opacity-60"
+                className="text-brand-500 hover:text-brand-600 font-normal disabled:opacity-60"
               >
                 {isResending ? "Sending..." : "Resend code"}
               </button>
@@ -197,7 +197,7 @@ export default function OtpVerifyForm({
               <button
                 type="button"
                 onClick={onBack}
-                className="text-brand-500 hover:text-brand-600 font-medium"
+                className="text-brand-500 hover:text-brand-600 font-normal"
               >
                 Go back
               </button>

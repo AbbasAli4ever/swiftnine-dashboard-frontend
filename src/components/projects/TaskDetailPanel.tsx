@@ -1,34 +1,40 @@
 "use client";
 import React, { useEffect, useRef, useState } from "react";
-import { Task, TaskStatus, TaskPriority, ALL_STATUSES, ALL_PRIORITIES, TASK_STATUS_CONFIG, TASK_PRIORITY_CONFIG, SAMPLE_ASSIGNEES, SAMPLE_TAGS } from "@/types/task";
+import { Task, TaskPriority, ALL_PRIORITIES, TASK_PRIORITY_CONFIG, SAMPLE_ASSIGNEES, SAMPLE_TAGS } from "@/types/task";
 import { useTasks, getInitials, isOverdue } from "@/context/TaskContext";
+import { StatusItem } from "@/services/status.service";
+import { TaskList } from "@/services/task-list.service";
 import TaskSubtaskSection from "./TaskSubtaskSection";
 import TaskChecklistSection from "./TaskChecklistSection";
 import TaskAttachmentSection from "./TaskAttachmentSection";
 import TaskCommentSection from "./TaskCommentSection";
+import { findStatusForTask, legacyStatusFromBackendStatus } from "./status-utils";
 
 interface Props {
   task: Task | null;
   isOpen: boolean;
   onClose: () => void;
   onEdit: (task: Task) => void;
+  statuses?: StatusItem[];
+  lists?: TaskList[];
 }
 
-export default function TaskDetailPanel({ task, isOpen, onClose, onEdit }: Props) {
+export default function TaskDetailPanel({
+  task,
+  isOpen,
+  onClose,
+  onEdit,
+  statuses = [],
+  lists = [],
+}: Props) {
   const { updateTask, updateTaskStatus, deleteTask } = useTasks();
   const [editingTitle, setEditingTitle] = useState(false);
-  const [titleDraft, setTitleDraft] = useState("");
+  const [titleDraft, setTitleDraft] = useState(task?.title ?? "");
   const [editingDesc, setEditingDesc] = useState(false);
-  const [descDraft, setDescDraft] = useState("");
+  const [descDraft, setDescDraft] = useState(task?.description ?? "");
   const [statusOpen, setStatusOpen] = useState(false);
   const [priorityOpen, setPriorityOpen] = useState(false);
   const titleRef = useRef<HTMLTextAreaElement>(null);
-
-  // Refresh local state when task changes
-  useEffect(() => {
-    if (task) { setTitleDraft(task.title); setDescDraft(task.description); }
-    setEditingTitle(false); setEditingDesc(false);
-  }, [task?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Close on Escape
   useEffect(() => {
@@ -45,8 +51,9 @@ export default function TaskDetailPanel({ task, isOpen, onClose, onEdit }: Props
   if (!task) return null;
 
   const overdue = isOverdue(task.dueDate, task.status);
-  const sc = TASK_STATUS_CONFIG[task.status];
   const pc = TASK_PRIORITY_CONFIG[task.priority];
+  const resolvedStatus = findStatusForTask(task, statuses);
+  const currentList = lists.find((list) => list.id === task.listId);
 
   function saveTitle() {
     const t = titleDraft.trim();
@@ -123,12 +130,12 @@ export default function TaskDetailPanel({ task, isOpen, onClose, onEdit }: Props
               onBlur={saveTitle}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); saveTitle(); } if (e.key === "Escape") setEditingTitle(false); }}
               rows={2}
-              className="mb-1 w-full resize-none rounded-lg bg-gray-50 px-2 py-1 text-xl font-bold text-gray-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 dark:bg-gray-800 dark:text-white"
+              className="mb-1 w-full resize-none rounded-lg bg-gray-50 px-2 py-1 text-xl font-normal text-gray-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 dark:bg-gray-800 dark:text-white"
             />
           ) : (
             <h1
               onClick={() => setEditingTitle(true)}
-              className="mb-1 cursor-text text-xl font-bold text-gray-800 hover:text-brand-500 dark:text-white dark:hover:text-brand-400 leading-snug"
+              className="mb-1 cursor-text text-xl font-normal text-gray-800 hover:text-brand-500 dark:text-white dark:hover:text-brand-400 leading-snug"
             >
               {task.title}
             </h1>
@@ -141,22 +148,43 @@ export default function TaskDetailPanel({ task, isOpen, onClose, onEdit }: Props
             <div className="relative">
               <button
                 onClick={() => { setStatusOpen((p) => !p); setPriorityOpen(false); }}
-                className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${sc.color} ${sc.bg} border-transparent hover:opacity-80`}
+                className="flex items-center gap-1.5 rounded-lg border border-transparent px-3 py-1.5 text-xs font-normal transition-colors hover:opacity-80"
+                style={{
+                  color: resolvedStatus?.color ?? undefined,
+                  backgroundColor: resolvedStatus ? `${resolvedStatus.color}14` : undefined,
+                }}
               >
-                <span className={`h-2 w-2 rounded-full ${sc.dot}`} />
-                {sc.label}
+                <span
+                  className="h-2 w-2 rounded-full"
+                  style={{ backgroundColor: resolvedStatus?.color ?? "#94a3b8" }}
+                />
+                {resolvedStatus?.name ?? "Status"}
                 <svg className="h-3 w-3 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
               </button>
               {statusOpen && (
                 <div className="absolute left-0 top-full z-10 mt-1 w-40 rounded-xl border border-gray-100 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900">
-                  {ALL_STATUSES.map((s) => {
-                    const c = TASK_STATUS_CONFIG[s];
+                  {statuses.map((status) => {
                     return (
-                      <button key={s} onClick={() => { updateTaskStatus(task.id, s as TaskStatus); setStatusOpen(false); }}
-                        className={`flex w-full items-center gap-2 px-3 py-2 text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-800 ${task.status === s ? "font-semibold" : ""}`}>
-                        <span className={`h-2 w-2 rounded-full ${c.dot}`} />
-                        <span className={c.color}>{c.label}</span>
-                        {task.status === s && <svg className="ml-auto h-3.5 w-3.5 text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                      <button
+                        key={status.id}
+                        onClick={() => {
+                          updateTask(task.id, {
+                            statusId: status.id,
+                            status: legacyStatusFromBackendStatus(status),
+                          });
+                          if (status.isClosed) {
+                            updateTaskStatus(task.id, "done");
+                          }
+                          setStatusOpen(false);
+                        }}
+                        className={`flex w-full items-center gap-2 px-3 py-2 text-xs font-normal hover:bg-gray-50 dark:hover:bg-gray-800 ${task.statusId === status.id ? "font-normal" : ""}`}
+                      >
+                        <span
+                          className="h-2 w-2 rounded-full"
+                          style={{ backgroundColor: status.color }}
+                        />
+                        <span style={{ color: status.color }}>{status.name}</span>
+                        {task.statusId === status.id ? <svg className="ml-auto h-3.5 w-3.5 text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg> : null}
                       </button>
                     );
                   })}
@@ -168,7 +196,7 @@ export default function TaskDetailPanel({ task, isOpen, onClose, onEdit }: Props
             <div className="relative">
               <button
                 onClick={() => { setPriorityOpen((p) => !p); setStatusOpen(false); }}
-                className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${pc.color} ${pc.bg} border-transparent hover:opacity-80`}
+                className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-normal transition-colors ${pc.color} ${pc.bg} border-transparent hover:opacity-80`}
               >
                 <span className={`h-2 w-2 rounded-full ${pc.dot}`} />
                 {pc.label}
@@ -180,7 +208,7 @@ export default function TaskDetailPanel({ task, isOpen, onClose, onEdit }: Props
                     const c = TASK_PRIORITY_CONFIG[p];
                     return (
                       <button key={p} onClick={() => { updateTask(task.id, { priority: p as TaskPriority }); setPriorityOpen(false); }}
-                        className={`flex w-full items-center gap-2 px-3 py-2 text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-800`}>
+                        className={`flex w-full items-center gap-2 px-3 py-2 text-xs font-normal hover:bg-gray-50 dark:hover:bg-gray-800`}>
                         <span className={`h-2 w-2 rounded-full ${c.dot}`} />
                         <span className={c.color}>{c.label}</span>
                         {task.priority === p && <svg className="ml-auto h-3.5 w-3.5 text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
@@ -192,7 +220,7 @@ export default function TaskDetailPanel({ task, isOpen, onClose, onEdit }: Props
             </div>
 
             {overdue && (
-              <span className="flex items-center gap-1 rounded-lg bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-600 dark:bg-red-500/10 dark:text-red-400">
+              <span className="flex items-center gap-1 rounded-lg bg-red-50 px-2.5 py-1.5 text-xs font-normal text-red-600 dark:bg-red-500/10 dark:text-red-400">
                 <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                 Overdue
               </span>
@@ -207,7 +235,7 @@ export default function TaskDetailPanel({ task, isOpen, onClose, onEdit }: Props
               <div className="flex flex-wrap items-center gap-1.5">
                 {task.assignees.map((a) => (
                   <div key={a} className="flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 dark:bg-gray-800">
-                    <div className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-500 text-[10px] font-bold text-white">{getInitials(a)}</div>
+                    <div className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-500 text-[10px] font-normal text-white">{getInitials(a)}</div>
                     <span className="text-xs text-gray-600 dark:text-gray-300">{a.split(" ")[0]}</span>
                   </div>
                 ))}
@@ -218,7 +246,7 @@ export default function TaskDetailPanel({ task, isOpen, onClose, onEdit }: Props
                   <div className="absolute left-0 top-full z-10 mt-1 hidden w-40 rounded-xl border border-gray-100 bg-white py-1 shadow-lg group-focus-within:block dark:border-gray-700 dark:bg-gray-900">
                     {SAMPLE_ASSIGNEES.map((a) => (
                       <button key={a} onClick={() => toggleAssignee(a)} className="flex w-full items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 dark:hover:bg-gray-800">
-                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-100 text-[10px] font-bold text-brand-600 dark:bg-brand-500/20 dark:text-brand-400">{getInitials(a)}</div>
+                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-100 text-[10px] font-normal text-brand-600 dark:bg-brand-500/20 dark:text-brand-400">{getInitials(a)}</div>
                         <span className="flex-1 text-gray-700 dark:text-gray-300">{a}</span>
                         {task.assignees.includes(a) && <svg className="h-3.5 w-3.5 text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
                       </button>
@@ -226,6 +254,13 @@ export default function TaskDetailPanel({ task, isOpen, onClose, onEdit }: Props
                   </div>
                 </div>
               </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <span className="w-24 shrink-0 text-xs text-gray-400 dark:text-gray-500">List</span>
+              <span className="text-xs font-normal text-gray-700 dark:text-gray-300">
+                {currentList?.name ?? "Unassigned list"}
+              </span>
             </div>
 
             {/* Due date */}
@@ -239,7 +274,7 @@ export default function TaskDetailPanel({ task, isOpen, onClose, onEdit }: Props
                   type="date"
                   value={task.dueDate}
                   onChange={(e) => updateTask(task.id, { dueDate: e.target.value })}
-                  className={`rounded border-0 bg-transparent text-xs focus:outline-none focus:ring-1 focus:ring-brand-500 ${overdue ? "text-red-500 font-semibold" : "text-gray-700 dark:text-gray-300"}`}
+                  className={`rounded border-0 bg-transparent text-xs focus:outline-none focus:ring-1 focus:ring-brand-500 ${overdue ? "text-red-500 font-normal" : "text-gray-700 dark:text-gray-300"}`}
                 />
               </div>
             </div>
@@ -249,12 +284,12 @@ export default function TaskDetailPanel({ task, isOpen, onClose, onEdit }: Props
               <span className="w-24 shrink-0 pt-0.5 text-xs text-gray-400 dark:text-gray-500">Tags</span>
               <div className="flex flex-wrap gap-1">
                 {task.tags.map((tag) => (
-                  <button key={tag.id} onClick={() => toggleTag(tag.id)} className={`rounded-full px-2 py-0.5 text-xs font-medium transition-opacity hover:opacity-70 ${tag.color}`}>
+                  <button key={tag.id} onClick={() => toggleTag(tag.id)} className={`rounded-full px-2 py-0.5 text-xs font-normal transition-opacity hover:opacity-70 ${tag.color}`}>
                     {tag.name}
                   </button>
                 ))}
                 {SAMPLE_TAGS.filter((st) => !task.tags.some((t) => t.id === st.id)).map((st) => (
-                  <button key={st.id} onClick={() => toggleTag(st.id)} className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700">
+                  <button key={st.id} onClick={() => toggleTag(st.id)} className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-normal text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700">
                     + {st.name}
                   </button>
                 ))}
@@ -264,7 +299,7 @@ export default function TaskDetailPanel({ task, isOpen, onClose, onEdit }: Props
 
           {/* ── Description ─────────────────────────────────────── */}
           <div className="mb-4">
-            <p className="mb-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Description</p>
+            <p className="mb-1 text-xs font-normal text-gray-500 dark:text-gray-400 uppercase tracking-wide">Description</p>
             {editingDesc ? (
               <div>
                 <textarea
@@ -275,7 +310,7 @@ export default function TaskDetailPanel({ task, isOpen, onClose, onEdit }: Props
                   className="w-full resize-none rounded-xl border border-brand-400 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none dark:border-brand-500 dark:bg-gray-800 dark:text-gray-300"
                 />
                 <div className="mt-1.5 flex gap-2">
-                  <button onClick={saveDesc} className="rounded-lg bg-brand-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-600">Save</button>
+                  <button onClick={saveDesc} className="rounded-lg bg-brand-500 px-3 py-1.5 text-xs font-normal text-white hover:bg-brand-600">Save</button>
                   <button onClick={() => { setEditingDesc(false); setDescDraft(task.description); }} className="rounded-lg px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800">Cancel</button>
                 </div>
               </div>

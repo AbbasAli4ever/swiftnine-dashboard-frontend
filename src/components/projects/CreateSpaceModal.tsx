@@ -6,6 +6,7 @@ import { useProjects } from "@/context/ProjectContext";
 import { parseApiError } from "@/lib/api";
 import { statusService, CreateStatusPayload } from "@/services/status.service";
 import { ProjectStatus } from "@/services/project.service";
+import { taskListService } from "@/services/task-list.service";
 import { toast } from "sonner";
 import {
   LuX,
@@ -449,6 +450,9 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
         }
       }
 
+      // Auto-create a default list named "List"
+      await taskListService.create(projectId, { name: "List" });
+
       toast.success(`Space "${name.trim()}" created`);
       onClose();
     } catch (err) {
@@ -482,7 +486,7 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
         <div className="relative z-10 w-full max-w-[760px] mx-4 bg-white dark:bg-gray-950 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden">
           <div className="flex items-start justify-between px-6 pt-6 pb-4">
             <div>
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white">Create a Space</h2>
+              <h2 className="text-lg font-normal text-gray-900 dark:text-white">Create a Space</h2>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
                 A Space represents teams, departments, or groups, each with its own Lists, workflows, and settings.
               </p>
@@ -499,11 +503,11 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
             <div className="px-6 space-y-5">
               {/* Icon & Name */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Icon &amp; name</label>
+                <label className="block text-sm font-normal text-gray-700 dark:text-gray-300 mb-2">Icon &amp; name</label>
                 <div className="flex items-center gap-3">
                   <div className="relative group">
                     <div
-                      className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-lg font-bold cursor-pointer shrink-0 transition-opacity hover:opacity-80"
+                      className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-lg font-normal cursor-pointer shrink-0 transition-opacity hover:opacity-80"
                       style={{ backgroundColor: color }}
                     >
                       {initial}
@@ -529,7 +533,7 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
 
               {/* Task ID Prefix */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-normal text-gray-700 dark:text-gray-300 mb-1">
                   Task ID Prefix
                   <span className="ml-1 text-xs text-gray-400 dark:text-gray-500 font-normal">(2–6 chars, e.g. API, MKT)</span>
                 </label>
@@ -545,7 +549,7 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
 
               {/* Description */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-normal text-gray-700 dark:text-gray-300 mb-1">
                   Description <span className="text-gray-400 dark:text-gray-500 font-normal">(optional)</span>
                 </label>
                 <textarea
@@ -562,7 +566,7 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
                 <div className="flex items-center gap-2.5">
                   {isPrivate ? <LuLock className="w-4 h-4 text-gray-400" /> : <LuLockOpen className="w-4 h-4 text-gray-400" />}
                   <div>
-                    <p className="text-sm font-medium text-gray-800 dark:text-gray-200">Make Private</p>
+                    <p className="text-sm font-normal text-gray-800 dark:text-gray-200">Make Private</p>
                     <p className="text-xs text-gray-500">Only you and invited members have access</p>
                   </div>
                 </div>
@@ -580,7 +584,7 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
               <button
                 type="submit"
                 disabled={loading || !isNameValid || prefix.length < 2}
-                className="px-6 py-2 rounded-xl bg-brand-500 text-white text-sm font-semibold hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-6 py-2 rounded-xl bg-brand-500 text-white text-sm font-normal hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Continue
               </button>
@@ -603,7 +607,7 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
               >
                 <LuChevronLeft className="w-4 h-4" />
               </button>
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white">Edit {titleName} statuses</h2>
+              <h2 className="text-lg font-normal text-gray-900 dark:text-white">Edit {titleName} statuses</h2>
             </div>
             <button
               onClick={onClose}
@@ -616,7 +620,7 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
           <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-[200px_1fr] overflow-hidden">
             {/* Left panel */}
             <div className="px-4 py-5 border-b md:border-b-0 md:border-r border-gray-100 dark:border-gray-800 shrink-0">
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Status template</p>
+              <p className="text-sm font-normal text-gray-700 dark:text-gray-300 mb-2">Status template</p>
               <select
                 disabled
                 className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2.5 text-sm text-gray-800 dark:text-gray-200 appearance-none"
@@ -686,7 +690,7 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
                 type="button"
                 onClick={handleCreateProject}
                 disabled={loading}
-                className="px-6 py-2 rounded-xl bg-brand-500 text-white text-sm font-semibold hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-6 py-2 rounded-xl bg-brand-500 text-white text-sm font-normal hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {loading ? "Creating..." : "Apply changes"}
               </button>
@@ -763,7 +767,7 @@ function StatusGroupEditor({
     <div>
       <div className="flex items-center justify-between mb-2.5">
         <div className="flex items-center gap-1.5">
-          <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">{group.title}</p>
+          <p className="text-sm font-normal text-gray-700 dark:text-gray-200">{group.title}</p>
           <LuInfo className="w-3.5 h-3.5 text-gray-400" />
         </div>
         {group.canAdd && !isClosed && (
@@ -846,7 +850,7 @@ function StatusGroupEditor({
                     className="absolute left-0 top-6 z-50 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl p-3 w-52"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">Color</p>
+                    <p className="text-xs font-normal text-gray-500 dark:text-gray-400 mb-2">Color</p>
                     <div className="flex flex-wrap gap-2">
                       {COLOR_OPTIONS.map((c) => (
                         <button
@@ -881,11 +885,11 @@ function StatusGroupEditor({
                   }}
                   onBlur={() => onCommitRename(status.tempId)}
                   onClick={(e) => e.stopPropagation()}
-                  className="flex-1 bg-transparent text-xs font-medium tracking-wide text-gray-800 dark:text-gray-100 focus:outline-none"
+                  className="flex-1 bg-transparent text-xs font-normal tracking-wide text-gray-800 dark:text-gray-100 focus:outline-none"
                 />
               ) : (
                 <span
-                  className="flex-1 font-medium text-gray-800 dark:text-gray-100 truncate text-xs tracking-wide cursor-text"
+                  className="flex-1 font-normal text-gray-800 dark:text-gray-100 truncate text-xs tracking-wide cursor-text"
                   onClick={(e) => { e.stopPropagation(); onStartRename(status.tempId, status.name); }}
                 >
                   {status.name}
@@ -898,7 +902,7 @@ function StatusGroupEditor({
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={(e) => { e.stopPropagation(); onCommitRename(status.tempId); }}
-                  className="shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg bg-brand-500 text-white text-xs font-semibold hover:bg-brand-600 transition-colors"
+                  className="shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg bg-brand-500 text-white text-xs font-normal hover:bg-brand-600 transition-colors"
                 >
                   Save
                   <span className="opacity-70 text-[10px]">↵</span>
@@ -987,7 +991,7 @@ function StatusGroupEditor({
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">Color</p>
+                  <p className="text-xs font-normal text-gray-500 dark:text-gray-400 mb-2">Color</p>
                   <div className="flex flex-wrap gap-2">
                     {COLOR_OPTIONS.map((c) => (
                       <button
@@ -1031,7 +1035,7 @@ function StatusGroupEditor({
               }}
               onBlur={() => { /* intentionally blank — commit only via Enter/Escape/X */ }}
               placeholder="Status name..."
-              className="flex-1 bg-transparent text-xs font-medium tracking-wide text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none"
+              className="flex-1 bg-transparent text-xs font-normal tracking-wide text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none"
             />
 
             {/* Save button — only when name is non-empty */}
@@ -1040,7 +1044,7 @@ function StatusGroupEditor({
                 type="button"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={onAddStatus}
-                className="shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg bg-brand-500 text-white text-xs font-semibold hover:bg-brand-600 transition-colors"
+                className="shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg bg-brand-500 text-white text-xs font-normal hover:bg-brand-600 transition-colors"
               >
                 Save
                 <span className="opacity-70 text-[10px]">↵</span>

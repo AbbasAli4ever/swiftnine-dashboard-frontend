@@ -46,6 +46,8 @@ export interface TaskAttachment {
 
 export interface Task {
   id: string;
+  projectId: string;
+  listId: string;
   title: string;
   description: string;
   status: TaskStatus;

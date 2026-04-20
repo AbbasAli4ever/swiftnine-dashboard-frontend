@@ -11,11 +11,11 @@ import {
   EventInput,
 } from "@fullcalendar/core";
 import { LuChevronLeft, LuChevronRight } from "react-icons/lu";
-import { useTasks } from "@/context/TaskContext";
 import { Task } from "@/types/task";
 import styles from "./task-calendar-ui.module.css";
 
-interface Props {
+interface TaskCalendarViewProps {
+  tasks: Task[];
   onView: (task: Task) => void;
 }
 
@@ -47,7 +47,7 @@ const MONTH_NAMES = [
   "December",
 ];
 
-function getMonthStart(date: Date): Date {
+function getMonthStart(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
 }
 
@@ -72,30 +72,29 @@ function renderEventContent(eventInfo: EventContentArg) {
   );
 }
 
-export default function TaskCalendarView({ onView }: Props) {
-  const { filteredTasks } = useTasks();
+export default function TaskCalendarView({ tasks, onView }: TaskCalendarViewProps) {
   const calendarRef = useRef<FullCalendar | null>(null);
   const [visibleMonth, setVisibleMonth] = useState(() => getMonthStart(new Date()));
 
   const taskById = useMemo(() => {
     const map = new Map<string, Task>();
-    filteredTasks.forEach((task) => map.set(task.id, task));
+    tasks.forEach((task) => map.set(task.id, task));
     return map;
-  }, [filteredTasks]);
+  }, [tasks]);
 
   const events = useMemo<CalendarTaskEvent[]>(
     () =>
-      filteredTasks.map((task, idx) => ({
+      tasks.map((task, index) => ({
         id: `task-${task.id}`,
         title: task.title,
         start: task.dueDate,
         allDay: true,
         extendedProps: {
           taskId: task.id,
-          tone: resolveEventTone(task, idx),
+          tone: resolveEventTone(task, index),
         },
       })),
-    [filteredTasks]
+    [tasks]
   );
 
   const yearOptions = useMemo(() => {
@@ -103,7 +102,7 @@ export default function TaskCalendarView({ onView }: Props) {
     let minYear = currentYear - 2;
     let maxYear = currentYear + 3;
 
-    filteredTasks.forEach((task) => {
+    tasks.forEach((task) => {
       const taskYear = Number.parseInt(task.dueDate.slice(0, 4), 10);
       if (Number.isNaN(taskYear)) return;
       if (taskYear < minYear) minYear = taskYear;
@@ -115,7 +114,7 @@ export default function TaskCalendarView({ onView }: Props) {
     if (visibleYear > maxYear) maxYear = visibleYear;
 
     return Array.from({ length: maxYear - minYear + 1 }, (_, index) => minYear + index);
-  }, [filteredTasks, visibleMonth]);
+  }, [tasks, visibleMonth]);
 
   const syncVisibleMonth = (date: Date) => {
     setVisibleMonth(getMonthStart(date));

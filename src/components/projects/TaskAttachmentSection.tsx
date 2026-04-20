@@ -42,7 +42,7 @@ export default function TaskAttachmentSection({ task }: { task: Task }) {
     <div className="border-b border-gray-100 dark:border-gray-800 py-4">
       <button
         onClick={() => setOpen((p) => !p)}
-        className="flex w-full items-center justify-between text-sm font-semibold text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white"
+        className="flex w-full items-center justify-between text-sm font-normal text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white"
       >
         <span className="flex items-center gap-2">
           <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -50,7 +50,7 @@ export default function TaskAttachmentSection({ task }: { task: Task }) {
           </svg>
           Attachments
           {task.attachments.length > 0 && (
-            <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+            <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-xs font-normal text-gray-500 dark:bg-gray-800 dark:text-gray-400">
               {task.attachments.length}
             </span>
           )}
@@ -74,7 +74,7 @@ export default function TaskAttachmentSection({ task }: { task: Task }) {
                 </div>
               )}
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-gray-700 dark:text-gray-300">{a.name}</p>
+                <p className="truncate text-sm font-normal text-gray-700 dark:text-gray-300">{a.name}</p>
                 <p className="text-xs text-gray-400">{formatFileSize(a.size)} · {a.uploadedAt}</p>
               </div>
               <button
@@ -103,7 +103,7 @@ export default function TaskAttachmentSection({ task }: { task: Task }) {
             <svg className={`mb-1.5 h-7 w-7 ${dragging ? "text-brand-500" : "text-gray-300 dark:text-gray-600"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
             </svg>
-            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+            <p className="text-sm font-normal text-gray-500 dark:text-gray-400">
               {dragging ? "Drop to upload" : "Drop files or click to upload"}
             </p>
             <p className="mt-0.5 text-xs text-gray-400">Any file type supported</p>

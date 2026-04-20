@@ -29,13 +29,13 @@ export default function UserDropdown() {
       >
         {/* Avatar — always initials */}
         <span
-          className="mr-3 h-11 w-11 shrink-0 flex items-center justify-center rounded-full text-white text-sm font-semibold"
+          className="mr-3 h-11 w-11 shrink-0 flex items-center justify-center rounded-full text-white text-sm font-normal"
           style={{ backgroundColor: user?.avatarColor ?? "#6366f1" }}
         >
           {initials}
         </span>
 
-        <span className="block mr-1 font-medium text-theme-sm">
+        <span className="block mr-1 font-normal text-theme-sm">
           {user?.fullName?.split(" ")[0] ?? "User"}
         </span>
 
@@ -65,7 +65,7 @@ export default function UserDropdown() {
         className="absolute right-0 mt-[17px] flex w-[260px] flex-col rounded-2xl border border-gray-200 bg-white p-3 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark"
       >
         <div>
-          <span className="block font-medium text-gray-700 text-theme-sm dark:text-gray-400">
+          <span className="block font-normal text-gray-700 text-theme-sm dark:text-gray-400">
             {user?.fullName ?? "User"}
           </span>
           <span className="mt-0.5 block text-theme-xs text-gray-500 dark:text-gray-400">
@@ -79,7 +79,7 @@ export default function UserDropdown() {
               onItemClick={closeDropdown}
               tag="a"
               href="/profile"
-              className="flex items-center gap-3 px-3 py-2 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+              className="flex items-center gap-3 px-3 py-2 font-normal text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
             >
               <svg
                 className="fill-gray-500 group-hover:fill-gray-700 dark:fill-gray-400 dark:group-hover:fill-gray-300"
@@ -104,7 +104,7 @@ export default function UserDropdown() {
               onItemClick={closeDropdown}
               tag="a"
               href="/profile"
-              className="flex items-center gap-3 px-3 py-2 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+              className="flex items-center gap-3 px-3 py-2 font-normal text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
             >
               <svg
                 className="fill-gray-500 group-hover:fill-gray-700 dark:fill-gray-400 dark:group-hover:fill-gray-300"
@@ -129,7 +129,7 @@ export default function UserDropdown() {
         {/* Sign out — calls logout() from AuthContext */}
         <button
           onClick={() => { closeDropdown(); logout(); }}
-          className="flex items-center gap-3 px-3 py-2 mt-3 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300 w-full text-left"
+          className="flex items-center gap-3 px-3 py-2 mt-3 font-normal text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300 w-full text-left"
         >
           <svg
             className="fill-gray-500 group-hover:fill-gray-700 dark:group-hover:fill-gray-300"

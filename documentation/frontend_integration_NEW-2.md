@@ -30,7 +30,8 @@
    - [POST /workspaces/invite/accept](#post-workspacesinviteaccept)
 7. [Project Endpoints](#7-project-endpoints)
 8. [Status Endpoints](#8-status-endpoints)
-9. [System](#9-system)
+9. [Task List Endpoints](#9-task-list-endpoints)
+10. [System](#10-system)
 
 ---
 
@@ -1404,7 +1405,261 @@ x-workspace-id: <workspaceId>
 
 ---
 
-## 9. System
+## 9. Task List Endpoints
+
+All task list endpoints require `Authorization: Bearer <accessToken>` and `x-workspace-id`. Any workspace member can create, view, update, archive/restore, and reorder task lists. Any member can delete a task list.
+
+Task lists live inside a project and are the containers for tasks. They support gap-based positioning (integer `position` field) and archiving.
+
+---
+
+### `POST /projects/:projectId/lists`
+
+Create a new task list inside a project.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Request**
+```json
+{
+  "name": "Sprint 1"
+}
+```
+
+| Field | Required | Rules |
+|---|---|---|
+| `name` | Yes | 1–255 chars |
+
+**Response `201`**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "projectId": "uuid",
+    "name": "Sprint 1",
+    "position": 1000,
+    "isArchived": false,
+    "createdBy": "user-uuid",
+    "createdAt": "2026-04-14T12:00:00.000Z",
+    "updatedAt": "2026-04-14T12:00:00.000Z"
+  },
+  "message": "Task list created successfully"
+}
+```
+
+**Errors**
+| Status | When |
+|---|---|
+| 403 | Not a workspace member |
+| 404 | Project not found |
+
+---
+
+### `GET /projects/:projectId/lists`
+
+List all task lists in a project. By default returns only active (non-archived) lists.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Query params**
+```
+?includeArchived=true     (optional — also return archived lists)
+```
+
+**Response `200`**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "projectId": "uuid",
+      "name": "Sprint 1",
+      "position": 1000,
+      "isArchived": false,
+      "createdBy": "user-uuid",
+      "createdAt": "2026-04-14T12:00:00.000Z",
+      "updatedAt": "2026-04-14T12:00:00.000Z"
+    }
+  ],
+  "message": null
+}
+```
+
+**Errors**
+| Status | When |
+|---|---|
+| 403 | Not a workspace member |
+| 404 | Project not found |
+
+---
+
+### `PATCH /projects/:projectId/lists/:listId`
+
+Rename a task list.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Request**
+```json
+{
+  "name": "Sprint 2"
+}
+```
+
+**Response `200`**
+```json
+{
+  "success": true,
+  "data": { ... },
+  "message": "Task list updated successfully"
+}
+```
+
+**Errors**
+| Status | When |
+|---|---|
+| 403 | Not a workspace member |
+| 404 | Task list not found |
+
+---
+
+### `PATCH /projects/:projectId/lists/:listId/archive`
+
+Archive a task list. Archived lists are hidden from the default list view but their tasks are not deleted.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Request** — no body
+
+**Response `200`**
+```json
+{
+  "success": true,
+  "data": { ... },
+  "message": "Task list archived successfully"
+}
+```
+
+**Errors**
+| Status | When |
+|---|---|
+| 403 | Not a workspace member |
+| 404 | Task list not found |
+
+---
+
+### `PATCH /projects/:projectId/lists/:listId/restore`
+
+Restore an archived task list.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Request** — no body
+
+**Response `200`**
+```json
+{
+  "success": true,
+  "data": { ... },
+  "message": "Task list restored successfully"
+}
+```
+
+**Errors**
+| Status | When |
+|---|---|
+| 403 | Not a workspace member |
+| 404 | Task list not found |
+
+---
+
+### `PUT /projects/:projectId/lists/reorder`
+
+Reorder task lists within a project. Send every active list ID in the desired display order.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Request**
+```json
+{
+  "listIds": ["uuid-1", "uuid-2", "uuid-3"]
+}
+```
+
+The server assigns gap-based positions (1000, 2000, 3000 …) in the order given.
+
+**Response `200`**
+```json
+{
+  "success": true,
+  "data": [ ... ],
+  "message": "Task lists reordered successfully"
+}
+```
+
+**Errors**
+| Status | When |
+|---|---|
+| 400 | Missing or duplicate list IDs |
+| 403 | Not a workspace member |
+| 404 | Project not found |
+
+---
+
+### `DELETE /projects/:projectId/lists/:listId`
+
+Delete a task list and **all its tasks**. This is permanent — there is no undo.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Response `200`**
+```json
+{
+  "success": true,
+  "data": null,
+  "message": "Task list deleted successfully"
+}
+```
+
+**Errors**
+| Status | When |
+|---|---|
+| 403 | Not a workspace member |
+| 404 | Task list not found |
+
+---
+
+## 10. System
 
 ### `GET /health`
 
@@ -1444,6 +1699,7 @@ No auth required. Returns database connectivity status. Use for uptime monitorin
 | Invite accept (existing user) | `Authorization: Bearer <token>` |
 | All project endpoints | `Authorization: Bearer <token>` + `x-workspace-id` |
 | All status endpoints | `Authorization: Bearer <token>` + `x-workspace-id` |
+| All task list endpoints | `Authorization: Bearer <token>` + `x-workspace-id` |
 
 ### Who Can Do What
 
@@ -1462,6 +1718,8 @@ No auth required. Returns database connectivity status. Use for uptime monitorin
 | Delete project | OWNER |
 | View statuses | Any workspace member |
 | Create / update / delete / reorder statuses | OWNER |
+| Create / view / update / archive / restore / reorder task lists | Any workspace member |
+| Delete task list | Any workspace member |
 
 ### Registration Flow Summary
 
@@ -1525,9 +1783,13 @@ useEffect(() => {
 }, []);
 ```
 
+### Task List Positioning
+
+Task lists use gap-based integer `position` values (1000, 2000, …). When reordering, send all active list IDs in the desired order — the server recalculates positions. Do not hardcode or persist position values on the frontend; always use the positions returned by the server.
+
 ### Task ID Format
 
-Tasks (coming soon) will have a display ID like `API-1`, `API-2`, computed from `taskIdPrefix + '-' + taskNumber`. This is not stored in the DB — it is computed at query time. The `taskIdPrefix` set on project creation is permanent.
+Tasks will have a display ID like `API-1`, `API-2`, computed from `taskIdPrefix + '-' + taskNumber`. This is not stored in the DB — it is computed at query time. The `taskIdPrefix` set on project creation is permanent.
 
 ### Password Rules (All Endpoints)
 

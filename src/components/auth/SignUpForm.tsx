@@ -137,7 +137,7 @@ export default function SignUpForm() {
   return (
     <div className="w-full max-w-md mx-auto">
       <div className="rounded-2xl bg-white shadow-[0_-4px_20px_rgba(0,0,0,0.08),0_4px_20px_rgba(0,0,0,0.08)] p-8 sm:p-10">
-        <h1 className="text-center text-2xl font-bold text-gray-900 mb-6">
+        <h1 className="text-center text-2xl font-normal text-gray-900 mb-6">
           Seconds to sign up!
         </h1>
 
@@ -145,7 +145,7 @@ export default function SignUpForm() {
         <button
           type="button"
           onClick={() => { window.location.href = `${API_URL}/auth/google`; }}
-          className="flex w-full items-center justify-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+          className="flex w-full items-center justify-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-normal text-gray-700 transition-colors hover:bg-gray-50"
         >
           <Image src="/images/brand/google.svg" alt="Google" width={20} height={20} />
           Sign up with Google
@@ -196,7 +196,7 @@ export default function SignUpForm() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="text-sm font-medium text-gray-500 hover:text-gray-700"
+                  className="text-sm font-normal text-gray-500 hover:text-gray-700"
                 >
                   {showPassword ? "Hide" : "Show"}
                 </button>
@@ -233,11 +233,11 @@ export default function SignUpForm() {
                 <div>
                   <p className="text-sm text-gray-500">
                     By checking this box, you agree to our{" "}
-                    <Link href="#" className="font-medium text-gray-800 underline">
+                    <Link href="#" className="font-normal text-gray-800 underline">
                       Terms of Service
                     </Link>{" "}
                     and{" "}
-                    <Link href="#" className="font-medium text-gray-800 underline">
+                    <Link href="#" className="font-normal text-gray-800 underline">
                       Privacy Policy
                     </Link>
                     , and consent to data transfer, hosting, and processing outside
@@ -256,7 +256,7 @@ export default function SignUpForm() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex w-full items-center justify-center rounded-lg bg-brand-500 px-4 py-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-brand-600 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="flex w-full items-center justify-center rounded-lg bg-brand-500 px-4 py-3 text-sm font-normal text-white shadow-sm transition-colors hover:bg-brand-600 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {isSubmitting ? "Creating account..." : "Play with SwiftNine"}
             </button>

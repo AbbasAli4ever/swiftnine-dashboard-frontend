@@ -5,13 +5,9 @@ import { ThemeProvider } from "@/context/ThemeContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { WorkspaceProvider } from "@/context/WorkspaceContext";
 import { ProjectProvider } from "@/context/ProjectContext";
-import { Outfit } from "next/font/google";
+import { TaskListProvider } from "@/context/TaskListContext";
 import "./globals.css";
 import "flatpickr/dist/flatpickr.css";
-
-const outfit = Outfit({
-  subsets: ["latin"],
-});
 
 export default function RootLayout({
   children,
@@ -20,14 +16,16 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${outfit.className} dark:bg-gray-900`}>
+      <body className="dark:bg-gray-900">
         <ThemeProvider>
           <AuthProvider>
             <WorkspaceProvider>
               <ProjectProvider>
-                <SidebarProvider>
-                  <TaskProvider>{children}</TaskProvider>
-                </SidebarProvider>
+                <TaskListProvider>
+                  <SidebarProvider>
+                    <TaskProvider>{children}</TaskProvider>
+                  </SidebarProvider>
+                </TaskListProvider>
               </ProjectProvider>
             </WorkspaceProvider>
           </AuthProvider>

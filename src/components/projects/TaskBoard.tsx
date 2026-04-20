@@ -1,8 +1,9 @@
 "use client";
 
-import { Task, TaskStatus } from "@/types/task";
+import { Task } from "@/types/task";
 import { StatusItem } from "@/services/status.service";
-import { getInitials, useTasks } from "@/context/TaskContext";
+import { getInitials } from "@/context/TaskContext";
+import { legacyStatusFromBackendStatus, taskMatchesStatus } from "./status-utils";
 import {
   LuCalendarDays,
   LuCircleDashed,
@@ -13,49 +14,56 @@ import {
 import { IoCheckmarkCircle } from "react-icons/io5";
 import { IoMdRadioButtonOn } from "react-icons/io";
 
-// Fallback columns when no backend statuses are available yet
 const FALLBACK_STATUSES: StatusItem[] = [
   {
-    id: "fallback_todo", projectId: "", name: "TO DO", color: "#94a3b8",
-    group: "NOT_STARTED", position: 1000, isDefault: true, isProtected: true, isClosed: false,
-    createdAt: "", updatedAt: "",
+    id: "fallback_todo",
+    projectId: "",
+    name: "TO DO",
+    color: "#94a3b8",
+    group: "NOT_STARTED",
+    position: 1000,
+    isDefault: true,
+    isProtected: true,
+    isClosed: false,
+    createdAt: "",
+    updatedAt: "",
   },
   {
-    id: "fallback_inprogress", projectId: "", name: "IN PROGRESS", color: "#3b82f6",
-    group: "ACTIVE", position: 2000, isDefault: true, isProtected: false, isClosed: false,
-    createdAt: "", updatedAt: "",
+    id: "fallback_inprogress",
+    projectId: "",
+    name: "IN PROGRESS",
+    color: "#3b82f6",
+    group: "ACTIVE",
+    position: 2000,
+    isDefault: true,
+    isProtected: false,
+    isClosed: false,
+    createdAt: "",
+    updatedAt: "",
   },
   {
-    id: "fallback_done", projectId: "", name: "COMPLETE", color: "#22c55e",
-    group: "CLOSED", position: 4000, isDefault: true, isProtected: true, isClosed: true,
-    createdAt: "", updatedAt: "",
+    id: "fallback_done",
+    projectId: "",
+    name: "COMPLETE",
+    color: "#22c55e",
+    group: "CLOSED",
+    position: 4000,
+    isDefault: true,
+    isProtected: true,
+    isClosed: true,
+    createdAt: "",
+    updatedAt: "",
   },
 ];
 
 function statusIcon(group: StatusItem["group"], color: string) {
-  if (group === "NOT_STARTED")
+  if (group === "NOT_STARTED") {
     return <LuCircleDashed className="h-3 w-3" style={{ color }} />;
-  if (group === "ACTIVE")
+  }
+  if (group === "ACTIVE") {
     return <IoMdRadioButtonOn className="h-3 w-3" style={{ color }} />;
+  }
   return <IoCheckmarkCircle className="h-3 w-3" style={{ color }} />;
-}
-
-function matchTaskToStatus(task: Task, status: StatusItem): boolean {
-  // If task has a statusId, match by it
-  if (task.statusId) return task.statusId === status.id;
-
-  // Fallback: match legacy string status to status name
-  const name = status.name.toLowerCase().replace(/[\s_-]/g, "");
-  const legacyMap: Record<string, string[]> = {
-    todo: ["todo"],
-    inprogress: ["in-progress", "inprogress"],
-    review: ["review"],
-    done: ["done"],
-    complete: ["done"],
-    completed: ["done"],
-  };
-  const taskStatus = task.status.replace(/[\s_-]/g, "");
-  return (legacyMap[name] ?? [name]).includes(taskStatus);
 }
 
 function MiniAvatar({ assignee }: { assignee?: string }) {
@@ -67,13 +75,13 @@ function MiniAvatar({ assignee }: { assignee?: string }) {
     );
   }
   return (
-    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-300 text-[9px] font-bold text-white">
+    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-300 text-[9px] font-normal text-white">
       {getInitials(assignee)}
     </span>
   );
 }
 
-function formatDueLabel(isoDate: string): string {
+function formatDueLabel(isoDate: string) {
   if (!isoDate) return "";
   const due = new Date(`${isoDate}T00:00:00`);
   const now = new Date();
@@ -102,7 +110,7 @@ function TaskBoardCard({ task, onView }: { task: Task; onView: (task: Task) => v
       onClick={() => onView(task)}
       className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-left shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-800"
     >
-      <p className="line-clamp-2 text-sm font-semibold leading-5 text-gray-800 dark:text-white">
+      <p className="line-clamp-2 text-sm font-normal leading-5 text-gray-800 dark:text-white">
         {task.title}
       </p>
       <div className="mt-2.5 flex items-center gap-1.5 text-gray-400">
@@ -112,13 +120,15 @@ function TaskBoardCard({ task, onView }: { task: Task; onView: (task: Task) => v
       </div>
       <div className="mt-2.5 flex items-center gap-1.5">
         {task.priority === "high" || task.priority === "urgent" ? (
-          <div className="inline-flex items-center gap-1 rounded bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-600">
+          <div className="inline-flex items-center gap-1 rounded bg-amber-100 px-2 py-0.5 text-[11px] font-normal text-amber-600">
             <span className="text-[9px]">▶</span>
             High
           </div>
         ) : null}
         {dueText ? (
-          <div className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-semibold ${dueClass}`}>
+          <div
+            className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-normal ${dueClass}`}
+          >
             <span className="text-[9px]">◉</span>
             {dueText}
           </div>
@@ -128,24 +138,32 @@ function TaskBoardCard({ task, onView }: { task: Task; onView: (task: Task) => v
   );
 }
 
-interface Props {
-  onView: (task: Task) => void;
-  onAdd: (status?: TaskStatus) => void;
+interface TaskBoardProps {
+  tasks: Task[];
   statuses: StatusItem[];
+  onView: (task: Task) => void;
+  onAdd: (options?: { statusId?: string }) => void;
 }
 
-export default function TaskBoard({ onView, onAdd, statuses }: Props) {
-  const { filteredTasks } = useTasks();
-
-  const activeStatuses = (statuses.length > 0 ? statuses : FALLBACK_STATUSES).filter(
-    (s) => !s.isClosed
-  );
-  const closedStatuses = (statuses.length > 0 ? statuses : FALLBACK_STATUSES).filter(
-    (s) => s.isClosed
-  );
+export default function TaskBoard({
+  tasks,
+  statuses,
+  onView,
+  onAdd,
+}: TaskBoardProps) {
+  const resolvedStatuses = statuses.length > 0 ? statuses : FALLBACK_STATUSES;
+  const activeStatuses = resolvedStatuses.filter((status) => !status.isClosed);
+  const closedStatuses = resolvedStatuses.filter((status) => status.isClosed);
 
   const renderColumn = (status: StatusItem) => {
-    const tasks = filteredTasks.filter((t) => matchTaskToStatus(t, status)).slice(0, 8);
+    const matchedTasks = tasks
+      .filter((task) =>
+        status.id.startsWith("fallback_")
+          ? task.status === legacyStatusFromBackendStatus(status)
+          : taskMatchesStatus(task, status)
+      )
+      .slice(0, 8);
+
     return (
       <div
         key={status.id}
@@ -153,25 +171,25 @@ export default function TaskBoard({ onView, onAdd, statuses }: Props) {
       >
         <div className="mb-2.5 flex items-center gap-2">
           <span
-            className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[10px] font-bold tracking-wide text-white"
+            className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[10px] font-normal tracking-wide text-white uppercase"
             style={{ backgroundColor: status.color }}
           >
             {statusIcon(status.group, "#fff")}
             {status.name}
           </span>
-          <span className="text-xs font-semibold text-gray-400">{tasks.length}</span>
+          <span className="text-xs font-normal text-gray-400">{matchedTasks.length}</span>
         </div>
 
         <div className="space-y-2">
-          {tasks.map((task) => (
+          {matchedTasks.map((task) => (
             <TaskBoardCard key={task.id} task={task} onView={onView} />
           ))}
         </div>
 
         <button
           type="button"
-          onClick={() => onAdd()}
-          className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-medium text-gray-400 transition-colors hover:text-brand-500"
+          onClick={() => onAdd({ statusId: status.id })}
+          className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-normal text-gray-400 transition-colors hover:text-brand-500"
         >
           <LuPlus className="h-3.5 w-3.5" />
           Add Task
@@ -189,7 +207,7 @@ export default function TaskBoard({ onView, onAdd, statuses }: Props) {
         <div className="w-40 shrink-0 pt-1 text-gray-400">
           <button
             type="button"
-            className="inline-flex items-center gap-1.5 text-base font-semibold hover:text-gray-600 dark:hover:text-gray-200"
+            className="inline-flex items-center gap-1.5 text-base font-normal hover:text-gray-600 dark:hover:text-gray-200"
           >
             <LuPlus className="h-4 w-4" />
             Add group

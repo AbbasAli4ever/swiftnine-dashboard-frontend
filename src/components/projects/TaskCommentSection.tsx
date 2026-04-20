@@ -22,7 +22,7 @@ export default function TaskCommentSection({ task }: { task: Task }) {
     <div className="py-4">
       <button
         onClick={() => setOpen((p) => !p)}
-        className="flex w-full items-center justify-between text-sm font-semibold text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white"
+        className="flex w-full items-center justify-between text-sm font-normal text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white"
       >
         <span className="flex items-center gap-2">
           <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -30,7 +30,7 @@ export default function TaskCommentSection({ task }: { task: Task }) {
           </svg>
           Activity & Comments
           {task.comments.length > 0 && (
-            <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+            <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-xs font-normal text-gray-500 dark:bg-gray-800 dark:text-gray-400">
               {task.comments.length}
             </span>
           )}
@@ -48,13 +48,13 @@ export default function TaskCommentSection({ task }: { task: Task }) {
           )}
           {task.comments.map((c) => (
             <div key={c.id} className="group flex gap-2.5">
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-bold text-brand-600 dark:bg-brand-500/20 dark:text-brand-400">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-normal text-brand-600 dark:bg-brand-500/20 dark:text-brand-400">
                 {getInitials(c.author)}
               </div>
               <div className="flex-1">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{c.author}</span>
+                    <span className="text-xs font-normal text-gray-700 dark:text-gray-300">{c.author}</span>
                     <span className="text-xs text-gray-400">{c.createdAt}</span>
                   </div>
                   <button
@@ -75,7 +75,7 @@ export default function TaskCommentSection({ task }: { task: Task }) {
 
           {/* Composer */}
           <div className="flex gap-2.5">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-normal text-white">
               {getInitials(CURRENT_USER)}
             </div>
             <div className="flex-1">
@@ -92,7 +92,7 @@ export default function TaskCommentSection({ task }: { task: Task }) {
                   <button onClick={() => setText("")} className="rounded-lg px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800">
                     Cancel
                   </button>
-                  <button onClick={submit} className="rounded-lg bg-brand-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-600">
+                  <button onClick={submit} className="rounded-lg bg-brand-500 px-3 py-1.5 text-xs font-normal text-white hover:bg-brand-600">
                     Comment
                   </button>
                 </div>

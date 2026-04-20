@@ -77,7 +77,7 @@ export default function EditSpaceModal({ isOpen, onClose, project }: Props) {
         {/* Header */}
         <div className="flex items-start justify-between px-6 pt-6 pb-4">
           <div>
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white">Edit Space settings</h2>
+            <h2 className="text-lg font-normal text-gray-900 dark:text-white">Edit Space settings</h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
               A Space represents teams, departments, or groups, each with its own Lists, workflows, and settings.
             </p>
@@ -94,14 +94,14 @@ export default function EditSpaceModal({ isOpen, onClose, project }: Props) {
           <div className="px-6 space-y-5">
             {/* Icon & Name */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-normal text-gray-700 dark:text-gray-300 mb-2">
                 Icon &amp; name
               </label>
               <div className="flex items-center gap-3">
                 {/* Color picker avatar */}
                 <div className="relative group">
                   <div
-                    className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-lg font-bold cursor-pointer shrink-0 hover:opacity-80 transition-opacity"
+                    className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-lg font-normal cursor-pointer shrink-0 hover:opacity-80 transition-opacity"
                     style={{ backgroundColor: color }}
                   >
                     {initial}
@@ -132,7 +132,7 @@ export default function EditSpaceModal({ isOpen, onClose, project }: Props) {
 
             {/* Description */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-normal text-gray-700 dark:text-gray-300 mb-1">
                 Description <span className="text-gray-400 dark:text-gray-500 font-normal">(optional)</span>
               </label>
               <textarea
@@ -146,7 +146,7 @@ export default function EditSpaceModal({ isOpen, onClose, project }: Props) {
 
             {/* Task ID Prefix (read-only after creation) */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-normal text-gray-700 dark:text-gray-300 mb-1">
                 Task ID Prefix
                 <span className="ml-1 text-xs text-gray-400 dark:text-gray-500 font-normal">(cannot be changed)</span>
               </label>
@@ -167,7 +167,7 @@ export default function EditSpaceModal({ isOpen, onClose, project }: Props) {
                   <LuLockOpen className="w-4 h-4 text-gray-400" />
                 )}
                 <div>
-                  <p className="text-sm font-medium text-gray-800 dark:text-gray-200">Make Private</p>
+                  <p className="text-sm font-normal text-gray-800 dark:text-gray-200">Make Private</p>
                   <p className="text-xs text-gray-500">Only you and invited members have access</p>
                 </div>
               </div>
@@ -188,7 +188,7 @@ export default function EditSpaceModal({ isOpen, onClose, project }: Props) {
                 <div className="flex items-center gap-3">
                   <LuLayers className="w-4 h-4 text-gray-400" />
                   <div>
-                    <p className="text-sm text-gray-800 dark:text-gray-200 font-medium">Default views</p>
+                    <p className="text-sm text-gray-800 dark:text-gray-200 font-normal">Default views</p>
                     <p className="text-xs text-gray-500">List, Board</p>
                   </div>
                 </div>
@@ -198,7 +198,7 @@ export default function EditSpaceModal({ isOpen, onClose, project }: Props) {
                 <div className="flex items-center gap-3">
                   <LuCircleDot className="w-4 h-4 text-gray-400" />
                   <div>
-                    <p className="text-sm text-gray-800 dark:text-gray-200 font-medium">Task statuses</p>
+                    <p className="text-sm text-gray-800 dark:text-gray-200 font-normal">Task statuses</p>
                     <p className="text-xs text-gray-500">
                       {project.statuses.map((s) => s.name).join(" → ")}
                     </p>
@@ -210,7 +210,7 @@ export default function EditSpaceModal({ isOpen, onClose, project }: Props) {
                 <div className="flex items-center gap-3">
                   <LuBlocks className="w-4 h-4 text-gray-400" />
                   <div>
-                    <p className="text-sm text-gray-800 dark:text-gray-200 font-medium">ClickApps</p>
+                    <p className="text-sm text-gray-800 dark:text-gray-200 font-normal">ClickApps</p>
                     <p className="text-xs text-gray-500">Priority, Tags, ...</p>
                   </div>
                 </div>
@@ -224,7 +224,7 @@ export default function EditSpaceModal({ isOpen, onClose, project }: Props) {
             <button
               type="submit"
               disabled={loading || !name.trim()}
-              className="px-6 py-2 rounded-xl bg-brand-500 text-white text-sm font-semibold hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-6 py-2 rounded-xl bg-brand-500 text-white text-sm font-normal hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {loading ? "Saving..." : "Save changes"}
             </button>

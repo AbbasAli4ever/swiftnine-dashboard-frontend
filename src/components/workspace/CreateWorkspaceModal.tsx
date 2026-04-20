@@ -162,7 +162,7 @@ export default function CreateWorkspaceModal({ isOpen, onClose }: Props) {
         <div className="px-8 py-10 min-h-[340px]">
           {step === 1 && (
             <div>
-              <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-8">
+              <h2 className="text-3xl font-normal text-gray-900 dark:text-white mb-8">
                 What will you use this Workspace for?
               </h2>
               <div className="flex flex-wrap gap-3">
@@ -171,7 +171,7 @@ export default function CreateWorkspaceModal({ isOpen, onClose }: Props) {
                     key={opt.value}
                     type="button"
                     onClick={() => setWorkspaceUse(opt.value)}
-                    className={`rounded-full border px-6 py-2.5 text-sm font-medium transition-colors ${
+                    className={`rounded-full border px-6 py-2.5 text-sm font-normal transition-colors ${
                       workspaceUse === opt.value
                         ? "border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-gray-900"
                         : "border-gray-300 bg-white text-gray-700 hover:border-gray-500 dark:border-gray-600 dark:bg-transparent dark:text-gray-300 dark:hover:border-gray-400"
@@ -186,7 +186,7 @@ export default function CreateWorkspaceModal({ isOpen, onClose }: Props) {
 
           {step === 2 && (
             <div>
-              <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-8">
+              <h2 className="text-3xl font-normal text-gray-900 dark:text-white mb-8">
                 What would you like to manage?
               </h2>
               <div className="flex flex-wrap gap-2.5">
@@ -195,7 +195,7 @@ export default function CreateWorkspaceModal({ isOpen, onClose }: Props) {
                     key={opt.value}
                     type="button"
                     onClick={() => setManagementType(opt.value)}
-                    className={`rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
+                    className={`rounded-full border px-4 py-2 text-sm font-normal transition-colors ${
                       managementType === opt.value
                         ? "border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-gray-900"
                         : "border-gray-300 bg-white text-gray-700 hover:border-gray-500 dark:border-gray-600 dark:bg-transparent dark:text-gray-300 dark:hover:border-gray-400"
@@ -210,7 +210,7 @@ export default function CreateWorkspaceModal({ isOpen, onClose }: Props) {
 
           {step === 3 && (
             <div>
-              <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-8">
+              <h2 className="text-3xl font-normal text-gray-900 dark:text-white mb-8">
                 Invite people to your Workspace:
               </h2>
               <div
@@ -253,7 +253,7 @@ export default function CreateWorkspaceModal({ isOpen, onClose }: Props) {
 
           {step === 4 && (
             <div>
-              <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-8">
+              <h2 className="text-3xl font-normal text-gray-900 dark:text-white mb-8">
                 Lastly, what would you like to name your Workspace?
               </h2>
               <input
@@ -286,7 +286,7 @@ export default function CreateWorkspaceModal({ isOpen, onClose }: Props) {
               <button
                 type="button"
                 onClick={() => setStep((s) => s - 1)}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-700 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-700 px-4 py-2.5 text-sm font-normal text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
               >
                 <LuChevronLeft className="w-4 h-4" />
                 Back
@@ -303,7 +303,7 @@ export default function CreateWorkspaceModal({ isOpen, onClose }: Props) {
                   (step === 2 && !managementType)
                 }
                 onClick={() => setStep((s) => s + 1)}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 dark:bg-white px-4 py-2.5 text-sm font-semibold text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 dark:bg-white px-4 py-2.5 text-sm font-normal text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 Next
                 <LuChevronRight className="w-4 h-4" />
@@ -313,7 +313,7 @@ export default function CreateWorkspaceModal({ isOpen, onClose }: Props) {
                 type="button"
                 disabled={!name.trim() || loading}
                 onClick={handleFinish}
-                className="inline-flex items-center gap-2 rounded-lg bg-gray-900 dark:bg-white px-4 py-2.5 text-sm font-semibold text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="inline-flex items-center gap-2 rounded-lg bg-gray-900 dark:bg-white px-4 py-2.5 text-sm font-normal text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 {loading ? "Creating..." : <><LuCheck className="w-4 h-4" /> Finish</>}
               </button>

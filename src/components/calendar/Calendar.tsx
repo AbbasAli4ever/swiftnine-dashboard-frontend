@@ -152,7 +152,7 @@ const Calendar: React.FC = () => {
       >
         <div className="flex flex-col px-2 overflow-y-auto custom-scrollbar">
           <div>
-            <h5 className="mb-2 font-semibold text-gray-800 modal-title text-theme-xl dark:text-white/90 lg:text-2xl">
+            <h5 className="mb-2 font-normal text-gray-800 modal-title text-theme-xl dark:text-white/90 lg:text-2xl">
               {selectedEvent ? "Edit Event" : "Add Event"}
             </h5>
             <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -163,7 +163,7 @@ const Calendar: React.FC = () => {
           <div className="mt-8">
             <div>
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
+                <label className="mb-1.5 block text-sm font-normal text-gray-700 dark:text-gray-400">
                   Event Title
                 </label>
                 <input
@@ -176,7 +176,7 @@ const Calendar: React.FC = () => {
               </div>
             </div>
             <div className="mt-6">
-              <label className="block mb-4 text-sm font-medium text-gray-700 dark:text-gray-400">
+              <label className="block mb-4 text-sm font-normal text-gray-700 dark:text-gray-400">
                 Event Color
               </label>
               <div className="flex flex-wrap items-center gap-4 sm:gap-5">
@@ -216,7 +216,7 @@ const Calendar: React.FC = () => {
             </div>
 
             <div className="mt-6">
-              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
+              <label className="mb-1.5 block text-sm font-normal text-gray-700 dark:text-gray-400">
                 Enter Start Date
               </label>
               <div className="relative">
@@ -231,7 +231,7 @@ const Calendar: React.FC = () => {
             </div>
 
             <div className="mt-6">
-              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">
+              <label className="mb-1.5 block text-sm font-normal text-gray-700 dark:text-gray-400">
                 Enter End Date
               </label>
               <div className="relative">
@@ -249,14 +249,14 @@ const Calendar: React.FC = () => {
             <button
               onClick={closeModal}
               type="button"
-              className="flex w-full justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] sm:w-auto"
+              className="flex w-full justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-normal text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] sm:w-auto"
             >
               Close
             </button>
             <button
               onClick={handleAddOrUpdateEvent}
               type="button"
-              className="btn btn-success btn-update-event flex w-full justify-center rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 sm:w-auto"
+              className="btn btn-success btn-update-event flex w-full justify-center rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-normal text-white hover:bg-brand-600 sm:w-auto"
             >
               {selectedEvent ? "Update Changes" : "Add Event"}
             </button>

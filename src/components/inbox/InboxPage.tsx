@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { LuSettings2, LuCheck, LuMessageSquare, LuClock, LuListFilter } from "react-icons/lu";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 type Tab = "primary" | "other" | "later" | "cleared";
@@ -10,96 +11,78 @@ type InboxItem = {
   icon: "clock" | "check" | "circle-dot";
   iconColor: string;
   title: string;
-  author: string;
+  authorName: string;
   authorInitials: string;
   authorColor: string;
-  preview: string;
+  action: string;
   commentCount?: number;
   date: string;
-  group: "Yesterday" | "Earlier this month" | "March";
+  group: "Today" | "Last 7 days";
 };
 
 // ── Mock data ────────────────────────────────────────────────────────────────
 const inboxItems: InboxItem[] = [
   {
-    id: "1", group: "Yesterday",
-    icon: "clock", iconColor: "text-gray-400",
-    title: "Code Refactoring",
-    author: "MR", authorInitials: "MR", authorColor: "bg-orange-400",
-    preview: "github.com",
-    date: "",
+    id: "1", group: "Today",
+    icon: "circle-dot", iconColor: "text-gray-400",
+    title: "Project List UI & API Integration",
+    authorName: "Dania Tariq", authorInitials: "DT", authorColor: "bg-violet-500",
+    action: "assigned this task to you",
+    commentCount: 2,
+    date: "1:01 PM",
   },
   {
-    id: "2", group: "Earlier this month",
-    icon: "clock", iconColor: "text-purple-400",
-    title: "Code refactoring Frontend",
-    author: "Zeeshan Zafar", authorInitials: "ZZ", authorColor: "bg-teal-500",
-    preview: "Zeeshan Zafar changed status To Do → In Progress",
-    commentCount: 1,
-    date: "Apr 3",
-  },
-  {
-    id: "3", group: "March",
+    id: "2", group: "Last 7 days",
     icon: "check", iconColor: "text-green-500",
-    title: "In the hero section I click on call gaia butt…",
-    author: "Zeeshan Zafar", authorInitials: "ZZ", authorColor: "bg-teal-500",
-    preview: "Zeeshan Zafar changed status To Do → Qa",
-    commentCount: 1,
-    date: "Mar 26",
+    title: "Custom Task Statuses API integration with…",
+    authorName: "Dania Tariq", authorInitials: "DT", authorColor: "bg-violet-500",
+    action: "assigned this task to you",
+    commentCount: 4,
+    date: "Apr 17",
   },
   {
-    id: "4", group: "March",
-    icon: "circle-dot", iconColor: "text-orange-400",
-    title: "When I receive the invitation email, the He…",
-    author: "Dania", authorInitials: "MR", authorColor: "bg-orange-400",
-    preview: "@Dania I need HexaAI Logo url as the logo should be publicly acces…",
-    commentCount: 5,
-    date: "Mar 16",
+    id: "3", group: "Last 7 days",
+    icon: "circle-dot", iconColor: "text-gray-400",
+    title: "Task List API Integration",
+    authorName: "Dania Tariq", authorInitials: "DT", authorColor: "bg-violet-500",
+    action: "assigned this task to you",
+    commentCount: 4,
+    date: "Apr 17",
   },
   {
-    id: "5", group: "March",
-    icon: "circle-dot", iconColor: "text-purple-400",
-    title: "Dasboard and qr code list UI Issues",
-    author: "AS", authorInitials: "AS", authorColor: "bg-indigo-500",
-    preview: "this ticket is block due to the Search functionality….from bac",
-    commentCount: 12,
-    date: "Mar 9",
+    id: "4", group: "Last 7 days",
+    icon: "circle-dot", iconColor: "text-gray-400",
+    title: "Frontend: Subtask Management",
+    authorName: "Dania Tariq", authorInitials: "DT", authorColor: "bg-violet-500",
+    action: "assigned this task to you",
+    commentCount: 2,
+    date: "Apr 17",
   },
   {
-    id: "6", group: "March",
-    icon: "check", iconColor: "text-green-500",
-    title: "Archietechture Changes For eleven Labs in…",
-    author: "MR", authorInitials: "MR", authorColor: "bg-orange-400",
-    preview: "PRs: github.com",
-    commentCount: 5,
-    date: "Mar 9",
-  },
-  {
-    id: "7", group: "March",
-    icon: "check", iconColor: "text-green-500",
-    title: "In grade 4 English Level 1 Meduim Questio…",
-    author: "ZZ", authorInitials: "ZZ", authorColor: "bg-teal-500",
-    preview: "In this case the the answer is -teen (teen with d",
+    id: "5", group: "Last 7 days",
+    icon: "circle-dot", iconColor: "text-gray-400",
+    title: "User Profile Integrations",
+    authorName: "Dania Tariq", authorInitials: "DT", authorColor: "bg-violet-500",
+    action: "assigned this task to you",
     commentCount: 3,
-    date: "Mar 6",
+    date: "Apr 17",
   },
   {
-    id: "8", group: "March",
+    id: "6", group: "Last 7 days",
+    icon: "circle-dot", iconColor: "text-gray-400",
+    title: "Task Management UI and Integration",
+    authorName: "Dania Tariq", authorInitials: "DT", authorColor: "bg-violet-500",
+    action: "assigned this task to you",
+    commentCount: 2,
+    date: "Apr 17",
+  },
+  {
+    id: "7", group: "Last 7 days",
     icon: "check", iconColor: "text-green-500",
-    title: "In Class 04 → Music Subject → Level 01 → l…",
-    author: "ZZ", authorInitials: "ZZ", authorColor: "bg-teal-500",
-    preview: "www.youtube.com This is the link to the video. It appears that the video has either been r",
-    commentCount: 3,
-    date: "Mar 6",
-  },
-  {
-    id: "9", group: "March",
-    icon: "circle-dot", iconColor: "text-purple-400",
-    title: "Frontend Integration: Dashboard Analytics…",
-    author: "AS", authorInitials: "AS", authorColor: "bg-indigo-500",
-    preview: "block due to endpoint for \"Top-Performing QR Codes\" graph @Ahmad ali i required date c",
-    commentCount: 6,
-    date: "Mar 3",
+    title: "Workspace flow changes with multiple user",
+    authorName: "Dania Tariq", authorInitials: "DT", authorColor: "bg-violet-500",
+    action: "set due date to Apr 17",
+    date: "Apr 17",
   },
 ];
 
@@ -178,17 +161,17 @@ function EmptyState() {
           </svg>
         </div>
       </div>
-      <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-1">Inbox Zero</h3>
+      <h3 className="text-base font-normal text-gray-800 dark:text-gray-100 mb-1">Inbox Zero</h3>
       <p className="text-sm text-gray-400">Congratulations! You cleared your important notifications</p>
 
       {/* ClickTip */}
       <div className="mt-10 flex flex-col items-center gap-3">
-        <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-300 dark:text-gray-600 border border-gray-200 dark:border-gray-700 rounded-full px-3 py-0.5">ClickTip</span>
+        <span className="text-[11px] font-normal uppercase tracking-widest text-gray-300 dark:text-gray-600 border border-gray-200 dark:border-gray-700 rounded-full px-3 py-0.5">ClickTip</span>
         <p className="text-sm text-gray-500 text-center max-w-xs leading-relaxed">
           Create a Reminder on the fly by pressing &apos;R&apos;<br />
           anywhere in your Workspace!
         </p>
-        <button className="text-xs font-medium text-gray-400 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+        <button className="text-xs font-normal text-gray-400 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
           Learn more
         </button>
       </div>
@@ -196,80 +179,74 @@ function EmptyState() {
   );
 }
 
-// ── Group divider ─────────────────────────────────────────────────────────────
-function GroupLabel({ label }: { label: string }) {
-  return (
-    <div className="px-4 py-2 mt-2">
-      <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">{label}</p>
-    </div>
-  );
-}
-
 // ── Single inbox row ──────────────────────────────────────────────────────────
-function InboxRow({ item }: { item: InboxItem }) {
-  const [hovered, setHovered] = useState(false);
+function InboxRow({ item, isLast }: { item: InboxItem; isLast: boolean }) {
   const [cleared, setCleared] = useState(false);
 
   if (cleared) return null;
 
   return (
     <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      className="group flex items-center gap-3 px-4 py-3 border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors"
+      className={`group grid grid-cols-[20px_minmax(0,1fr)_minmax(0,1.2fr)_160px] items-center gap-5 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors ${!isLast ? "border-b border-gray-100 dark:border-gray-800" : ""}`}
     >
       {/* Status icon */}
-      <div className="shrink-0">
+      <div className="shrink-0 flex items-center justify-center">
         <StatusIcon type={item.icon} color={item.iconColor} />
       </div>
 
-      {/* Title + preview */}
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{item.title}</p>
-        <div className="flex items-center gap-1.5 mt-0.5">
-          <span className={`inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-bold text-white ${item.authorColor} shrink-0`}>
-            {item.authorInitials.slice(0, 1)}
-          </span>
-          <p className="text-xs text-gray-400 truncate">{item.preview}</p>
-        </div>
+      {/* Title */}
+      <p className="text-sm text-gray-800 dark:text-gray-100 truncate">{item.title}</p>
+
+      {/* Author + action */}
+      <div className="flex items-center gap-2 min-w-0">
+        <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[9px] text-white shrink-0 ${item.authorColor}`}>
+          {item.authorInitials.slice(0, 1)}
+        </span>
+        <p className="text-xs truncate">
+          <span className="text-gray-700 dark:text-gray-300">{item.authorName}</span>
+          {" "}<span className="text-brand-500">{item.action}</span>
+        </p>
       </div>
 
-      {/* Right: actions or meta */}
-      <div className="shrink-0 flex items-center gap-2">
-        {hovered ? (
-          <>
-            {/* Snooze */}
-            <button
-              title="Snooze"
-              className="p-1 rounded-md text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-600 transition-colors"
-              onClick={(e) => { e.stopPropagation(); }}
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
-              </svg>
-            </button>
-            {/* Clear */}
-            <button
-              title="Clear"
-              onClick={(e) => { e.stopPropagation(); setCleared(true); }}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-brand-500 text-white text-xs font-semibold hover:bg-brand-600 transition-colors"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4.5 12.75l6 6 9-13.5" />
-              </svg>
-              Clear
-            </button>
-          </>
-        ) : (
-          <>
-            {item.commentCount !== undefined && (
-              <span className="text-xs text-gray-400">{item.commentCount}</span>
-            )}
-            {item.date && (
-              <span className="text-xs text-gray-400 w-10 text-right">{item.date}</span>
-            )}
-          </>
-        )}
+      {/* Right col — always 160px, both layers always in DOM, CSS toggles visibility */}
+      <div className="relative flex items-center justify-end w-full h-6">
+        {/* Default: comment count + date — hidden on hover */}
+        <div className="absolute inset-0 flex items-center justify-end gap-2 group-hover:opacity-0 group-hover:pointer-events-none transition-opacity">
+          {item.commentCount !== undefined && (
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-gray-300 dark:border-gray-600 text-[11px] text-gray-500 dark:text-gray-400 shrink-0">
+              {item.commentCount}
+            </span>
+          )}
+          {item.date && (
+            <span className="text-xs text-gray-400 whitespace-nowrap">{item.date}</span>
+          )}
+        </div>
+
+        {/* Hover: action buttons — hidden by default */}
+        <div className="absolute inset-0 flex items-center justify-end gap-1 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity">
+          <button
+            title="Message"
+            onClick={(e) => e.stopPropagation()}
+            className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+          >
+            <LuMessageSquare className="w-4 h-4" />
+          </button>
+          <button
+            title="Snooze"
+            onClick={(e) => e.stopPropagation()}
+            className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+          >
+            <LuClock className="w-4 h-4" />
+          </button>
+          <button
+            title="Clear"
+            onClick={(e) => { e.stopPropagation(); setCleared(true); }}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-brand-500 text-white text-xs hover:bg-brand-600 transition-colors"
+          >
+            <LuCheck className="w-3.5 h-3.5" />
+            Clear
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -277,41 +254,39 @@ function InboxRow({ item }: { item: InboxItem }) {
 
 // ── Content list ──────────────────────────────────────────────────────────────
 function ContentList({ items }: { items: InboxItem[] }) {
-  const groups = ["Yesterday", "Earlier this month", "March"] as const;
+  const groups = ["Today", "Last 7 days"] as const;
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col gap-4 p-4">
       {/* Filter + Clear all bar */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 dark:border-gray-800">
-        <button className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5">
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" />
-          </svg>
+      <div className="flex items-center justify-between">
+        <button className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
+          <LuListFilter className="w-4 h-4" />
           Filter
         </button>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <button className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
+            <LuSettings2 className="w-4 h-4" />
           </button>
-          <button className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors font-medium">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.5 12.75l6 6 9-13.5" />
-            </svg>
+          <button className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors">
+            <LuCheck className="w-4 h-4" />
             Clear all
           </button>
         </div>
       </div>
 
-      {/* Grouped rows */}
+      {/* Grouped tables */}
       {groups.map((group) => {
         const groupItems = items.filter((i) => i.group === group);
         if (!groupItems.length) return null;
         return (
           <div key={group}>
-            <GroupLabel label={group} />
-            {groupItems.map((item) => <InboxRow key={item.id} item={item} />)}
+            <p className="mb-2 text-sm text-gray-500 dark:text-gray-400 px-1">{group}</p>
+            <div className="rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden bg-white dark:bg-gray-900">
+              {groupItems.map((item, idx) => (
+                <InboxRow key={item.id} item={item} isLast={idx === groupItems.length - 1} />
+              ))}
+            </div>
           </div>
         );
       })}
@@ -343,7 +318,7 @@ export default function InboxPage() {
                 }`}
             >
               <span className={`${isActive ? "text-brand-500" : "text-gray-400"}`}>{tab.icon}</span>
-              <span className="font-medium leading-none">{tab.label}</span>
+              <span className="font-normal leading-none">{tab.label}</span>
               {tab.count && (
                 <span className={`text-[11px] leading-none ${isActive ? "text-brand-400" : "text-gray-400"}`}>
                   {tab.count}

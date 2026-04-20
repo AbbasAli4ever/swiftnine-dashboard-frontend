@@ -73,22 +73,22 @@ function ClaimInviteCard({
 
   return (
     <div>
-      <p className="text-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400">
+      <p className="text-xs font-normal uppercase tracking-wide text-brand-600 dark:text-brand-400">
         New invitee
       </p>
-      <h1 className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
+      <h1 className="mt-2 text-2xl font-normal text-gray-900 dark:text-white">
         Set up your account to join {preview.workspaceName}
       </h1>
       <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-        This invitation is for <span className="font-semibold">{preview.invitedEmail}</span>.
+        This invitation is for <span className="font-normal">{preview.invitedEmail}</span>.
       </p>
 
       <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm dark:border-gray-700 dark:bg-gray-800/40">
         <p className="text-gray-700 dark:text-gray-200">
-          <span className="font-semibold">Invited by:</span> {preview.inviterName}
+          <span className="font-normal">Invited by:</span> {preview.inviterName}
         </p>
         <p className="mt-1 text-gray-700 dark:text-gray-200">
-          <span className="font-semibold">Workspace role:</span> {preview.role}
+          <span className="font-normal">Workspace role:</span> {preview.role}
         </p>
       </div>
 
@@ -123,7 +123,7 @@ function ClaimInviteCard({
           <button
             type="button"
             onClick={() => setShowPassword((v) => !v)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-normal text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
           >
             {showPassword ? "Hide" : "Show"}
           </button>
@@ -148,7 +148,7 @@ function ClaimInviteCard({
           <button
             type="button"
             onClick={() => setShowConfirm((v) => !v)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-normal text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
           >
             {showConfirm ? "Hide" : "Show"}
           </button>
@@ -160,7 +160,7 @@ function ClaimInviteCard({
         <button
           type="submit"
           disabled={isSubmitting}
-          className="flex w-full items-center justify-center rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+          className="flex w-full items-center justify-center rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-normal text-white transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isSubmitting ? "Accepting invitation..." : "Accept invitation"}
         </button>
@@ -170,7 +170,7 @@ function ClaimInviteCard({
         Already have an account?{" "}
         <Link
           href={signInHref}
-          className="font-medium text-brand-500 hover:text-brand-600"
+          className="font-normal text-brand-500 hover:text-brand-600"
         >
           Sign in
         </Link>
@@ -202,28 +202,28 @@ function ExistingInviteCard({
 
   return (
     <div>
-      <p className="text-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400">
+      <p className="text-xs font-normal uppercase tracking-wide text-brand-600 dark:text-brand-400">
         Existing account
       </p>
-      <h1 className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
+      <h1 className="mt-2 text-2xl font-normal text-gray-900 dark:text-white">
         You are invited to join {preview.workspaceName}
       </h1>
 
       <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm dark:border-gray-700 dark:bg-gray-800/40">
         <p className="text-gray-700 dark:text-gray-200">
-          <span className="font-semibold">Invited by:</span> {preview.inviterName}
+          <span className="font-normal">Invited by:</span> {preview.inviterName}
         </p>
         <p className="mt-1 text-gray-700 dark:text-gray-200">
-          <span className="font-semibold">Invited email:</span> {preview.invitedEmail}
+          <span className="font-normal">Invited email:</span> {preview.invitedEmail}
         </p>
         <p className="mt-1 text-gray-700 dark:text-gray-200">
-          <span className="font-semibold">Role:</span> {preview.role}
+          <span className="font-normal">Role:</span> {preview.role}
         </p>
       </div>
 
       {isAuthenticated && currentUserEmail && (
         <p className="mt-4 text-sm text-gray-600 dark:text-gray-300">
-          Signed in as <span className="font-semibold">{currentUserEmail}</span>
+          Signed in as <span className="font-normal">{currentUserEmail}</span>
         </p>
       )}
 
@@ -236,7 +236,7 @@ function ExistingInviteCard({
 
       {!isAuthenticated && !authLoading && (
         <p className="mt-4 text-sm text-gray-600 dark:text-gray-300">
-          Please sign in with <span className="font-semibold">{preview.invitedEmail}</span>{" "}
+          Please sign in with <span className="font-normal">{preview.invitedEmail}</span>{" "}
           to accept this invitation.
         </p>
       )}
@@ -247,7 +247,7 @@ function ExistingInviteCard({
           void onAccept();
         }}
         disabled={accepting || authLoading}
-        className="mt-6 inline-flex rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
+        className="mt-6 inline-flex rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-normal text-white transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {accepting
           ? "Accepting..."
@@ -378,7 +378,7 @@ function InviteContent() {
           </div>
         ) : previewError ? (
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
+            <h1 className="text-2xl font-normal text-gray-900 dark:text-white">
               Invitation unavailable
             </h1>
             <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
@@ -387,7 +387,7 @@ function InviteContent() {
             <div className="mt-6">
               <Link
                 href="/signin"
-                className="inline-flex rounded-lg bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-600"
+                className="inline-flex rounded-lg bg-brand-500 px-4 py-2 text-sm font-normal text-white hover:bg-brand-600"
               >
                 Go to sign in
               </Link>

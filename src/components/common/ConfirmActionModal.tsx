@@ -64,7 +64,7 @@ export default function ConfirmActionModal({
           <LuX className="h-4 w-4" />
         </button>
 
-        <h3 className="pr-8 text-lg font-semibold text-gray-900 dark:text-gray-100">
+        <h3 className="pr-8 text-lg font-normal text-gray-900 dark:text-gray-100">
           {title}
         </h3>
         <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
@@ -92,7 +92,7 @@ export default function ConfirmActionModal({
             type="button"
             onClick={onClose}
             disabled={isLoading}
-            className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+            className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-normal text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
           >
             Cancel
           </button>
@@ -100,7 +100,7 @@ export default function ConfirmActionModal({
             type="button"
             onClick={onConfirm}
             disabled={!canConfirm}
-            className="rounded-lg border border-red-500/70 bg-red-500 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-lg border border-red-500/70 bg-red-500 px-3 py-2 text-sm font-normal text-white transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isLoading ? "Deleting..." : confirmLabel}
           </button>

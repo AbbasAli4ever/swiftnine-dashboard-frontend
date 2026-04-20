@@ -30,7 +30,7 @@ export default function TaskChecklistSection({ task }: { task: Task }) {
     <div className="border-b border-gray-100 dark:border-gray-800 py-4">
       <button
         onClick={() => setOpen((p) => !p)}
-        className="flex w-full items-center justify-between text-sm font-semibold text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white"
+        className="flex w-full items-center justify-between text-sm font-normal text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white"
       >
         <span className="flex items-center gap-2">
           <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -38,7 +38,7 @@ export default function TaskChecklistSection({ task }: { task: Task }) {
           </svg>
           Checklist
           {totalItems > 0 && (
-            <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+            <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-xs font-normal text-gray-500 dark:bg-gray-800 dark:text-gray-400">
               {doneItems}/{totalItems}
             </span>
           )}
@@ -55,7 +55,7 @@ export default function TaskChecklistSection({ task }: { task: Task }) {
             return (
               <div key={cl.id}>
                 <div className="mb-1 flex items-center justify-between">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{cl.name}</span>
+                  <span className="text-xs font-normal uppercase tracking-wide text-gray-500 dark:text-gray-400">{cl.name}</span>
                   <span className="text-xs text-gray-400">{clDone}/{cl.items.length}</span>
                 </div>
                 {cl.items.length > 0 && (

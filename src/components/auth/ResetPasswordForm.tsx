@@ -63,12 +63,12 @@ export default function ResetPasswordForm({ onSubmit }: ResetPasswordFormProps) 
           />
         </div>
 
-        <h1 className="text-[22px] font-bold text-gray-900 text-center mb-2">
+        <h1 className="text-[22px] font-normal text-gray-900 text-center mb-2">
           Set new password
         </h1>
         <p className="text-sm text-gray-400 text-center mb-6">
           Remember it this time?{" "}
-          <Link href="/signin" className="text-brand-500 font-medium hover:text-brand-600">
+          <Link href="/signin" className="text-brand-500 font-normal hover:text-brand-600">
             Sign in
           </Link>
         </p>
@@ -139,7 +139,7 @@ export default function ResetPasswordForm({ onSubmit }: ResetPasswordFormProps) 
           <button
             type="submit"
             disabled={isSubmitting}
-            className="flex w-full items-center justify-center rounded-lg bg-brand-500 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-600 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="flex w-full items-center justify-center rounded-lg bg-brand-500 px-4 py-3 text-sm font-normal text-white shadow-sm transition-colors hover:bg-brand-600 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {isSubmitting ? "Resetting…" : "Reset password"}
           </button>

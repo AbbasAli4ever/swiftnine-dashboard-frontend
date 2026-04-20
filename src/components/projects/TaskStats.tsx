@@ -24,7 +24,7 @@ export default function TaskStats() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={c.icon} />
             </svg>
           </div>
-          <p className={`text-2xl font-bold ${c.color}`}>{c.value}</p>
+          <p className={`text-2xl font-normal ${c.color}`}>{c.value}</p>
           <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{c.label}</p>
         </div>
       ))}

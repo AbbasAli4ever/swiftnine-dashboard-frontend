@@ -31,7 +31,7 @@ export default function AuthLayout({
           </span>
           <Link
             href={isSignIn ? "/signup" : "/signin"}
-            className="rounded-full border border-brand-500 px-5 py-2 text-sm font-medium text-brand-500 transition-colors hover:bg-brand-500 hover:text-white"
+            className="rounded-full border border-brand-500 px-5 py-2 text-sm font-normal text-brand-500 transition-colors hover:bg-brand-500 hover:text-white"
           >
             {isSignIn ? "Sign up" : "Login"}
           </Link>
@@ -62,7 +62,7 @@ export default function AuthLayout({
             Don&apos;t have an account?{" "}
             <Link
               href="/signup"
-              className="font-medium text-white underline hover:text-white/90"
+              className="font-normal text-white underline hover:text-white/90"
             >
               Sign up
             </Link>

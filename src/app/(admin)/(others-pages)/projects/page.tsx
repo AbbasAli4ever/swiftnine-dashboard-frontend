@@ -1,5 +1,5 @@
 import { Metadata } from "next";
-import TasksPage from "@/components/tasks/TasksPage";
+import TasksPage from "@/components/projects/TasksPage";
 
 export const metadata: Metadata = {
   title: "Task Management | TailAdmin - Next.js Dashboard Template",

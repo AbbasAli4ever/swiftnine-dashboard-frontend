@@ -1,11 +1,14 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { useProjects } from "@/context/ProjectContext";
+import { useTaskLists } from "@/context/TaskListContext";
 import { Project } from "@/services/project.service";
+import { TaskList } from "@/services/task-list.service";
 import { parseApiError } from "@/lib/api";
 import WorkspaceSwitcher from "@/components/workspace/WorkspaceSwitcher";
 import CreateWorkspaceModal from "@/components/workspace/CreateWorkspaceModal";
@@ -14,6 +17,9 @@ import CreateSpaceModal from "@/components/projects/CreateSpaceModal";
 import EditSpaceModal from "@/components/projects/EditSpaceModal";
 import SpaceContextMenu from "@/components/projects/SpaceContextMenu";
 import ConfirmActionModal from "@/components/common/ConfirmActionModal";
+import CreateListModal from "@/components/projects/CreateListModal";
+import RenameListModal from "@/components/projects/RenameListModal";
+import ListContextMenu from "@/components/projects/ListContextMenu";
 import { toast } from "sonner";
 import { RiHomeSmileFill } from "react-icons/ri";
 import { BsCalendar2Date, BsStars } from "react-icons/bs";
@@ -38,6 +44,7 @@ import {
   LuChevronDown,
   LuSlidersHorizontal,
   LuEllipsis as LuMoreHorizontal,
+  LuList,
 } from "react-icons/lu";
 
 // ── Icon Rail items ──────────────────────────────────────────────────────────
@@ -106,22 +113,193 @@ const integrationSettingsItems = [
   "Email Integration",
 ];
 
-// ── Space row with hover 3-dot menu ─────────────────────────────────────────
-function SpaceRow({ project }: { project: Project }) {
+function SidebarListRow({
+  project,
+  list,
+  isActive,
+  onDragStart,
+  onDragOver,
+  onDrop,
+}: {
+  project: Project;
+  list: TaskList;
+  isActive: boolean;
+  onDragStart: (listId: string) => void;
+  onDragOver: (event: React.DragEvent<HTMLDivElement>) => void;
+  onDrop: (targetListId: string) => void;
+}) {
+  const router = useRouter();
+  const { renameList, archiveList, deleteList } = useTaskLists();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [isMutating, setIsMutating] = useState(false);
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+
+  const navigateToList = () => {
+    router.push(`/projects?projectId=${project.id}&listId=${list.id}&view=list`);
+  };
+
+  const handleRename = async (name: string) => {
+    setIsMutating(true);
+    try {
+      await renameList(project.id, list.id, { name });
+      toast.success(`List "${name}" renamed`);
+      setRenameOpen(false);
+    } catch (error) {
+      const { message } = parseApiError(error);
+      toast.error(message);
+    } finally {
+      setIsMutating(false);
+    }
+  };
+
+  const handleArchive = async () => {
+    setIsMutating(true);
+    try {
+      await archiveList(project.id, list.id);
+      if (isActive) {
+        router.push(`/projects?projectId=${project.id}`);
+      }
+      toast.success(`List "${list.name}" archived`);
+      setArchiveOpen(false);
+    } catch (error) {
+      const { message } = parseApiError(error);
+      toast.error(message);
+    } finally {
+      setIsMutating(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setIsMutating(true);
+    try {
+      await deleteList(project.id, list.id);
+      if (isActive) {
+        router.push(`/projects?projectId=${project.id}`);
+      }
+      toast.success(`List "${list.name}" deleted`);
+      setDeleteOpen(false);
+    } catch (error) {
+      const { message } = parseApiError(error);
+      toast.error(message);
+    } finally {
+      setIsMutating(false);
+    }
+  };
+
+  return (
+    <>
+      <div
+        draggable
+        onDragStart={() => onDragStart(list.id)}
+        onDragOver={onDragOver}
+        onDrop={() => onDrop(list.id)}
+        className={`group ml-7 flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13px] transition-colors ${
+          isActive
+            ? "bg-violet-100/80 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300"
+            : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+        }`}
+      >
+        <button
+          type="button"
+          onClick={navigateToList}
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+        >
+          <LuList className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+          <span className="truncate font-normal">{list.name}</span>
+        </button>
+
+        <button
+          ref={menuTriggerRef}
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            setMenuOpen(true);
+          }}
+          className="flex h-5 w-5 items-center justify-center rounded text-gray-400 opacity-0 transition-all hover:bg-gray-200 hover:text-gray-700 group-hover:opacity-100 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+        >
+          <LuMoreHorizontal className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      <ListContextMenu
+        list={list}
+        triggerRef={menuTriggerRef}
+        isOpen={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        onRename={() => setRenameOpen(true)}
+        onArchive={() => setArchiveOpen(true)}
+        onDelete={() => setDeleteOpen(true)}
+      />
+
+      <RenameListModal
+        isOpen={renameOpen}
+        initialName={list.name}
+        onClose={() => setRenameOpen(false)}
+        onSubmit={handleRename}
+        isLoading={isMutating}
+      />
+
+      <ConfirmActionModal
+        isOpen={archiveOpen}
+        title="Archive List"
+        description={`Archive "${list.name}"? It will disappear from the sidebar until restored from the project view.`}
+        confirmLabel="Archive List"
+        onClose={() => {
+          if (!isMutating) setArchiveOpen(false);
+        }}
+        onConfirm={handleArchive}
+        isLoading={isMutating}
+      />
+
+      <ConfirmActionModal
+        isOpen={deleteOpen}
+        title="Delete List"
+        description={`Delete "${list.name}" and all of its tasks? This action cannot be undone.`}
+        confirmLabel="Delete List"
+        onClose={() => {
+          if (!isMutating) setDeleteOpen(false);
+        }}
+        onConfirm={handleDelete}
+        isLoading={isMutating}
+      />
+    </>
+  );
+}
+
+// ── Space row with nested list items ────────────────────────────────────────
+function SpaceRow({
+  project,
+  activeProjectId,
+  activeListId,
+}: {
+  project: Project;
+  activeProjectId: string | null;
+  activeListId: string | null;
+}) {
   const router = useRouter();
   const { deleteProject } = useProjects();
+  const { getProjectLists, reorderLists } = useTaskLists();
   const [menuOpen, setMenuOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [expanded, setExpanded] = useState(true);
+  const [createListOpen, setCreateListOpen] = useState(false);
+  const [draggedListId, setDraggedListId] = useState<string | null>(null);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  const lists = getProjectLists(project.id, { includeArchived: false });
+  const isProjectActive = activeProjectId === project.id && !activeListId;
+  const isWithinProject = activeProjectId === project.id;
+
+  useEffect(() => {
+    if (isWithinProject) setExpanded(true);
+  }, [isWithinProject]);
 
   const openProject = () => {
-    const params = new URLSearchParams({
-      projectId: project.id,
-      projectName: project.name,
-    });
-    router.push(`/tasks?${params.toString()}`);
+    router.push(`/projects?projectId=${project.id}`);
   };
 
   const handleDelete = async () => {
@@ -138,36 +316,108 @@ function SpaceRow({ project }: { project: Project }) {
     }
   };
 
+  const handleReorder = async (targetListId: string) => {
+    if (!draggedListId || draggedListId === targetListId) return;
+
+    const ids = lists.map((list) => list.id);
+    const fromIndex = ids.indexOf(draggedListId);
+    const toIndex = ids.indexOf(targetListId);
+    if (fromIndex === -1 || toIndex === -1) return;
+
+    const next = [...ids];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+
+    try {
+      await reorderLists(project.id, next);
+    } catch (error) {
+      const { message } = parseApiError(error);
+      toast.error(message);
+    } finally {
+      setDraggedListId(null);
+    }
+  };
+
   return (
     <>
-      <div
-        onClick={openProject}
-        className="group flex w-full cursor-pointer items-center gap-1 rounded-lg px-2.5 py-1.5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-      >
-        {/* Space name + color */}
-        <span
-          className="flex items-center justify-center w-4 h-4 rounded-sm text-white text-[10px] font-bold shrink-0"
-          style={{ backgroundColor: project.color }}
+      <div className="space-y-0.5">
+        <div
+          className={`group flex w-full items-center gap-1 rounded-lg px-2 py-1.5 transition-colors ${
+            isProjectActive
+              ? "bg-violet-100/80 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300"
+              : isWithinProject
+                ? "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
+                : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+          }`}
         >
-          {project.name.charAt(0).toUpperCase()}
-        </span>
-        <span className="flex-1 font-medium text-left truncate text-[13px]">
-          {project.name}
-        </span>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              setExpanded((value) => !value);
+            }}
+            className="flex h-5 w-5 items-center justify-center rounded text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+          >
+            {expanded ? (
+              <LuChevronDown className="h-3.5 w-3.5" />
+            ) : (
+              <LuChevronRight className="h-3.5 w-3.5" />
+            )}
+          </button>
 
-        {/* 3-dot — appears on row hover */}
-        <button
-          ref={menuTriggerRef}
-          onMouseDown={(e) => {
-            e.stopPropagation();
-            // Only open — outside-click handler is the sole way to close
-            if (!menuOpen) setMenuOpen(true);
-          }}
-          onClick={(e) => e.stopPropagation()}
-          className={`flex items-center justify-center w-5 h-5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-all shrink-0 ${menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
-        >
-          <LuMoreHorizontal className="w-3.5 h-3.5" />
-        </button>
+          <button
+            type="button"
+            onClick={openProject}
+            className="flex min-w-0 flex-1 items-center gap-2 text-left"
+          >
+            <span
+              className="flex h-4 w-4 shrink-0 items-center justify-center rounded-sm text-[10px] font-normal text-white"
+              style={{ backgroundColor: project.color }}
+            >
+              {project.name.charAt(0).toUpperCase()}
+            </span>
+            <span className="truncate font-normal text-[13px]">{project.name}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              setCreateListOpen(true);
+            }}
+            className="flex h-5 w-5 items-center justify-center rounded text-gray-400 opacity-0 transition-all hover:bg-gray-200 hover:text-brand-500 group-hover:opacity-100 dark:hover:bg-gray-700"
+          >
+            <LuPlus className="h-3.5 w-3.5" />
+          </button>
+
+          <button
+            ref={menuTriggerRef}
+            onMouseDown={(event) => {
+              event.stopPropagation();
+              if (!menuOpen) setMenuOpen(true);
+            }}
+            onClick={(event) => event.stopPropagation()}
+            className={`flex h-5 w-5 items-center justify-center rounded text-gray-400 transition-all hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200 ${menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+          >
+            <LuMoreHorizontal className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        {expanded ? (
+          <div className="space-y-0.5">
+            {lists.map((list) => (
+              <SidebarListRow
+                key={list.id}
+                project={project}
+                list={list}
+                isActive={activeProjectId === project.id && activeListId === list.id}
+                onDragStart={setDraggedListId}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={handleReorder}
+              />
+            ))}
+          </div>
+        ) : null}
       </div>
 
       {/* Context menu — rendered outside the row so it isn't clipped by overflow-hidden */}
@@ -203,6 +453,13 @@ function SpaceRow({ project }: { project: Project }) {
           isLoading={deleteLoading}
         />
       )}
+
+      <CreateListModal
+        isOpen={createListOpen}
+        onClose={() => setCreateListOpen(false)}
+        initialProjectId={project.id}
+        lockProject
+      />
     </>
   );
 }
@@ -220,9 +477,9 @@ function WorkspacePanelHeader() {
       <button
         ref={triggerRef}
         onClick={() => setSwitcherOpen((v) => !v)}
-        className="flex items-center gap-1.5 font-semibold text-gray-800 dark:text-gray-100 hover:text-brand-500"
+        className="flex items-center gap-1.5 font-normal text-gray-800 dark:text-gray-100 hover:text-brand-500"
       >
-        <span className="flex items-center justify-center w-5 h-5 rounded bg-brand-500 text-white text-[10px] font-bold shrink-0">
+        <span className="flex items-center justify-center w-5 h-5 rounded bg-brand-500 text-white text-[10px] font-normal shrink-0">
           {wsInitial}
         </span>
         <span className="truncate max-w-[140px]">{wsName}</span>
@@ -247,15 +504,27 @@ function WorkspacePanelHeader() {
 // ── Home panel ───────────────────────────────────────────────────────────────
 function HomePanelContent() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [createOpen, setCreateOpen] = useState(false);
   const { projects, isLoading: projectsLoading } = useProjects();
+  const { getLists } = useTaskLists();
+  const activeProjectId = searchParams.get("projectId");
+  const activeListId = searchParams.get("listId");
+
+  useEffect(() => {
+    projects.forEach((project) => {
+      void getLists(project.id).catch(() => {
+        // Sidebar can render without lists if the request fails.
+      });
+    });
+  }, [getLists, projects]);
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto no-scrollbar px-2 py-2 text-[13px]">
       <div className="flex-1 space-y-0.5">
 
         {/* Home links */}
-        <p className="px-2 pt-2 pb-1 text-[11px] uppercase tracking-wide text-gray-400 font-medium">Home</p>
+        <p className="px-2 pt-2 pb-1 text-[11px] uppercase tracking-wide text-gray-400 font-normal">Home</p>
         {inboxLinks.map((item) => {
           const active = item.path === pathname && item.label === "Inbox";
           return (
@@ -270,7 +539,7 @@ function HomePanelContent() {
               <span className={active ? "text-brand-500" : "text-gray-400"}>{item.icon}</span>
               <span className="flex-1">{item.label}</span>
               {item.badge && (
-                <span className="flex items-center justify-center w-4 h-4 rounded-full bg-gray-200 dark:bg-gray-700 text-[10px] text-gray-600 dark:text-gray-300 font-medium">
+                <span className="flex items-center justify-center w-4 h-4 rounded-full bg-gray-200 dark:bg-gray-700 text-[10px] text-gray-600 dark:text-gray-300 font-normal">
                   {item.badge}
                 </span>
               )}
@@ -281,7 +550,7 @@ function HomePanelContent() {
         {/* Spaces */}
         <div className="pt-3">
           <div className="flex items-center justify-between px-2 mb-1">
-            <p className="text-[11px] uppercase tracking-wide text-gray-400 font-medium">Spaces</p>
+            <p className="text-[11px] uppercase tracking-wide text-gray-400 font-normal">Spaces</p>
             <button
               onClick={() => setCreateOpen(true)}
               className="text-gray-400 hover:text-brand-500 transition-colors"
@@ -299,7 +568,12 @@ function HomePanelContent() {
           ) : (
             <div className="space-y-0.5 mt-0.5">
               {projects.map((project) => (
-                <SpaceRow key={project.id} project={project} />
+                <SpaceRow
+                  key={project.id}
+                  project={project}
+                  activeProjectId={activeProjectId}
+                  activeListId={activeListId}
+                />
               ))}
             </div>
           )}
@@ -316,13 +590,13 @@ function HomePanelContent() {
 
         {/* Direct Messages */}
         <div className="pt-3">
-          <p className="px-2 pb-1 text-[11px] uppercase tracking-wide text-gray-400 font-medium">Direct Messages</p>
+          <p className="px-2 pb-1 text-[11px] uppercase tracking-wide text-gray-400 font-normal">Direct Messages</p>
           {dmUsers.map((u) => (
             <button
               key={u.name}
               className="flex items-center gap-2.5 w-full rounded-lg px-2.5 py-1.5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
             >
-              <span className={`flex items-center justify-center w-6 h-6 rounded-full text-white text-[10px] font-bold ${u.color} shrink-0`}>
+              <span className={`flex items-center justify-center w-6 h-6 rounded-full text-white text-[10px] font-normal ${u.color} shrink-0`}>
                 {u.initials}
               </span>
               <span className="truncate">
@@ -357,33 +631,28 @@ function SettingsPanelContent() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const currentTab = (searchParams.get("tab") ?? "general").toLowerCase();
-  const isWorkspaceSettingsRoute = pathname.startsWith("/workspace-settings");
+  const isSettingsRoute = pathname.startsWith("/settings");
+  const { logout } = useAuth();
 
   const navigateToTab = (tab: string) => {
-    const next = new URLSearchParams(searchParams.toString());
-    if (tab === "general") {
-      next.delete("tab");
-    } else {
-      next.set("tab", tab);
-    }
-    const query = next.toString();
-    router.push(`/workspace-settings${query ? `?${query}` : ""}`);
+    const query = tab === "general" ? "" : `?tab=${tab}`;
+    router.push(`/settings${query}`);
   };
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto no-scrollbar px-2 py-2 text-[13px]">
-      <h2 className="px-2 py-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
+      <h2 className="px-2 py-1 text-sm font-normal text-gray-900 dark:text-gray-100">
         All settings
       </h2>
 
       <div className="pt-3">
-        <p className="px-2 pb-1 text-[11px] uppercase tracking-wide text-gray-400 font-medium">
+        <p className="px-2 pb-1 text-[11px] uppercase tracking-wide text-gray-400 font-normal">
           Admin
         </p>
         {adminSettingsItems.map((item) => {
           const Icon = item.icon;
           const isActive =
-            isWorkspaceSettingsRoute &&
+            isSettingsRoute &&
             !!item.tab &&
             currentTab === item.tab;
 
@@ -408,7 +677,7 @@ function SettingsPanelContent() {
       </div>
 
       <div className="pt-3">
-        <p className="px-2 pb-1 text-[11px] uppercase tracking-wide text-gray-400 font-medium">
+        <p className="px-2 pb-1 text-[11px] uppercase tracking-wide text-gray-400 font-normal">
           Features
         </p>
         {featureSettingsItems.map((item) => (
@@ -424,7 +693,7 @@ function SettingsPanelContent() {
       </div>
 
       <div className="pt-3">
-        <p className="px-2 pb-1 text-[11px] uppercase tracking-wide text-gray-400 font-medium">
+        <p className="px-2 pb-1 text-[11px] uppercase tracking-wide text-gray-400 font-normal">
           Integrations & ClickApps
         </p>
         {integrationSettingsItems.map((item) => (
@@ -437,8 +706,41 @@ function SettingsPanelContent() {
             <span className="truncate">{item}</span>
           </button>
         ))}
+      </div>
+
+      {/* My Settings — personal profile preferences */}
+      <div className="pt-3">
+        <p className="px-2 pb-1 text-[11px] uppercase tracking-wide text-gray-400 font-normal">
+          My Settings
+        </p>
+        {[
+          { label: "Preferences", tab: "preferences", icon: LuSlidersHorizontal },
+          { label: "Notifications", tab: null, icon: LuChevronRight },
+          { label: "Workspaces", tab: null, icon: LuChevronRight },
+          { label: "Chat", tab: null, icon: LuMessageSquare },
+          { label: "Referrals", tab: null, icon: LuChevronRight },
+        ].map((item) => {
+          const Icon = item.icon;
+          const isActive = isSettingsRoute && !!item.tab && currentTab === item.tab;
+          return (
+            <button
+              key={item.label}
+              type="button"
+              onClick={() => { if (item.tab) navigateToTab(item.tab); }}
+              className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-colors ${
+                isActive
+                  ? "bg-violet-100/80 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300"
+                  : "text-gray-600 hover:bg-violet-50 hover:text-violet-700 dark:text-gray-400 dark:hover:bg-violet-500/15 dark:hover:text-violet-300"
+              }`}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              <span className="truncate">{item.label}</span>
+            </button>
+          );
+        })}
         <button
           type="button"
+          onClick={logout}
           className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] text-gray-600 transition-colors hover:bg-violet-50 hover:text-violet-700 dark:text-gray-400 dark:hover:bg-violet-500/15 dark:hover:text-violet-300"
         >
           <LuLogOut className="h-4 w-4 shrink-0" />
@@ -453,7 +755,7 @@ function PlaceholderPanel({ label }: { label: string }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-2 text-gray-400">
       <span className="text-2xl">🚧</span>
-      <p className="text-sm font-medium">{label}</p>
+      <p className="text-sm font-normal">{label}</p>
     </div>
   );
 }
@@ -464,11 +766,11 @@ const AppSidebar: React.FC = () => {
   const pathname = usePathname();
   const [activeRail, setActiveRail] = useState<string>("home");
   const [inviteOpen, setInviteOpen] = useState(false);
-  const isWorkspaceSettingsRoute = pathname.startsWith("/workspace-settings");
+  const isSettingsRoute = pathname.startsWith("/settings");
   const isCalendarRoute = pathname.startsWith("/calendar");
 
   const shownRail =
-    isWorkspaceSettingsRoute && activeRail === "home"
+    isSettingsRoute && activeRail === "home"
       ? null
       : isCalendarRoute && activeRail === "home"
         ? "planner"
@@ -539,7 +841,7 @@ const AppSidebar: React.FC = () => {
       {/* Right contextual panel */}
       <div className="w-[232px] h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col overflow-hidden">
         <WorkspacePanelHeader />
-        {isWorkspaceSettingsRoute && activeRail === "home" ? (
+        {isSettingsRoute && activeRail === "home" ? (
           <SettingsPanelContent />
         ) : (
           <>

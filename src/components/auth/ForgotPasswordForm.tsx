@@ -58,14 +58,14 @@ export default function ForgotPasswordForm({
 
         {isSuccess ? (
           <>
-            <h1 className="text-[30px] font-bold text-gray-900 text-center mb-2 leading-none">
+            <h1 className="text-[30px] font-normal text-gray-900 text-center mb-2 leading-none">
               Recovery link sent!
             </h1>
             <p className="text-sm text-gray-400 text-center">
               Remember password?{" "}
               <Link
                 href="/signin"
-                className="text-brand-500 font-medium hover:text-brand-600"
+                className="text-brand-500 font-normal hover:text-brand-600"
               >
                 Sign in
               </Link>
@@ -74,7 +74,7 @@ export default function ForgotPasswordForm({
         ) : (
           <>
             {/* Heading */}
-            <h1 className="text-[22px] font-bold text-gray-900 text-center mb-2">
+            <h1 className="text-[22px] font-normal text-gray-900 text-center mb-2">
               Forgot your password?
             </h1>
 
@@ -83,7 +83,7 @@ export default function ForgotPasswordForm({
               Remember password?{" "}
               <Link
                 href="/signin"
-                className="text-brand-500 font-medium hover:text-brand-600"
+                className="text-brand-500 font-normal hover:text-brand-600"
               >
                 Sign in
               </Link>
@@ -114,7 +114,7 @@ export default function ForgotPasswordForm({
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="flex w-full items-center justify-center rounded-lg bg-brand-500 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-600 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="flex w-full items-center justify-center rounded-lg bg-brand-500 px-4 py-3 text-sm font-normal text-white shadow-sm transition-colors hover:bg-brand-600 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? "Sending…" : "Send me the link"}
               </button>
