@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { useAuth } from "@/context/AuthContext";
@@ -11,23 +11,29 @@ import {
   LuChevronDown,
   LuEllipsis,
   LuPencil,
-  LuPlus,
   LuSearch,
-  LuUserPlus,
+  LuShield,
+  LuTrash2,
 } from "react-icons/lu";
 import ProfileSettingsForm from "@/components/settings/ProfileSettingsForm";
 import ChangePasswordForm from "@/components/settings/ChangePasswordForm";
 import DeleteAccountSection from "@/components/settings/DeleteAccountSection";
+import { workspaceService, WorkspaceMember } from "@/services/workspace.service";
+import InvitePeopleModal from "@/components/workspace/InvitePeopleModal";
 
-const AVATAR_COLORS = [
-  "bg-brand-500",
-  "bg-emerald-500",
-  "bg-orange-500",
-  "bg-rose-500",
-  "bg-violet-500",
-  "bg-sky-500",
-  "bg-amber-500",
-  "bg-teal-500",
+const AVATAR_COLOR_STYLES = [
+  { bg: "#18181b", text: "#ffffff" }, // zinc-900 (black)
+  { bg: "#7c3aed", text: "#ffffff" }, // violet-600 (purple)
+  { bg: "#eab308", text: "#000000" }, // yellow-500
+  { bg: "#0f172a", text: "#ffffff" }, // slate-900
+  { bg: "#6d28d9", text: "#ffffff" }, // violet-700
+  { bg: "#ca8a04", text: "#000000" }, // yellow-600
+  { bg: "#1e1b4b", text: "#ffffff" }, // indigo-950
+  { bg: "#fbbf24", text: "#000000" }, // amber-400
+  { bg: "#3b0764", text: "#ffffff" }, // purple-950
+  { bg: "#292524", text: "#ffffff" }, // stone-800
+  { bg: "#854d0e", text: "#ffffff" }, // yellow-800
+  { bg: "#4c1d95", text: "#ffffff" }, // violet-900
 ];
 
 const COLOR_SCHEME = [
@@ -43,60 +49,6 @@ const COLOR_SCHEME = [
   "#34D399",
 ];
 
-type PeopleRow = {
-  id: string;
-  name: string;
-  subtitle: string;
-  email: string;
-  role: string;
-  lastActive: string;
-  invitedBy: string;
-  invitedOn: string;
-  statusTag?: { label: string; tone: "violet" | "amber" };
-  avatarClass: string;
-  avatarText: string;
-};
-
-const PEOPLE_ROWS: PeopleRow[] = [
-  {
-    id: "1",
-    name: "Dania Tariq",
-    subtitle: "Associate Project Manager",
-    email: "dania@swiftnine.com",
-    role: "Owner",
-    lastActive: "Apr 14",
-    invitedBy: "-",
-    invitedOn: "04/02/2026",
-    statusTag: { label: "Owner", tone: "violet" },
-    avatarClass: "bg-gray-900",
-    avatarText: "DT",
-  },
-  {
-    id: "2",
-    name: "Muhammad Zaeem UI Hassan",
-    subtitle: "",
-    email: "zaeem@swiftnine.com",
-    role: "Member",
-    lastActive: "Mar 31",
-    invitedBy: "Dania Tariq",
-    invitedOn: "04/09/2026",
-    statusTag: { label: "Pending", tone: "amber" },
-    avatarClass: "bg-blue-500",
-    avatarText: "MH",
-  },
-  {
-    id: "3",
-    name: "Dania Tariq",
-    subtitle: "",
-    email: "daniatariq69@gmail.com",
-    role: "Admin",
-    lastActive: "Apr 11",
-    invitedBy: "Dania Tariq",
-    invitedOn: "04/10/2026",
-    avatarClass: "bg-violet-500",
-    avatarText: "DT",
-  },
-];
 
 function workspaceInitial(name: string) {
   return name.trim().charAt(0).toUpperCase();
@@ -107,12 +59,12 @@ function truncateWithDots(value: string, maxChars = 12) {
   return `${value.slice(0, maxChars)}...`;
 }
 
-function workspaceColor(id: string) {
+function memberAvatarStyle(id: string) {
   let hash = 0;
   for (let i = 0; i < id.length; i++) {
     hash = id.charCodeAt(i) + ((hash << 5) - hash);
   }
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+  return AVATAR_COLOR_STYLES[Math.abs(hash) % AVATAR_COLOR_STYLES.length];
 }
 
 function Toggle({
@@ -157,6 +109,14 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
   const [deleting, setDeleting] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [peopleQuery, setPeopleQuery] = useState("");
+  const [members, setMembers] = useState<WorkspaceMember[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState<WorkspaceMember | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const currentTab = tab;
   const isPeopleTab = currentTab === "people";
   const isPreferencesTab = false; // preferences handled by /settings page directly
@@ -166,6 +126,25 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
     setLogoUrl(activeWorkspace?.logoUrl ?? "");
     setShowLogoInput(Boolean(activeWorkspace?.logoUrl));
   }, [activeWorkspace]);
+
+  useEffect(() => {
+    if (!activeWorkspace || tab !== "people") return;
+    setMembersLoading(true);
+    workspaceService.getMembers(activeWorkspace.id)
+      .then(setMembers)
+      .catch((err) => toast.error(parseApiError(err).message))
+      .finally(() => setMembersLoading(false));
+  }, [activeWorkspace, tab]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpenMenuId(null);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   const isOwner = activeWorkspace?.createdBy === user?.id;
   const initial = workspaceInitial(name || activeWorkspace?.name || "W");
@@ -236,6 +215,34 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
     }
   };
 
+  const handleChangeRole = async (member: WorkspaceMember) => {
+    if (!activeWorkspace) return;
+    setOpenMenuId(null);
+    const newRole = member.role === "OWNER" ? "MEMBER" : "OWNER";
+    try {
+      await workspaceService.changeMemberRole(activeWorkspace.id, member.id, newRole);
+      setMembers(prev => prev.map(m => m.id === member.id ? { ...m, role: newRole } : m));
+      toast.success(`Role changed to ${newRole === "OWNER" ? "Owner" : "Member"}`);
+    } catch (err) {
+      toast.error(parseApiError(err).message);
+    }
+  };
+
+  const handleRemoveMember = async () => {
+    if (!activeWorkspace || !confirmRemove) return;
+    setRemovingId(confirmRemove.id);
+    try {
+      await workspaceService.removeMember(activeWorkspace.id, confirmRemove.id);
+      setMembers(prev => prev.filter(m => m.id !== confirmRemove.id));
+      toast.success("Member removed");
+    } catch (err) {
+      toast.error(parseApiError(err).message);
+    } finally {
+      setRemovingId(null);
+      setConfirmRemove(null);
+    }
+  };
+
   if (!activeWorkspace) {
     return (
       <div className="h-full overflow-y-auto bg-white p-5 dark:bg-white/[0.03] lg:px-6 lg:py-4">
@@ -278,21 +285,30 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
   }
 
   if (isPeopleTab) {
+    const filteredMembers = members.filter(
+      (m) =>
+        m.fullName.toLowerCase().includes(peopleQuery.toLowerCase()) ||
+        m.email.toLowerCase().includes(peopleQuery.toLowerCase())
+    );
+
+    const formatDate = (iso: string | null) => {
+      if (!iso) return "—";
+      return new Date(iso).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" });
+    };
+
+    const formatLastActive = (iso: string | null) => {
+      if (!iso) return "Never";
+      return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    };
+
+    const getInitials = (name: string) =>
+      name.split(" ").map((p) => p[0]).join("").toUpperCase().slice(0, 2);
+
     return (
       <div className="h-full overflow-y-auto bg-white p-5 dark:bg-white/[0.03] lg:px-6 lg:py-4">
-        <div className="mx-auto w-full max-w-[1040px]">
+        <div className="mx-auto w-full max-w-full">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-normal text-gray-900 dark:text-gray-100">
-                Manage people
-              </h1>
-              <button
-                type="button"
-                className="text-xs font-normal text-brand-500 hover:text-brand-600"
-              >
-                Learn more
-              </button>
-            </div>
+            <h1 className="text-3xl font-normal text-gray-900 dark:text-gray-100">Manage people</h1>
             <button
               type="button"
               className="rounded-lg border border-gray-200 bg-white px-3.5 py-1.5 text-sm font-normal text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
@@ -308,12 +324,13 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
                 type="text"
                 value={peopleQuery}
                 onChange={(e) => setPeopleQuery(e.target.value)}
-                placeholder="Search or invite by email"
+                placeholder="Search by name or email"
                 className="h-10 w-full rounded-lg border border-violet-300 bg-white pl-9 pr-3 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-500 focus:outline-none dark:border-violet-500/40 dark:bg-gray-900 dark:text-gray-100"
               />
             </div>
             <button
               type="button"
+              onClick={() => setInviteOpen(true)}
               className="h-10 rounded-lg bg-violet-500 px-4 text-sm font-normal text-white hover:bg-violet-600"
             >
               + Invite people
@@ -321,26 +338,22 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
           </div>
 
           <div className="mt-4">
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 rounded-full bg-violet-100 px-3 py-1.5 text-xs font-normal text-violet-700 dark:bg-violet-500/20 dark:text-violet-300"
-            >
-              All Users ({PEOPLE_ROWS.length}) <LuChevronDown className="h-3.5 w-3.5" />
+            <button type="button" className="inline-flex items-center gap-1.5 rounded-full bg-violet-100 px-3 py-1.5 text-xs font-normal text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">
+              All Users ({members.length}) <LuChevronDown className="h-3.5 w-3.5" />
             </button>
           </div>
 
           <div className="mt-4 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[950px] table-fixed">
+              <table className="w-full min-w-[900px] table-fixed">
                 <colgroup>
-                  <col className="w-[27%]" />
-                  <col className="w-[19%]" />
-                  <col className="w-[11%]" />
-                  <col className="w-[12%]" />
-                  <col className="w-[12%]" />
-                  <col className="w-[9%]" />
-                  <col className="w-[6%]" />
-                  <col className="w-[4%]" />
+                  <col className="w-[18%]" />
+                  <col className="w-[20%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[8%]" />
+                  <col className="w-[8%]" />
                 </colgroup>
                 <thead>
                   <tr className="border-b border-gray-200 text-xs font-normal text-gray-500 dark:border-gray-800 dark:text-gray-400">
@@ -350,112 +363,153 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
                     <th className="px-4 py-3 text-left">Last Active</th>
                     <th className="px-4 py-3 text-left">Invited By</th>
                     <th className="px-4 py-3 text-left">Invited On</th>
-                    <th className="px-1 py-3 text-center">Teams</th>
-                    <th className="px-1 py-3 text-center" />
+                    <th className="px-2 py-3" />
                   </tr>
                 </thead>
                 <tbody>
-                  <tr className="border-b border-gray-200 dark:border-gray-800">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-violet-100 text-violet-600 dark:bg-violet-500/20 dark:text-violet-300">
-                          <LuPlus className="h-3.5 w-3.5" />
-                        </span>
-                        <span className="text-sm font-normal text-gray-700 dark:text-gray-200">
-                          Invite people
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-1 py-3" />
-                    <td className="px-1 py-3" />
-                    <td className="px-4 py-3" />
-                    <td className="px-4 py-3" />
-                    <td className="px-4 py-3" />
-                    <td className="px-4 py-3" />
-                    <td className="px-4 py-3" />
-                  </tr>
-
-                  {PEOPLE_ROWS.map((member) => (
-                    <tr
-                      key={member.id}
-                      className="border-b border-gray-100 align-middle last:border-0 dark:border-gray-800/70"
-                    >
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2.5">
-                          <span
-                            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-normal text-white ${member.avatarClass}`}
-                          >
-                            {member.avatarText}
-                          </span>
-                          <div className="min-w-0">
-                            <p
-                              title={member.name}
-                              className="truncate text-sm font-normal text-gray-900 dark:text-gray-100"
-                            >
-                              {truncateWithDots(member.name, 12)}{" "}
-                              {member.statusTag && (
-                                <span
-                                  className={`ml-2 rounded px-1.5 py-0.5 text-[10px] font-normal ${
-                                    member.statusTag.tone === "amber"
-                                      ? "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
-                                      : "bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300"
-                                  }`}
-                                >
-                                  {member.statusTag.label}
-                                </span>
-                              )}
-                            </p>
-                            {member.subtitle && (
-                              <p className="truncate text-xs text-gray-500 dark:text-gray-400">
-                                {member.subtitle}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-
-                      <td className="px-4 py-3">
-                        <p className="truncate text-sm text-gray-700 dark:text-gray-300">
-                          {member.email}
-                        </p>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
-                        {member.role}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
-                        {member.lastActive}
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="truncate text-sm text-gray-700 dark:text-gray-300">
-                          {member.invitedBy}
-                        </p>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
-                        {member.invitedOn}
-                      </td>
-                      <td className="px-1 py-3">
-                        <button
-                          type="button"
-                          className="mx-auto flex h-8 w-8 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-                        >
-                          <LuUserPlus className="h-5 w-5" />
-                        </button>
-                      </td>
-                      <td className="px-1 py-3">
-                        <button
-                          type="button"
-                          className="mx-auto flex h-8 w-8 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-                        >
-                          <LuEllipsis className="h-4 w-4" />
-                        </button>
+                  {membersLoading ? (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-10 text-center text-sm text-gray-400">
+                        Loading members...
                       </td>
                     </tr>
-                  ))}
+                  ) : filteredMembers.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-10 text-center text-sm text-gray-400">
+                        No members found.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredMembers.map((member) => {
+                      const isMe = member.id === user?.id;
+                      const isOwner = member.role === "OWNER";
+                      return (
+                        <tr key={member.id} className="border-b border-gray-100 align-middle last:border-0 dark:border-gray-800/70">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2.5">
+                              <span
+                                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-normal"
+                                style={{ backgroundColor: memberAvatarStyle(member.id).bg, color: memberAvatarStyle(member.id).text }}
+                              >
+                                {getInitials(member.fullName)}
+                              </span>
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-normal text-gray-900 dark:text-gray-100">
+                                  {member.fullName}
+                                  {isMe && (
+                                    <span className="ml-2 rounded px-1.5 py-0.5 text-[10px] font-normal bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">
+                                      You
+                                    </span>
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-3">
+                            <p className="truncate text-sm text-gray-700 dark:text-gray-300">{member.email}</p>
+                          </td>
+
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-normal ${
+                              isOwner
+                                ? "bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300"
+                                : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                            }`}>
+                              {isOwner ? "Owner" : "Member"}
+                            </span>
+                          </td>
+
+                          <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                            {formatLastActive(member.lastActive)}
+                          </td>
+
+                          <td className="px-4 py-3">
+                            <p className="truncate text-sm text-gray-700 dark:text-gray-300">
+                              {member.invitedBy ?? "—"}
+                            </p>
+                          </td>
+
+                          <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                            {formatDate(member.invitedOn)}
+                          </td>
+
+                          <td className="px-2 py-3">
+                            {!isMe && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                                  if (openMenuId === member.id) {
+                                    setOpenMenuId(null);
+                                    setMenuPos(null);
+                                  } else {
+                                    setOpenMenuId(member.id);
+                                    setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+                                  }
+                                }}
+                                className="mx-auto flex h-8 w-8 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                              >
+                                <LuEllipsis className="h-4 w-4" />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
           </div>
         </div>
+
+        {/* Fixed dropdown — renders outside table so it never affects layout */}
+        {openMenuId && menuPos && (() => {
+          const member = filteredMembers.find(m => m.id === openMenuId);
+          if (!member) return null;
+          const isOwner = member.role === "OWNER";
+          return (
+            <div
+              ref={menuRef}
+              className="fixed z-[9999] w-62 rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900"
+              style={{ top: menuPos.top, right: menuPos.right }}
+            >
+              <button
+                type="button"
+                onClick={() => handleChangeRole(member)}
+                className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800 rounded-t-xl"
+              >
+                <LuShield className="h-4 w-4 text-gray-400" />
+                Change to {isOwner ? "Member" : "Owner"}
+              </button>
+              <div className="mx-3 border-t border-gray-100 dark:border-gray-800" />
+              <button
+                type="button"
+                onClick={() => { setOpenMenuId(null); setMenuPos(null); setConfirmRemove(member); }}
+                className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-b-xl"
+              >
+                <LuTrash2 className="h-4 w-4" />
+                Remove from workspace
+              </button>
+            </div>
+          );
+        })()}
+
+        <InvitePeopleModal
+          isOpen={inviteOpen}
+          onClose={() => setInviteOpen(false)}
+        />
+
+        <ConfirmActionModal
+          isOpen={!!confirmRemove}
+          title="Remove member"
+          description={`Remove ${confirmRemove?.fullName} from this workspace? They will lose access to all projects and tasks.`}
+          confirmLabel="Remove"
+          onClose={() => { if (!removingId) setConfirmRemove(null); }}
+          onConfirm={handleRemoveMember}
+          isLoading={!!removingId}
+        />
       </div>
     );
   }
@@ -486,9 +540,8 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
                       />
                     ) : (
                       <span
-                        className={`flex h-8 w-8 items-center justify-center rounded-md text-sm font-normal text-white ${workspaceColor(
-                          activeWorkspace.id
-                        )}`}
+                        className="flex h-8 w-8 items-center justify-center rounded-md text-sm font-normal"
+                        style={{ backgroundColor: memberAvatarStyle(activeWorkspace.id).bg, color: memberAvatarStyle(activeWorkspace.id).text }}
                       >
                         {initial}
                       </span>

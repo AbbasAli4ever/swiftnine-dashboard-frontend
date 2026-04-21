@@ -32,7 +32,39 @@ export interface WorkspaceInviteClaimResult {
   workspaceId: string;
 }
 
+export interface WorkspaceMember {
+  id: string;
+  fullName: string;
+  email: string;
+  role: "OWNER" | "MEMBER";
+  lastActive: string | null;
+  invitedBy: string | null;
+  invitedOn: string | null;
+}
+
 export const workspaceService = {
+  getMembers: (workspaceId: string) =>
+    api
+      .get<ApiWrapper<WorkspaceMember[]>>(`/workspaces/${workspaceId}/members`, {
+        headers: { "x-workspace-id": workspaceId },
+      })
+      .then((r) => r.data.data),
+
+  removeMember: (workspaceId: string, memberId: string) =>
+    api
+      .delete(`/organizations/members`, {
+        headers: { "x-workspace-id": workspaceId },
+        data: { workspaceId, memberId },
+      })
+      .then((r) => r.data),
+
+  changeMemberRole: (workspaceId: string, memberId: string, role: WorkspaceInviteRole) =>
+    api
+      .put(`/organizations/members/${memberId}/role`, { workspaceId, role }, {
+        headers: { "x-workspace-id": workspaceId },
+      })
+      .then((r) => r.data),
+
   list: () =>
     api.get<ApiWrapper<Workspace[]>>("/workspaces").then((r) => r.data.data),
 

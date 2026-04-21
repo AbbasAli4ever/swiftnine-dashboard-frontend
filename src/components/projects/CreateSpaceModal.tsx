@@ -67,7 +67,7 @@ const DEFAULT_GROUPS: LocalGroup[] = [
     apiGroup: "NOT_STARTED",
     iconType: "dashed",
     canAdd: true,
-    statuses: [{ tempId: "default_todo", name: "TO DO", color: "#94a3b8", isProtected: true }],
+    statuses: [{ tempId: "default_todo", name: "TO DO", color: "#e6e6e6", isProtected: true }],
   },
   {
     title: "Active",
@@ -88,7 +88,7 @@ const DEFAULT_GROUPS: LocalGroup[] = [
     apiGroup: "CLOSED",
     iconType: "check",
     canAdd: false,
-    statuses: [{ tempId: "default_completed", name: "COMPLETE", color: "#22c55e", isProtected: true }],
+    statuses: [{ tempId: "default_completed", name: "COMPLETE", color: "#2a9764", isProtected: true }],
   },
 ];
 
@@ -832,7 +832,7 @@ function StatusGroupEditor({
               {/* Status icon — click to open color picker */}
               <div className="relative shrink-0">
                 {isClosed ? (
-                  <GroupIcon iconType={group.iconType} color="#22c55e" />
+                  <GroupIcon iconType={group.iconType} color="#2a9764" />
                 ) : (
                   <button
                     type="button"

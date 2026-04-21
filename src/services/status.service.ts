@@ -85,5 +85,6 @@ export const statusService = {
 
 export function flattenGroupedStatuses(grouped: GroupedStatuses): StatusItem[] {
   const { notStarted, active, done, closed } = grouped.groups;
-  return [...notStarted, ...active, ...done, ...closed];
+  const normalizedClosed = closed.map((s) => ({ ...s, color: "#2a9764" }));
+  return [...notStarted, ...active, ...done, ...normalizedClosed];
 }

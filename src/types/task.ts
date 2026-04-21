@@ -1,5 +1,25 @@
-export type TaskStatus = "todo" | "in-progress" | "review" | "done";
-export type TaskPriority = "urgent" | "high" | "normal" | "low";
+// Re-export backend types (not TaskPriority — that conflicts with legacy)
+export type {
+  TaskStatusInfo,
+  TaskUserInfo,
+  TaskAssignee,
+  TaskTagInfo,
+  TaskListRef,
+  TaskListItem,
+  TaskDetail,
+  TaskTimeEntry,
+  CreateTaskPayload,
+  UpdateTaskPayload,
+  CreateSubtaskPayload,
+} from "@/services/task.service";
+
+// Legacy local types kept for backward compatibility with old components
+export type LegacyTaskStatus = "todo" | "in-progress" | "review" | "done";
+export type LegacyTaskPriority = "urgent" | "high" | "normal" | "low";
+
+// Backward-compat aliases used by old components
+export type TaskStatus = LegacyTaskStatus;
+export type TaskPriority = LegacyTaskPriority;
 
 export interface TaskTag {
   id: string;
@@ -13,7 +33,7 @@ export interface Subtask {
   completed: boolean;
   assignee?: string;
   dueDate?: string;
-  priority?: TaskPriority;
+  priority?: LegacyTaskPriority;
 }
 
 export interface ChecklistItem {
@@ -44,15 +64,16 @@ export interface TaskAttachment {
   url?: string;
 }
 
+// Legacy Task shape — used by old form/board/calendar components
 export interface Task {
   id: string;
   projectId: string;
   listId: string;
   title: string;
   description: string;
-  status: TaskStatus;
+  status: LegacyTaskStatus;
   statusId?: string;
-  priority: TaskPriority;
+  priority: LegacyTaskPriority;
   assignees: string[];
   dueDate: string;
   startDate?: string;
@@ -67,13 +88,13 @@ export interface Task {
 
 export interface TaskFilters {
   search: string;
-  status: TaskStatus | "all";
-  priority: TaskPriority | "all";
+  status: LegacyTaskStatus | "all";
+  priority: LegacyTaskPriority | "all";
   assignee: string;
 }
 
 export const TASK_STATUS_CONFIG: Record<
-  TaskStatus,
+  LegacyTaskStatus,
   { label: string; color: string; bg: string; dot: string; border: string }
 > = {
   todo: {
@@ -107,7 +128,7 @@ export const TASK_STATUS_CONFIG: Record<
 };
 
 export const TASK_PRIORITY_CONFIG: Record<
-  TaskPriority,
+  LegacyTaskPriority,
   { label: string; color: string; bg: string; dot: string }
 > = {
   urgent: {
@@ -136,8 +157,8 @@ export const TASK_PRIORITY_CONFIG: Record<
   },
 };
 
-export const ALL_STATUSES: TaskStatus[] = ["todo", "in-progress", "review", "done"];
-export const ALL_PRIORITIES: TaskPriority[] = ["urgent", "high", "normal", "low"];
+export const ALL_STATUSES: LegacyTaskStatus[] = ["todo", "in-progress", "review", "done"];
+export const ALL_PRIORITIES: LegacyTaskPriority[] = ["urgent", "high", "normal", "low"];
 
 export const SAMPLE_ASSIGNEES = [
   "Alice Johnson",

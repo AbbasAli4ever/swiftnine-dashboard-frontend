@@ -10,12 +10,16 @@ import { useTasks } from "@/context/TaskContext";
 import { parseApiError } from "@/lib/api";
 import { StatusItem, flattenGroupedStatuses, statusService } from "@/services/status.service";
 import { TaskList } from "@/services/task-list.service";
+import { WorkspaceMember, workspaceService } from "@/services/workspace.service";
+import { useWorkspaceStore } from "@/stores/workspace.store";
+import { useTaskStore } from "@/stores/task.store";
 import TaskListView, { TaskListSectionData } from "./TaskListView";
 import TaskBoard from "./TaskBoard";
 import TaskDashboardHome from "./TaskDashboardHome";
 import TaskCalendarView from "./TaskCalendarView";
 import TaskForm from "./TaskForm";
 import TaskDetailPanel from "./TaskDetailPanel";
+import TaskDetailModal from "./TaskDetailModal";
 import CreateListModal from "./CreateListModal";
 import RenameListModal from "./RenameListModal";
 import ConfirmActionModal from "@/components/common/ConfirmActionModal";
@@ -61,6 +65,9 @@ export default function TasksPage() {
   const { getLists, getProjectLists, renameList, archiveList, restoreList, deleteList } =
     useTaskLists();
   const { getFilteredTasks } = useTasks();
+  const { activeWorkspaceId } = useWorkspaceStore();
+  const { openTaskDetail, closeTaskDetail, openTask, openTaskLoading } = useTaskStore();
+  const [members, setMembers] = useState<WorkspaceMember[]>([]);
 
   const projectId = searchParams.get("projectId");
   const listId = searchParams.get("listId");
@@ -115,6 +122,12 @@ export default function TasksPage() {
       router.replace(`/projects?projectId=${projectId}`);
     }
   }, [activeLists.length, listId, projectId, router, selectedList]);
+
+  // Load workspace members for task assignee picker
+  useEffect(() => {
+    if (!activeWorkspaceId) return;
+    workspaceService.getMembers(activeWorkspaceId).then(setMembers).catch(() => {});
+  }, [activeWorkspaceId]);
 
   const updateQuery = (patch: Record<string, string | null>) => {
     const next = new URLSearchParams(searchParams.toString());
@@ -176,6 +189,10 @@ export default function TasksPage() {
   const openDetail = (task: Task) => {
     setViewTask(task);
     setPanelOpen(true);
+  };
+
+  const openTaskDetailById = async (taskId: string) => {
+    await openTaskDetail(taskId);
   };
 
   const handleRenameList = async (name: string) => {
@@ -412,6 +429,7 @@ export default function TasksPage() {
           <TaskListView
             mode={selectedList ? "list" : "project"}
             projectName={project.name}
+            projectId={project.id}
             sections={selectedList ? [{ list: selectedList, tasks: selectedListTasks }] : listSections}
             statuses={statuses}
             archivedLists={selectedList ? [] : archivedLists}
@@ -422,15 +440,17 @@ export default function TasksPage() {
             onArchiveList={setArchiveTarget}
             onRestoreList={handleRestoreList}
             onDeleteList={setDeleteTarget}
+            onOpenTaskDetail={(taskId) => void openTaskDetailById(taskId)}
           />
         ) : null}
 
         {currentView === "board" ? (
           <TaskBoard
-            tasks={selectedList ? selectedListTasks : projectTasks}
+            projectId={project.id}
+            lists={selectedList ? [selectedList] : activeLists}
             statuses={statuses}
-            onView={openDetail}
-            onAdd={openCreate}
+            members={members}
+            onOpenTaskDetail={(taskId) => void openTaskDetailById(taskId)}
           />
         ) : null}
 
@@ -460,6 +480,18 @@ export default function TasksPage() {
         statuses={statuses}
         lists={allLists}
       />
+
+      {/* New full-screen task detail modal from task store */}
+      {openTask && !openTaskLoading && (
+        <TaskDetailModal
+          key={openTask.id}
+          task={openTask}
+          statuses={statuses}
+          members={members}
+          listId={openTask.list.id}
+          onClose={closeTaskDetail}
+        />
+      )}
 
       <CreateListModal
         isOpen={createListOpen}

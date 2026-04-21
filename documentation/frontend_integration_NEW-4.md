@@ -12,34 +12,24 @@
 2. [Auth Flow & Token Management](#2-auth-flow--token-management)
 3. [Error Handling](#3-error-handling)
 4. [Auth Endpoints](#4-auth-endpoints)
-   - [POST /auth/register](#post-authregister)
-   - [POST /auth/verify-email](#post-authverify-email)
-   - [POST /auth/login](#post-authlogin)
-   - [GET /auth/google](#get-authgoogle)
-   - [GET /auth/google/callback](#get-authgooglecallback)
-   - [POST /auth/refresh](#post-authrefresh)
-   - [POST /auth/logout](#post-authlogout)
-   - [POST /auth/forgot-password](#post-authforgot-password)
-   - [POST /auth/reset-password](#post-authreset-password)
 5. [User Endpoints](#5-user-endpoints)
 6. [Workspace Endpoints](#6-workspace-endpoints)
-   - [POST /workspaces/:workspaceId/invite](#post-workspacesworkspaceidinvite)
-   - [POST /workspaces/:workspaceId/invites](#post-workspacesworkspaceidinvites)
-   - [GET /workspaces/invite/:token](#get-workspacesinvitetoken)
-   - [POST /workspaces/invite/claim](#post-workspacesinviteclaim)
-   - [POST /workspaces/invite/accept](#post-workspacesinviteaccept)
-7. [Project Endpoints](#7-project-endpoints)
-8. [Status Endpoints](#8-status-endpoints)
-9. [Task List Endpoints](#9-task-list-endpoints)
-10. [System](#10-system)
+7. [Member Management Endpoints](#7-member-management-endpoints)
+8. [Project Endpoints](#8-project-endpoints)
+9. [Status Endpoints](#9-status-endpoints)
+10. [Task List Endpoints](#10-task-list-endpoints)
+11. [Task Endpoints](#11-task-endpoints)
+12. [Tag Endpoints](#12-tag-endpoints)
+13. [Time Entry Endpoints](#13-time-entry-endpoints)
+14. [System](#14-system)
 
 ---
 
 ## 1. Response Format
 
-There are **two response shapes** in this API. Auth and User endpoints return bare objects. Workspace, Invite, and Project endpoints follow the standard wrapper.
+There are **two response shapes** in this API. Auth and User endpoints return bare objects. All other endpoints follow the standard wrapper.
 
-### Standard Wrapper (Workspace + Invite + Project)
+### Standard Wrapper
 
 ```json
 {
@@ -56,6 +46,16 @@ For list endpoints (arrays):
   "success": true,
   "data": [ ... ],
   "message": null
+}
+```
+
+For delete/action endpoints with no return data:
+
+```json
+{
+  "success": true,
+  "data": null,
+  "message": "Action completed successfully"
 }
 ```
 
@@ -147,7 +147,7 @@ Validation errors (422) include field details:
 | 401 | Missing, invalid, or expired token / OTP |
 | 403 | Authenticated but not allowed (wrong role, unverified email, wrong password) |
 | 404 | Resource not found |
-| 409 | Conflict (duplicate email, prefix already taken) |
+| 409 | Conflict (duplicate email, prefix already taken, tag already on task) |
 | 422 | Validation failed — check `errors` array |
 | 500 | Server error |
 
@@ -433,6 +433,19 @@ Get the current user's profile.
 
 ---
 
+### `GET /user/:id`
+
+Get any user's public profile by their UUID. Useful for rendering member cards and assignee info.
+
+**Response `200`** — same shape as `GET /user/profile`
+
+**Errors**
+| Status | When |
+|---|---|
+| 404 | User not found |
+
+---
+
 ### `PATCH /user/profile`
 
 Update one or more profile fields. Only send fields you want to change — all are optional.
@@ -510,6 +523,34 @@ Change the account password. Requires the current password for verification. **L
 | 400 | New password is the same as current |
 | 403 | Current password is wrong, or account uses Google OAuth (no password to change) |
 | 422 | Validation failed |
+
+---
+
+### `PATCH /user/notifications`
+
+Update the user's notification preferences. Only send the fields you want to change — all are optional booleans.
+
+**Request**
+```json
+{
+  "inbox": true,
+  "email": true,
+  "browser": false,
+  "mobile": false
+}
+```
+
+**Response `200`**
+```json
+{
+  "inbox": true,
+  "email": true,
+  "browser": false,
+  "mobile": false
+}
+```
+
+All four fields (`inbox`, `email`, `browser`, `mobile`) are returned in the response. Any field not yet set will be `null`.
 
 ---
 
@@ -594,6 +635,8 @@ Authorization: Bearer <accessToken>
       "id": "uuid",
       "name": "Acme Corp",
       "logoUrl": null,
+      "workspaceUse": "WORK",
+      "managementType": "SOFTWARE_DEVELOPMENT",
       "createdBy": "user-uuid",
       "createdAt": "2026-04-14T12:00:00.000Z",
       "updatedAt": "2026-04-14T12:00:00.000Z"
@@ -625,6 +668,8 @@ The `:workspaceId` in the URL and the `x-workspace-id` header should be the same
     "id": "uuid",
     "name": "Acme Corp",
     "logoUrl": null,
+    "workspaceUse": "WORK",
+    "managementType": "SOFTWARE_DEVELOPMENT",
     "createdBy": "user-uuid",
     "createdAt": "2026-04-14T12:00:00.000Z",
     "updatedAt": "2026-04-14T12:00:00.000Z",
@@ -642,9 +687,52 @@ The `:workspaceId` in the URL and the `x-workspace-id` header should be the same
 
 ---
 
+### `GET /workspaces/:workspaceId/members`
+
+List all members of a workspace.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Response `200`**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "user-uuid",
+      "fullName": "Zaeem Hassan",
+      "email": "zaeem@example.com",
+      "role": "OWNER",
+      "lastActive": "2026-04-14T12:00:00.000Z",
+      "invitedBy": "Jane Doe",
+      "invitedOn": "2026-04-10T09:00:00.000Z"
+    }
+  ],
+  "message": null
+}
+```
+
+**Field notes:**
+- `id` — the user's UUID (not the membership record ID)
+- `lastActive` — `null` if user has never gone offline
+- `invitedBy` — inviter's full name (string), or `null` if the user created the workspace
+- `invitedOn` — invite created date, or `null` if the user created the workspace
+
+**Errors**
+| Status | When |
+|---|---|
+| 403 | Not a workspace member |
+| 404 | Workspace not found |
+
+---
+
 ### `PATCH /workspaces/:workspaceId`
 
-Update workspace name or logo. **OWNER only.**
+Update workspace fields. **OWNER only.**
 
 **Headers**
 ```
@@ -932,7 +1020,89 @@ Redirect the user to the workspace using the returned `workspaceId`.
 
 ---
 
-## 7. Project Endpoints
+## 7. Member Management Endpoints
+
+These endpoints manage workspace membership. They live under `/organizations`. All require `Authorization: Bearer <accessToken>`. The workspace is identified in the request body (not a header).
+
+> **Important:** Both endpoints take the **WorkspaceMember record ID** (the membership record UUID), not the user UUID. This is the `id` field returned by the `GET /workspaces/:workspaceId/members` endpoint... except that endpoint returns the user's `id`. To get the membership record ID, you need to cross-reference — the membership ID is what's stored in the WorkspaceMember table. For practical use, store the membership record IDs from the members list query. See the note below.
+
+> **Practical note:** The members list (`GET /workspaces/:workspaceId/members`) returns user-level data. If you need membership record IDs for role/removal operations, you may need to maintain them client-side from when members are added, or check the Swagger UI for the exact field. The `memberId` in the request body of `DELETE /organizations/members` and the `:id` param of `PUT /organizations/members/:id/role` both refer to the **WorkspaceMember record ID**.
+
+---
+
+### `DELETE /organizations/members`
+
+Remove a member from a workspace. **OWNER or ADMIN only.**
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+```
+
+**Request**
+```json
+{
+  "workspaceId": "uuid",
+  "memberId": "workspace-member-record-uuid"
+}
+```
+
+`memberId` is the **WorkspaceMember record UUID** (not the user UUID).
+
+**Response `200`**
+```json
+{
+  "success": true,
+  "data": null,
+  "message": "Member removed successfully"
+}
+```
+
+**Errors**
+| Status | When |
+|---|---|
+| 403 | Not OWNER or ADMIN |
+| 404 | Workspace or member record not found |
+
+---
+
+### `PUT /organizations/members/:id/role`
+
+Change the role of a workspace member. **OWNER or ADMIN only.** `:id` is the **WorkspaceMember record UUID**.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+```
+
+**Request**
+```json
+{
+  "workspaceId": "uuid",
+  "role": "MEMBER"
+}
+```
+
+`role` must be `"OWNER"` or `"MEMBER"`.
+
+**Response `200`**
+```json
+{
+  "success": true,
+  "data": null,
+  "message": "Member role updated successfully"
+}
+```
+
+**Errors**
+| Status | When |
+|---|---|
+| 403 | Not OWNER or ADMIN |
+| 404 | Workspace or member record not found |
+
+---
+
+## 8. Project Endpoints
 
 All project endpoints require both the `Authorization` header and the `x-workspace-id` header. Any workspace member can create, view, and edit projects. Only the workspace OWNER can delete.
 
@@ -984,10 +1154,10 @@ x-workspace-id: <workspaceId>
     "createdAt": "2026-04-14T12:00:00.000Z",
     "updatedAt": "2026-04-14T12:00:00.000Z",
     "statuses": [
-      { "id": "uuid", "name": "To Do",       "color": "#94a3b8", "position": 1000, "isDefault": true, "isClosed": false },
-      { "id": "uuid", "name": "In Progress", "color": "#3b82f6", "position": 2000, "isDefault": true, "isClosed": false },
-      { "id": "uuid", "name": "Review",      "color": "#f59e0b", "position": 3000, "isDefault": true, "isClosed": false },
-      { "id": "uuid", "name": "Completed",   "color": "#22c55e", "position": 4000, "isDefault": true, "isClosed": true  }
+      { "id": "uuid", "name": "To Do",       "color": "#94a3b8", "group": "NOT_STARTED", "position": 1000, "isDefault": true, "isProtected": false, "isClosed": false },
+      { "id": "uuid", "name": "In Progress", "color": "#3b82f6", "group": "ACTIVE",      "position": 2000, "isDefault": true, "isProtected": false, "isClosed": false },
+      { "id": "uuid", "name": "Review",      "color": "#f59e0b", "group": "DONE",        "position": 3000, "isDefault": true, "isProtected": false, "isClosed": false },
+      { "id": "uuid", "name": "Completed",   "color": "#22c55e", "group": "CLOSED",      "position": 4000, "isDefault": true, "isProtected": true,  "isClosed": true  }
     ],
     "_count": { "taskLists": 0 }
   },
@@ -1129,7 +1299,7 @@ x-workspace-id: <workspaceId>
 
 ---
 
-## 8. Status Endpoints
+## 9. Status Endpoints
 
 All status endpoints require `Authorization: Bearer <accessToken>` and `x-workspace-id`. Status write operations (create, update, delete, reorder, reset) are **OWNER only**. Read operations are available to any workspace member.
 
@@ -1141,6 +1311,8 @@ Statuses belong to a project and are organized into four **groups** that represe
 | `ACTIVE` | Work in progress | Yes |
 | `DONE` | Work finished | Yes |
 | `CLOSED` | Permanently closed (e.g. Cancelled) | No — cannot create statuses here; only the system-managed closed status lives here |
+
+`isProtected: true` means the status cannot be deleted or moved to a different group.
 
 ---
 
@@ -1242,8 +1414,6 @@ x-workspace-id: <workspaceId>
 }
 ```
 
-`isProtected: true` means the status cannot be deleted or moved to a different group.
-
 **Errors**
 | Status | When |
 |---|---|
@@ -1263,7 +1433,7 @@ Authorization: Bearer <accessToken>
 x-workspace-id: <workspaceId>
 ```
 
-**Response `200`** — single status object (same shape as items in `GET /statuses` groups)
+**Response `200`** — single status object (same shape as items in `GET /statuses` groups, wrapped in `{ success, data, message }`)
 
 **Errors**
 | Status | When |
@@ -1291,7 +1461,7 @@ x-workspace-id: <workspaceId>
 }
 ```
 
-**Response `200`** — updated status object
+**Response `200`** — updated status object wrapped in `{ success, data, message }`
 
 **Errors**
 | Status | When |
@@ -1378,7 +1548,7 @@ The order within each array determines display order. Moving a UUID to a differe
 
 ### `POST /statuses/default`
 
-Reset statuses to the default template. **OWNER only.** Applies: `To Do` (NOT_STARTED), `In Progress` (ACTIVE), `Complete` (CLOSED).
+Reset statuses to the default template. **OWNER only.**
 
 > Warning: this may remove custom statuses. Tasks on deleted statuses must be handled — check if `replacementStatusId` is needed first.
 
@@ -1405,11 +1575,9 @@ x-workspace-id: <workspaceId>
 
 ---
 
-## 9. Task List Endpoints
+## 10. Task List Endpoints
 
 All task list endpoints require `Authorization: Bearer <accessToken>` and `x-workspace-id`. Any workspace member can create, view, update, archive/restore, and reorder task lists. Any member can delete a task list.
-
-Task lists live inside a project and are the containers for tasks. They support gap-based positioning (integer `position` field) and archiving.
 
 ---
 
@@ -1549,14 +1717,7 @@ x-workspace-id: <workspaceId>
 
 **Request** — no body
 
-**Response `200`**
-```json
-{
-  "success": true,
-  "data": { ... },
-  "message": "Task list archived successfully"
-}
-```
+**Response `200`** — task list object with `isArchived: true`
 
 **Errors**
 | Status | When |
@@ -1578,14 +1739,7 @@ x-workspace-id: <workspaceId>
 
 **Request** — no body
 
-**Response `200`**
-```json
-{
-  "success": true,
-  "data": { ... },
-  "message": "Task list restored successfully"
-}
-```
+**Response `200`** — task list object with `isArchived: false`
 
 **Errors**
 | Status | When |
@@ -1659,11 +1813,862 @@ x-workspace-id: <workspaceId>
 
 ---
 
-## 10. System
+## 11. Task Endpoints
+
+All task endpoints require `Authorization: Bearer <accessToken>` and `x-workspace-id`. Any workspace member can create, view, and update tasks. Only the task creator or workspace OWNER can delete.
+
+### Task Data Shapes
+
+**`TaskDetailData`** — returned by create, get by ID, update, complete/uncomplete, assignee/tag mutations:
+
+```json
+{
+  "id": "uuid",
+  "taskId": "API-1",
+  "taskNumber": 1,
+  "parentId": null,
+  "depth": 0,
+  "title": "Implement auth module",
+  "description": "JWT + OAuth2",
+  "priority": "HIGH",
+  "startDate": "2026-04-14T00:00:00.000Z",
+  "dueDate": "2026-04-21T00:00:00.000Z",
+  "position": 1000,
+  "isCompleted": false,
+  "completedAt": null,
+  "createdBy": "user-uuid",
+  "createdAt": "2026-04-14T12:00:00.000Z",
+  "updatedAt": "2026-04-14T12:00:00.000Z",
+  "totalTimeLogged": 7200,
+  "status": {
+    "id": "uuid",
+    "name": "In Progress",
+    "color": "#3b82f6",
+    "group": "ACTIVE"
+  },
+  "creator": {
+    "id": "uuid",
+    "fullName": "Zaeem Hassan",
+    "avatarUrl": null,
+    "avatarColor": "#6366f1"
+  },
+  "assignees": [
+    {
+      "user": { "id": "uuid", "fullName": "Jane Doe", "avatarUrl": null, "avatarColor": "#6366f1" },
+      "assignedBy": "assigner-user-uuid"
+    }
+  ],
+  "tags": [
+    {
+      "tag": { "id": "uuid", "name": "backend", "color": "#6366f1" }
+    }
+  ],
+  "list": {
+    "id": "list-uuid",
+    "name": "Sprint 1",
+    "project": { "id": "proj-uuid", "name": "Backend API", "taskIdPrefix": "API" }
+  },
+  "children": [
+    {
+      "id": "subtask-uuid",
+      "taskNumber": 5,
+      "title": "Write unit tests",
+      "priority": "NORMAL",
+      "isCompleted": false,
+      "completedAt": null,
+      "depth": 1,
+      "position": 1000,
+      "status": { "id": "uuid", "name": "To Do", "color": "#94a3b8", "group": "NOT_STARTED" },
+      "assignees": [ ... ]
+    }
+  ],
+  "timeEntries": [
+    {
+      "id": "entry-uuid",
+      "userId": "user-uuid",
+      "description": "Working on JWT",
+      "startTime": "2026-04-14T09:00:00.000Z",
+      "endTime": "2026-04-14T11:00:00.000Z",
+      "duration": 7200,
+      "isManual": true,
+      "createdAt": "...",
+      "updatedAt": "...",
+      "user": { "id": "uuid", "fullName": "Zaeem Hassan", "avatarUrl": null, "avatarColor": "#6366f1" }
+    }
+  ]
+}
+```
+
+**Key field notes:**
+- `taskId` — human-readable display ID (e.g. `API-1`). Computed from `taskIdPrefix-taskNumber`. Use for display only; use `id` (UUID) for all API calls.
+- `totalTimeLogged` — sum of all `duration` values for this task's time entries, in **seconds**.
+- `timeEntries[].duration` — in **seconds**. `null` if the timer is still running.
+- `depth` — `0` for root tasks, `1` for subtasks (max 2 levels).
+- `assignees` — array of `{ user, assignedBy }`. No top-level record ID or `userId` field on the assignee object.
+- `tags` — array of `{ tag }`. No top-level record ID or `tagId` field on the task-tag object.
+- `children` — subtasks, ordered by position. Only present on `TaskDetailData` (not on list items).
+
+**`TaskListItemData`** — lighter shape returned by list and reorder endpoints:
+
+```json
+{
+  "id": "uuid",
+  "taskId": "API-1",
+  "taskNumber": 1,
+  "title": "Implement auth module",
+  "priority": "HIGH",
+  "startDate": "...",
+  "dueDate": "...",
+  "position": 1000,
+  "depth": 0,
+  "isCompleted": false,
+  "completedAt": null,
+  "createdAt": "...",
+  "updatedAt": "...",
+  "status": { "id": "uuid", "name": "In Progress", "color": "#3b82f6", "group": "ACTIVE" },
+  "assignees": [
+    { "user": { "id": "uuid", "fullName": "Jane Doe", "avatarUrl": null, "avatarColor": "#6366f1" }, "assignedBy": "uuid" }
+  ],
+  "tags": [
+    { "tag": { "id": "uuid", "name": "backend", "color": "#6366f1" } }
+  ],
+  "list": {
+    "id": "uuid",
+    "name": "Sprint 1",
+    "project": { "id": "uuid", "name": "Backend API", "taskIdPrefix": "API" }
+  },
+  "_count": { "children": 2 }
+}
+```
+
+Note: `TaskListItemData` does NOT include `description`, `parentId`, `createdBy`, `children`, or `timeEntries`.
+
+---
+
+### `POST /projects/:projectId/lists/:listId/tasks`
+
+Create a new task inside a list.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Request**
+```json
+{
+  "title": "Implement auth module",
+  "description": "JWT + OAuth2",
+  "statusId": "uuid",
+  "priority": "HIGH",
+  "startDate": "2026-04-14T00:00:00.000Z",
+  "dueDate": "2026-04-21T00:00:00.000Z",
+  "assigneeIds": ["user-uuid-1"],
+  "tagIds": ["tag-uuid-1"]
+}
+```
+
+| Field | Required | Rules |
+|---|---|---|
+| `title` | Yes | 1–500 chars |
+| `description` | No | max 10000 chars |
+| `statusId` | Yes | UUID of a status in this project |
+| `priority` | No | `"URGENT"`, `"HIGH"`, `"NORMAL"`, `"LOW"`, `"NONE"` — defaults to `"NONE"` |
+| `startDate` | No | ISO 8601 datetime string |
+| `dueDate` | No | ISO 8601 datetime string |
+| `assigneeIds` | No | Array of workspace member user UUIDs |
+| `tagIds` | No | Array of workspace tag UUIDs |
+
+**Response `201`** — `TaskDetailData` wrapped in `{ success, data, message }`
+
+**Errors**
+| Status | When |
+|---|---|
+| 400 | One or more `assigneeIds` are not workspace members |
+| 403 | Not a workspace member |
+| 404 | Project, list, or status not found |
+| 422 | Validation failed |
+
+---
+
+### `GET /projects/:projectId/lists/:listId/tasks`
+
+List all non-deleted root tasks (depth 0) in a task list, sorted by position ascending.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Response `200`** — array of `TaskListItemData`
+
+**Errors**
+| Status | When |
+|---|---|
+| 403 | Not a workspace member |
+| 404 | Project or list not found |
+
+---
+
+### `PUT /projects/:projectId/lists/:listId/tasks/reorder`
+
+Reorder tasks within a list. Must include **every** active root task ID exactly once.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Request**
+```json
+{
+  "taskIds": ["uuid-1", "uuid-2", "uuid-3"]
+}
+```
+
+**Response `200`** — array of `TaskListItemData` with updated positions
+
+**Errors**
+| Status | When |
+|---|---|
+| 400 | Missing, duplicate, or extra task IDs |
+| 403 | Not a workspace member |
+| 404 | Project or list not found |
+
+---
+
+### `GET /tasks/:taskId`
+
+Get full task detail by task UUID.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Response `200`** — `TaskDetailData` wrapped in `{ success, data, message }`
+
+**Errors**
+| Status | When |
+|---|---|
+| 403 | Not a workspace member |
+| 404 | Task not found |
+
+---
+
+### `PATCH /tasks/:taskId`
+
+Update task fields. Only send fields you want to change. At least one field required.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Request** — all fields optional
+```json
+{
+  "title": "Updated title",
+  "description": "Updated description",
+  "statusId": "uuid",
+  "priority": "URGENT",
+  "startDate": "2026-04-14T00:00:00.000Z",
+  "dueDate": "2026-04-28T00:00:00.000Z",
+  "listId": "new-list-uuid"
+}
+```
+
+- Send `"description": null` to clear it.
+- `listId` moves the task to a different list within the **same project**. The task gets a new position at the end of the target list.
+
+**Response `200`** — `TaskDetailData`
+
+**Errors**
+| Status | When |
+|---|---|
+| 403 | Not a workspace member |
+| 404 | Task, status, or target list not found |
+| 422 | Validation failed |
+
+---
+
+### `DELETE /tasks/:taskId`
+
+Soft-delete a task and all its subtasks. **Task creator or workspace OWNER only.**
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Response `200`**
+```json
+{
+  "success": true,
+  "data": null,
+  "message": "Task deleted successfully"
+}
+```
+
+**Errors**
+| Status | When |
+|---|---|
+| 403 | Not the task creator and not OWNER |
+| 404 | Task not found |
+
+---
+
+### `PATCH /tasks/:taskId/complete`
+
+Mark a task as completed. Sets `isCompleted: true` and records `completedAt`.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Request** — no body
+
+**Response `200`** — `TaskDetailData` with `isCompleted: true`
+
+---
+
+### `PATCH /tasks/:taskId/uncomplete`
+
+Revert a completed task. Clears `completedAt`.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Request** — no body
+
+**Response `200`** — `TaskDetailData` with `isCompleted: false`, `completedAt: null`
+
+---
+
+### `POST /tasks/:taskId/subtasks`
+
+Create a subtask under a task. Maximum depth is 2 — a subtask cannot itself have subtasks.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Request**
+```json
+{
+  "title": "Write unit tests",
+  "description": null,
+  "statusId": "uuid",
+  "priority": "NORMAL",
+  "startDate": null,
+  "dueDate": null
+}
+```
+
+Same field rules as task creation. `assigneeIds` and `tagIds` are not available at subtask creation — add them using the assignee/tag endpoints with the subtask's UUID after creation.
+
+**Response `201`** — `TaskDetailData` of the **new subtask** (not the parent)
+
+**Errors**
+| Status | When |
+|---|---|
+| 400 | Parent is already a subtask (depth limit reached) |
+| 403 | Not a workspace member |
+| 404 | Parent task or status not found |
+
+---
+
+### `GET /tasks/:taskId/subtasks`
+
+List all subtasks of a task, ordered by position ascending.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Response `200`** — array of `TaskListItemData`
+
+---
+
+### `POST /tasks/:taskId/assignees`
+
+Add assignees to a task. Existing assignees are not removed — this appends. Duplicate user IDs are silently ignored.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Request**
+```json
+{
+  "userIds": ["user-uuid-1", "user-uuid-2"]
+}
+```
+
+**Response `200`** — `TaskDetailData`
+
+**Errors**
+| Status | When |
+|---|---|
+| 400 | One or more users are not workspace members |
+| 403 | Not a workspace member |
+| 404 | Task not found |
+
+---
+
+### `DELETE /tasks/:taskId/assignees/:userId`
+
+Remove a single assignee from a task. `:userId` is the user's UUID.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Response `200`** — `TaskDetailData`
+
+**Errors**
+| Status | When |
+|---|---|
+| 403 | Not a workspace member |
+| 404 | Task not found |
+
+---
+
+### `POST /tasks/:taskId/tags`
+
+Add a tag to a task.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Request**
+```json
+{
+  "tagId": "uuid"
+}
+```
+
+**Response `200`** — `TaskDetailData`
+
+**Errors**
+| Status | When |
+|---|---|
+| 403 | Not a workspace member |
+| 404 | Task or tag not found |
+| 409 | Tag is already on this task |
+
+---
+
+### `DELETE /tasks/:taskId/tags/:tagId`
+
+Remove a tag from a task.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Response `200`** — `TaskDetailData`
+
+**Errors**
+| Status | When |
+|---|---|
+| 403 | Not a workspace member |
+| 404 | Tag is not on this task |
+
+---
+
+## 12. Tag Endpoints
+
+Tags are **workspace-scoped** — they can be attached to any task in the workspace. All tag endpoints require `Authorization: Bearer <accessToken>` and `x-workspace-id`. Any workspace member can manage tags.
+
+---
+
+### `POST /tags`
+
+Create a new workspace tag.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Request**
+```json
+{
+  "name": "backend",
+  "color": "#6366f1"
+}
+```
+
+| Field | Required | Rules |
+|---|---|---|
+| `name` | Yes | 1+ chars |
+| `color` | No | hex color, default `#6366f1` |
+
+**Response `201`**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "workspaceId": "uuid",
+    "name": "backend",
+    "color": "#6366f1",
+    "createdAt": "2026-04-14T12:00:00.000Z",
+    "updatedAt": "2026-04-14T12:00:00.000Z"
+  },
+  "message": "Tag created successfully"
+}
+```
+
+**Errors**
+| Status | When |
+|---|---|
+| 403 | Not a workspace member |
+| 409 | Tag name already exists in this workspace |
+
+---
+
+### `GET /tags`
+
+List all tags in the workspace.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Response `200`** — array of tag objects
+
+---
+
+### `PATCH /tags/:tagId`
+
+Update a tag's name or color. At least one field required.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Request** — at least one field required
+```json
+{
+  "name": "api",
+  "color": "#10b981"
+}
+```
+
+**Response `200`** — updated tag object
+
+**Errors**
+| Status | When |
+|---|---|
+| 403 | Not a workspace member |
+| 404 | Tag not found |
+
+---
+
+### `DELETE /tags/:tagId`
+
+Delete a tag from the workspace. The tag is removed from all tasks it was attached to.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Response `200`**
+```json
+{
+  "success": true,
+  "data": null,
+  "message": "Tag deleted successfully"
+}
+```
+
+**Errors**
+| Status | When |
+|---|---|
+| 403 | Not a workspace member |
+| 404 | Tag not found |
+
+---
+
+## 13. Time Entry Endpoints
+
+Time tracking supports both **manual log entries** and **live timer sessions**. All time entry endpoints require `Authorization: Bearer <accessToken>` and `x-workspace-id`.
+
+Only the user who created a time entry can edit or delete it.
+
+> **Duration unit:** All `duration` fields are in **seconds** throughout the API — both in time entry responses and in `totalTimeLogged` on tasks. Convert to minutes/hours in the UI (`seconds / 60` for minutes, `seconds / 3600` for hours).
+
+### Time Entry Data Shape
+
+```json
+{
+  "id": "uuid",
+  "taskId": "task-uuid",
+  "userId": "user-uuid",
+  "description": "Working on auth",
+  "startTime": "2026-04-14T09:00:00.000Z",
+  "endTime": "2026-04-14T11:00:00.000Z",
+  "duration": 7200,
+  "isManual": true,
+  "createdAt": "2026-04-14T12:00:00.000Z",
+  "updatedAt": "2026-04-14T12:00:00.000Z",
+  "user": {
+    "id": "uuid",
+    "fullName": "Zaeem Hassan",
+    "avatarUrl": null,
+    "avatarColor": "#6366f1"
+  }
+}
+```
+
+`duration` is in **seconds**. For running timers, `endTime` and `duration` are `null` until stopped.
+
+---
+
+### `POST /tasks/:taskId/time/manual`
+
+Log a manual time entry for a task.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Request** — provide **either** `startTime + endTime` **or** `durationMinutes` (not both, not neither)
+
+```json
+{
+  "description": "Working on auth",
+  "startTime": "2026-04-14T09:00:00.000Z",
+  "endTime": "2026-04-14T11:00:00.000Z"
+}
+```
+
+or:
+
+```json
+{
+  "description": "Working on auth",
+  "durationMinutes": 120
+}
+```
+
+| Field | Required | Rules |
+|---|---|---|
+| `description` | No | max 500 chars |
+| `startTime` | Conditional | ISO 8601 datetime — required with `endTime` |
+| `endTime` | ISO 8601 datetime — required with `startTime`, must be after `startTime` |
+| `durationMinutes` | Conditional | Integer 1–1440. Use this instead of time range |
+
+The server converts `durationMinutes` to seconds for storage. The `duration` in the response will be in seconds (`durationMinutes * 60`).
+
+**Response `201`** — `TimeEntryData`
+
+**Errors**
+| Status | When |
+|---|---|
+| 400 | Neither form provided / `endTime` before `startTime` |
+| 403 | Not a workspace member |
+| 404 | Task not found |
+
+---
+
+### `POST /tasks/:taskId/time/start`
+
+Start a live timer for a task. If the user already has an active timer anywhere in the workspace, it is **automatically stopped** first.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Request** — no body
+
+**Response `201`**
+```json
+{
+  "success": true,
+  "data": {
+    "stoppedEntry": null,
+    "activeEntry": { ... }
+  },
+  "message": "..."
+}
+```
+
+`stoppedEntry` is non-null when a previously running timer was automatically stopped. `activeEntry` is the new running timer.
+
+**Errors**
+| Status | When |
+|---|---|
+| 403 | Not a workspace member |
+| 404 | Task not found |
+
+---
+
+### `POST /tasks/:taskId/time/stop`
+
+Stop the active timer for a specific task.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Request** — no body
+
+**Response `200`** — `TimeEntryData` with `endTime` and `duration` (in seconds) populated
+
+**Errors**
+| Status | When |
+|---|---|
+| 403 | Not a workspace member |
+| 404 | Task not found, or no active timer on this task |
+
+---
+
+### `GET /tasks/:taskId/time`
+
+List all time entries for a task, ordered by `startTime` descending.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Response `200`** — array of `TimeEntryData`
+
+---
+
+### `GET /time-entries/active`
+
+Get the current user's active timer (if any) in the workspace. Use on app load to restore timer UI state.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Response `200`**
+```json
+{
+  "success": true,
+  "data": null,
+  "message": null
+}
+```
+
+`data` is `null` if no timer is running, or `TimeEntryData` with `endTime: null` if a timer is active.
+
+---
+
+### `PATCH /time-entries/:entryId`
+
+Edit a time entry's description and/or time range. Only the entry owner can do this.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Request** — at least one field required
+```json
+{
+  "description": "Updated note",
+  "startTime": "2026-04-14T10:00:00.000Z",
+  "endTime": "2026-04-14T12:00:00.000Z"
+}
+```
+
+| Field | Rules |
+|---|---|
+| `description` | max 500 chars, send `null` to clear |
+| `startTime` | ISO 8601 datetime |
+| `endTime` | ISO 8601 datetime, must be after `startTime` |
+
+> Note: `durationMinutes` is **not** accepted here. Duration is recalculated automatically from `startTime` and `endTime`.
+
+**Response `200`** — updated `TimeEntryData`
+
+**Errors**
+| Status | When |
+|---|---|
+| 403 | Not the entry owner |
+| 404 | Time entry not found |
+
+---
+
+### `DELETE /time-entries/:entryId`
+
+Delete a time entry. Only the entry owner can do this.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Response `200`**
+```json
+{
+  "success": true,
+  "data": null,
+  "message": "Time entry deleted successfully"
+}
+```
+
+**Errors**
+| Status | When |
+|---|---|
+| 403 | Not the entry owner |
+| 404 | Time entry not found |
+
+---
+
+## 14. System
 
 ### `GET /health`
 
-No auth required. Returns database connectivity status. Use for uptime monitoring or app startup checks.
+No auth required. Returns database connectivity status.
 
 **Response `200`**
 ```json
@@ -1694,12 +2699,16 @@ No auth required. Returns database connectivity status. Use for uptime monitorin
 | User endpoints | `Authorization: Bearer <token>` |
 | Workspace create/list | `Authorization: Bearer <token>` |
 | Workspace get/update/delete/invite | `Authorization: Bearer <token>` + `x-workspace-id` |
+| Member management (`/organizations`) | `Authorization: Bearer <token>` (workspaceId in body) |
 | Invite preview (`GET /invite/:token`) | None |
 | Invite claim (new user) | None |
 | Invite accept (existing user) | `Authorization: Bearer <token>` |
 | All project endpoints | `Authorization: Bearer <token>` + `x-workspace-id` |
 | All status endpoints | `Authorization: Bearer <token>` + `x-workspace-id` |
 | All task list endpoints | `Authorization: Bearer <token>` + `x-workspace-id` |
+| All task endpoints | `Authorization: Bearer <token>` + `x-workspace-id` |
+| All tag endpoints | `Authorization: Bearer <token>` + `x-workspace-id` |
+| All time entry endpoints | `Authorization: Bearer <token>` + `x-workspace-id` |
 
 ### Who Can Do What
 
@@ -1707,10 +2716,11 @@ No auth required. Returns database connectivity status. Use for uptime monitorin
 |---|---|
 | Register / verify email / login | Public |
 | Create workspace | Any authenticated user |
-| List / view workspaces | Member of that workspace |
+| List / view workspaces + members | Member of that workspace |
 | Update workspace | OWNER |
 | Delete workspace | OWNER |
 | Invite members (single or batch) | OWNER |
+| Remove member / change role | OWNER or ADMIN |
 | Claim invite (new user, no account) | Public |
 | Accept invite (existing user) | Any authenticated user (email must match) |
 | Create project | Any workspace member |
@@ -1720,6 +2730,13 @@ No auth required. Returns database connectivity status. Use for uptime monitorin
 | Create / update / delete / reorder statuses | OWNER |
 | Create / view / update / archive / restore / reorder task lists | Any workspace member |
 | Delete task list | Any workspace member |
+| Create / view / update tasks | Any workspace member |
+| Delete task | Task creator or OWNER |
+| Complete / uncomplete task | Any workspace member |
+| Add / remove assignees | Any workspace member |
+| Create / update / delete tags | Any workspace member |
+| Log manual time / start-stop timer | Any workspace member (own entries only) |
+| Edit / delete time entry | Entry owner only |
 
 ### Registration Flow Summary
 
@@ -1753,9 +2770,35 @@ POST /invite/claim          log in via
   (workspaceId in data)  (workspaceId in data)
 ```
 
-### profilePicture Format (User Module)
+### Task ID Format
 
-The `profilePicture` field in user endpoints is non-standard. It stores either a URL or an initials string:
+Tasks have a display ID like `API-1`, `API-2`, computed as `taskIdPrefix + '-' + taskNumber`. It is **not stored in the DB** — computed at query time. The `taskIdPrefix` set on project creation is permanent. Use the UUID `id` for all API calls; use `taskId` only for display.
+
+### Priority Values
+
+`"URGENT"` | `"HIGH"` | `"NORMAL"` | `"LOW"` | `"NONE"` (default)
+
+### Duration Units
+
+All `duration` fields (time entries, `totalTimeLogged` on tasks) are in **seconds**.
+
+| To display as | Formula |
+|---|---|
+| Minutes | `duration / 60` |
+| Hours | `duration / 3600` |
+| `"1h 30m"` | `Math.floor(d/3600) + 'h ' + Math.floor((d%3600)/60) + 'm'` |
+
+### Timer Behavior
+
+- Only one active timer per user at a time across the entire workspace.
+- Starting a new timer on task B auto-stops any running timer on task A.
+- On app load call `GET /time-entries/active` to check for a running timer and restore UI state.
+
+### Task List & Status Positioning
+
+Both task lists and statuses use gap-based integer `position` values (1000, 2000, …). Always use positions returned by the server — never hardcode or persist them on the frontend. Send all IDs in the desired order when reordering; the server recalculates positions.
+
+### profilePicture Format (User Module)
 
 | Value | What it means |
 |---|---|
@@ -1763,14 +2806,13 @@ The `profilePicture` field in user endpoints is non-standard. It stores either a
 | `"ZH"` | Shorthand — server normalizes to `"initials:ZH"` |
 | `"https://..."` | Direct image URL |
 
-To render on the frontend: check if it starts with `"initials:"` → render an avatar with the letters. Otherwise treat as an `<img>` src.
+To render: check if value starts with `"initials:"` → render an avatar circle with those letters. Otherwise treat as `<img>` src.
 
 ### Google OAuth Callback Page
 
-Your frontend needs a `/auth/callback` route. The server redirects there with the access token in the URL:
+Your frontend needs a `/auth/callback` route:
 
 ```ts
-// pages/auth/callback.tsx (or equivalent)
 useEffect(() => {
   const params = new URLSearchParams(window.location.search);
   const token = params.get('token');
@@ -1783,20 +2825,8 @@ useEffect(() => {
 }, []);
 ```
 
-### Task List Positioning
-
-Task lists use gap-based integer `position` values (1000, 2000, …). When reordering, send all active list IDs in the desired order — the server recalculates positions. Do not hardcode or persist position values on the frontend; always use the positions returned by the server.
-
-### Task ID Format
-
-Tasks will have a display ID like `API-1`, `API-2`, computed from `taskIdPrefix + '-' + taskNumber`. This is not stored in the DB — it is computed at query time. The `taskIdPrefix` set on project creation is permanent.
-
 ### Password Rules (All Endpoints)
 
-Min 8 characters, must contain:
-- At least one uppercase letter
-- At least one lowercase letter
-- At least one number
-- At least one special character
+Min 8 characters, must contain at least one uppercase letter, one lowercase letter, one number, and one special character.
 
-Applies to: register, verify-email (password set at register), reset-password, change-password.
+Applies to: register, reset-password, change-password, invite claim.
