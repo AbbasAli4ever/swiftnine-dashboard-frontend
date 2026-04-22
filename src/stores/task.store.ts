@@ -22,6 +22,7 @@ interface TaskState {
   fetchSubtasks: (taskId: string) => Promise<void>;
   toggleExpand: (taskId: string) => void;
   openTaskDetail: (taskId: string) => Promise<void>;
+  refreshOpenTask: () => Promise<void>;
   closeTaskDetail: () => void;
   createTask: (projectId: string, listId: string, payload: CreateTaskPayload) => Promise<TaskDetail>;
   updateTask: (taskId: string, listId: string, payload: UpdateTaskPayload) => Promise<void>;
@@ -115,6 +116,15 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     } catch {
       set({ openTaskLoading: false });
     }
+  },
+
+  refreshOpenTask: async () => {
+    const { openTaskId } = get();
+    if (!openTaskId) return;
+    try {
+      const task = await taskService.get(openTaskId);
+      set({ openTask: task });
+    } catch {}
   },
 
   closeTaskDetail: () => {

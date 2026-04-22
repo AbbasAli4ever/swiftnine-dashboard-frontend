@@ -85,6 +85,11 @@ export default function TasksPage() {
   const [isMutatingList, setIsMutatingList] = useState(false);
   const formModal = useModal();
 
+  // Close task detail modal when this page unmounts (prevents backdrop persisting on other pages)
+  useEffect(() => {
+    return () => { closeTaskDetail(); };
+  }, [closeTaskDetail]);
+
   const currentView: ProjectView = useMemo(() => {
     if (listId) {
       if (requestedView && requestedView !== "overview") return requestedView;

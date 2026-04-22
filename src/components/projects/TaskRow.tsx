@@ -6,13 +6,13 @@ import {
   LuChevronRight,
   LuEllipsis,
   LuGripVertical,
-  LuLink,
+
   LuPencil,
   LuPlus,
   LuTrash2,
   LuLoader,
 } from "react-icons/lu";
-import { TaskListItem, TaskPriority, CreateSubtaskPayload } from "@/services/task.service";
+import { TaskListItem, TaskPriority, CreateSubtaskPayload, TaskAssignee } from "@/services/task.service";
 import { StatusItem } from "@/services/status.service";
 import { WorkspaceMember } from "@/services/workspace.service";
 import { useTaskStore } from "@/stores/task.store";
@@ -23,6 +23,7 @@ import PriorityPicker from "./PriorityPicker";
 import AssigneePicker from "./AssigneePicker";
 import DatePicker from "./DatePicker";
 import StatusPicker from "./StatusPicker";
+import TagPicker from "./TagPicker";
 
 const COL = "minmax(0,1fr) 72px 110px 110px 80px 100px 32px";
 
@@ -40,22 +41,45 @@ interface TaskRowProps {
   onDelete: () => void;
   dragHandleProps?: Record<string, unknown>;
   indent?: number;
+  parentId?: string;
 }
 
 function SubtaskQuickCreate({
   parentId,
   listId,
   statuses,
+  members,
   onClose,
 }: {
   parentId: string;
   listId: string;
   statuses: StatusItem[];
+  members: WorkspaceMember[];
   onClose: () => void;
 }) {
   const [title, setTitle] = useState("");
   const [saving, setSaving] = useState(false);
+  const [assignees, setAssignees] = useState<TaskAssignee[]>([]);
+  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
+  const [startDate, setStartDate] = useState<string | null>(null);
+  const [dueDate, setDueDate] = useState<string | null>(null);
+  const [priority, setPriority] = useState<TaskPriority>("NONE");
   const { createSubtask } = useTaskStore();
+
+  const handleAddAssignee = (userId: string) => {
+    const member = members.find((m) => m.id === userId);
+    if (!member || assigneeIds.includes(userId)) return;
+    setAssigneeIds((prev) => [...prev, userId]);
+    setAssignees((prev) => [
+      ...prev,
+      { user: { id: member.id, fullName: member.fullName, avatarUrl: null, avatarColor: "#6366f1" }, assignedBy: "" },
+    ]);
+  };
+
+  const handleRemoveAssignee = (userId: string) => {
+    setAssigneeIds((prev) => prev.filter((id) => id !== userId));
+    setAssignees((prev) => prev.filter((a) => a.user.id !== userId));
+  };
 
   const handleSave = async () => {
     const trimmed = title.trim();
@@ -64,7 +88,13 @@ function SubtaskQuickCreate({
     if (!defaultStatus) return;
     setSaving(true);
     try {
-      const payload: CreateSubtaskPayload = { title: trimmed, statusId: defaultStatus.id };
+      const payload: CreateSubtaskPayload = {
+        title: trimmed,
+        statusId: defaultStatus.id,
+        startDate,
+        dueDate,
+        priority,
+      };
       await createSubtask(parentId, listId, payload);
       setTitle("");
     } catch (err) {
@@ -74,41 +104,47 @@ function SubtaskQuickCreate({
     }
   };
 
+  const defaultStatus = statuses[0];
+
   return (
-    <div
-      className="grid items-center gap-2 border-t border-brand-100 bg-brand-50/30 py-1 pr-4 dark:border-brand-900/30 dark:bg-brand-950/10"
-      style={{ gridTemplateColumns: COL }}
-    >
-      <div className="flex min-w-0 items-center gap-1 pl-16">
-        <input
-          autoFocus
-          type="text"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") { e.preventDefault(); void handleSave(); }
-            if (e.key === "Escape") onClose();
-          }}
-          placeholder="Subtask name..."
-          className="min-w-0 flex-1 bg-transparent text-sm text-gray-700 outline-none placeholder:text-gray-400 dark:text-gray-200"
-        />
+    <div className="flex items-center gap-2 border-t border-brand-100 bg-brand-50/30 py-1.5 pr-4 dark:border-brand-900/30 dark:bg-brand-950/10" style={{ paddingLeft: "3.5rem" }}>
+      {defaultStatus && (
+        <div className="flex w-6 shrink-0 items-center justify-center">
+          <StatusIcon group={defaultStatus.group} color={defaultStatus.color} size={13} />
+        </div>
+      )}
+      <input
+        autoFocus
+        type="text"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") { e.preventDefault(); void handleSave(); }
+          if (e.key === "Escape") onClose();
+        }}
+        placeholder="Task Name or type '/' for commands"
+        className="min-w-0 flex-1 bg-transparent text-sm text-gray-700 outline-none placeholder:text-gray-300 dark:text-gray-200 dark:placeholder:text-gray-600"
+      />
+      <div className="flex shrink-0 items-center gap-1.5 border-l border-gray-200 pl-3 dark:border-gray-700">
+        <div className="rounded-md border border-gray-200 dark:border-gray-700">
+          <AssigneePicker assignees={assignees} members={members} onAdd={handleAddAssignee} onRemove={handleRemoveAssignee} iconSize="sm" />
+        </div>
+        <div className="rounded-md border border-gray-200 dark:border-gray-700">
+          <DatePicker startDate={startDate} dueDate={dueDate} onChange={(range) => { setStartDate(range.startDate); setDueDate(range.dueDate); }} iconSize="sm" />
+        </div>
+        <div className="rounded-md border border-gray-200 dark:border-gray-700">
+          <PriorityPicker value={priority} onChange={setPriority} onClear={() => setPriority("NONE")} iconSize="sm" />
+        </div>
       </div>
-      <div />
-      <div />
-      <div />
-      <div />
-      <div />
-      <div className="flex items-center gap-1">
-        <button type="button" onClick={onClose} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
-        <button
-          type="button"
-          onClick={() => void handleSave()}
-          disabled={!title.trim() || saving}
-          className="rounded bg-brand-500 px-1.5 py-0.5 text-[11px] text-white hover:bg-brand-600 disabled:opacity-40"
-        >
-          {saving ? "..." : "Save"}
-        </button>
-      </div>
+      <button type="button" onClick={onClose} className="shrink-0 rounded-lg px-2.5 py-1 text-xs text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800">Cancel</button>
+      <button
+        type="button"
+        onClick={() => void handleSave()}
+        disabled={!title.trim() || saving}
+        className="shrink-0 rounded-lg bg-brand-500 px-2.5 py-1 text-xs text-white hover:bg-brand-600 disabled:opacity-50"
+      >
+        {saving ? "..." : "Save ↵"}
+      </button>
     </div>
   );
 }
@@ -127,11 +163,15 @@ export default function TaskRow({
   onDelete,
   dragHandleProps,
   indent = 0,
+  parentId,
 }: TaskRowProps) {
   const [hovered, setHovered] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
   const [addingSubtask, setAddingSubtask] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(task.title);
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -139,11 +179,27 @@ export default function TaskRow({
     toggleExpand,
     subtasksByParent,
     loadingSubtasks,
+    updateTask,
     updateSubtask,
     deleteSubtask,
     addAssignee,
     removeAssignee,
+    addTag,
+    removeTag,
   } = useTaskStore();
+
+  const commitTitleEdit = async () => {
+    setEditingTitle(false);
+    const trimmed = titleDraft.trim();
+    if (!trimmed || trimmed === task.title) { setTitleDraft(task.title); return; }
+    try {
+      if (parentId) {
+        await updateSubtask(task.id, parentId, listId, { title: trimmed });
+      } else {
+        await updateTask(task.id, listId, { title: trimmed });
+      }
+    } catch (err) { toast.error(parseApiError(err).message); setTitleDraft(task.title); }
+  };
 
   const isExpanded = expandedTasks.has(task.id);
   const subtasks = subtasksByParent[task.id] ?? [];
@@ -166,8 +222,9 @@ export default function TaskRow({
         onMouseLeave={() => setHovered(false)}
       >
         <div
-          className="grid items-center gap-2 py-1 pr-4 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800/40"
+          className="grid cursor-pointer items-center gap-2 py-1 pr-4 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800/40"
           style={{ gridTemplateColumns: COL }}
+          onClick={() => { if (!editingTitle) onView(task.id); }}
         >
           {/* Name cell */}
           <div className="flex min-w-0 items-center gap-1 pl-2" style={{ paddingLeft: `${8 + indentPx}px` }}>
@@ -175,6 +232,7 @@ export default function TaskRow({
             {indent < 2 && (
               <span
                 className={`cursor-grab shrink-0 text-gray-300 transition-opacity ${hovered ? "opacity-100" : "opacity-0"}`}
+                onClick={(e) => e.stopPropagation()}
                 {...dragHandleProps}
               >
                 <LuGripVertical className="h-3.5 w-3.5" />
@@ -186,7 +244,7 @@ export default function TaskRow({
             {hasChildren ? (
               <button
                 type="button"
-                onClick={() => toggleExpand(task.id)}
+                onClick={(e) => { e.stopPropagation(); toggleExpand(task.id); }}
                 className="shrink-0 text-gray-400 hover:text-gray-600"
               >
                 {isLoadingSubtasks ? (
@@ -209,13 +267,29 @@ export default function TaskRow({
             </span>
 
             {/* Title */}
-            <button
-              type="button"
-              onClick={() => onView(task.id)}
-              className={`min-w-0 truncate text-left text-sm hover:text-brand-500 ${task.isCompleted ? "line-through text-gray-400" : ""}`}
-            >
-              {task.title}
-            </button>
+            {editingTitle ? (
+              <input
+                ref={titleInputRef}
+                autoFocus
+                type="text"
+                value={titleDraft}
+                onChange={(e) => setTitleDraft(e.target.value)}
+                onBlur={() => void commitTitleEdit()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); titleInputRef.current?.blur(); }
+                  if (e.key === "Escape") { setTitleDraft(task.title); setEditingTitle(false); }
+                }}
+                onClick={(e) => e.stopPropagation()}
+                className="min-w-0 flex-1 bg-transparent text-sm text-gray-700 outline-none ring-1 ring-brand-400 rounded px-1 dark:text-gray-200"
+              />
+            ) : (
+              <span
+                onClick={(e) => { e.stopPropagation(); setEditingTitle(true); setTitleDraft(task.title); }}
+                className={`min-w-0 truncate text-left text-sm hover:text-brand-500 cursor-text ${task.isCompleted ? "line-through text-gray-400" : ""}`}
+              >
+                {task.title}
+              </span>
+            )}
 
             {/* Tags */}
             {task.tags.length > 0 && (
@@ -234,45 +308,42 @@ export default function TaskRow({
           </div>
 
           {/* Hover actions */}
-          <div className="flex shrink-0 items-center gap-0.5">
-            {hovered && (
-              <>
-                {indent < 2 && (
-                  <button
-                    type="button"
-                    title="Add subtask"
-                    onClick={() => { setAddingSubtask(true); if (!isExpanded) toggleExpand(task.id); }}
-                    className="rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700"
-                  >
-                    <LuPlus className="h-3 w-3" />
-                  </button>
-                )}
-                <button
-                  type="button"
-                  title="Copy link"
-                  className="rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700"
-                >
-                  <LuLink className="h-3 w-3" />
-                </button>
-                <button
-                  type="button"
-                  title="Open task"
-                  onClick={() => onView(task.id)}
-                  className="rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700"
-                >
-                  <LuPencil className="h-3 w-3" />
-                </button>
-              </>
+          <div className={`flex shrink-0 items-center gap-1 transition-opacity ${hovered ? "opacity-100" : "opacity-0 pointer-events-none"}`} onClick={(e) => e.stopPropagation()}>
+            {indent < 2 && (
+              <button
+                type="button"
+                title="Add subtask"
+                onClick={() => { setAddingSubtask(true); if (!isExpanded) toggleExpand(task.id); }}
+                className="flex h-5.5 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 shadow-sm hover:border-brand-400 hover:text-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-brand-500"
+              >
+                <LuPlus className="h-3 w-3" />
+              </button>
             )}
+            <TagPicker
+              taskId={task.id}
+              listId={listId}
+              currentTags={task.tags}
+              onAdd={(tagId) => addTag(task.id, listId, tagId)}
+              onRemove={(tagId) => removeTag(task.id, listId, tagId)}
+              variant="compact"
+            />
+            <button
+              type="button"
+              title="Open task"
+              onClick={() => onView(task.id)}
+              className="flex h-5.5 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 shadow-sm hover:border-brand-400 hover:text-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-brand-500"
+            >
+              <LuPencil className="h-3 w-3" />
+            </button>
           </div>
 
           {/* Assignee */}
-          <div>
+          <div onClick={(e) => e.stopPropagation()}>
             <AssigneePicker assignees={task.assignees} members={members} onAdd={onAddAssignee} onRemove={onRemoveAssignee} />
           </div>
 
           {/* Due date */}
-          <div>
+          <div onClick={(e) => e.stopPropagation()}>
             <DatePicker
               startDate={task.startDate}
               dueDate={task.dueDate}
@@ -281,17 +352,17 @@ export default function TaskRow({
           </div>
 
           {/* Priority */}
-          <div>
+          <div onClick={(e) => e.stopPropagation()}>
             <PriorityPicker value={task.priority} onChange={onUpdatePriority} onClear={() => onUpdatePriority("NONE")} />
           </div>
 
           {/* Status */}
-          <div>
+          <div onClick={(e) => e.stopPropagation()}>
             <StatusPicker statuses={statuses} value={task.status.id} onChange={onUpdateStatus} align="right" />
           </div>
 
           {/* Three dots */}
-          <div className="flex justify-center">
+          <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
               onClick={handleMenuOpen}
@@ -342,6 +413,7 @@ export default function TaskRow({
                 catch (err) { toast.error(parseApiError(err).message); }
               }}
               indent={indent + 1}
+              parentId={task.id}
             />
           ))}
 
@@ -350,21 +422,11 @@ export default function TaskRow({
               parentId={task.id}
               listId={listId}
               statuses={statuses}
+              members={members}
               onClose={() => setAddingSubtask(false)}
             />
           )}
 
-          {indent < 2 && !addingSubtask && (
-            <button
-              type="button"
-              onClick={() => setAddingSubtask(true)}
-              className="flex items-center gap-1 py-0.5 text-[11px] text-gray-400 hover:text-brand-500"
-              style={{ paddingLeft: `${32 + indentPx + 24}px` }}
-            >
-              <LuPlus className="h-3 w-3" />
-              Add subtask
-            </button>
-          )}
         </>
       )}
 

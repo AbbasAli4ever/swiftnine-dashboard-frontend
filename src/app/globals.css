@@ -194,6 +194,7 @@
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
   }
+
 }
 
 @utility menu-item {
@@ -754,3 +755,5 @@ span.flatpickr-weekday,
   opacity: 0.8;
   cursor: grabbing; /* Changes the cursor to indicate dragging */
 }
+
+/* Tiptap styles are scoped inside RichTextEditor.tsx via a <style> tag */

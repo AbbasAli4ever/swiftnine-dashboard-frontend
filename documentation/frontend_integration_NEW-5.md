@@ -21,7 +21,8 @@
 11. [Task Endpoints](#11-task-endpoints)
 12. [Tag Endpoints](#12-tag-endpoints)
 13. [Time Entry Endpoints](#13-time-entry-endpoints)
-14. [System](#14-system)
+14. [Attachment Endpoints](#14-attachment-endpoints)
+15. [System](#15-system)
 
 ---
 
@@ -709,10 +710,11 @@ x-workspace-id: <workspaceId>
       "role": "OWNER",
       "lastActive": "2026-04-14T12:00:00.000Z",
       "invitedBy": "Jane Doe",
-      "invitedOn": "2026-04-10T09:00:00.000Z"
+      "invitedOn": "2026-04-10T09:00:00.000Z",
+      "inviteStatus": "ACCEPTED"
     }
   ],
-  "message": null
+  "message": "Members returned successfully"
 }
 ```
 
@@ -721,6 +723,7 @@ x-workspace-id: <workspaceId>
 - `lastActive` — `null` if user has never gone offline
 - `invitedBy` — inviter's full name (string), or `null` if the user created the workspace
 - `invitedOn` — invite created date, or `null` if the user created the workspace
+- `inviteStatus` — `"PENDING"` | `"ACCEPTED"` | `"EXPIRED"` | `"REVOKED"` | `null` (null if user created the workspace and was never invited)
 
 **Errors**
 | Status | When |
@@ -881,7 +884,7 @@ x-workspace-id: <workspaceId>
       "failed": 0
     }
   },
-  "message": null
+  "message": "Batch invite processed"
 }
 ```
 
@@ -922,8 +925,8 @@ Preview an invite without consuming it. Use this on the `/invite` page to displa
 
 | Value | Meaning | What to show |
 |---|---|---|
-| `"claim_account"` | No verified account exists for this email | Show a sign-up form (name + password) → call `POST /invite/claim` |
-| `"login"` | A verified account already exists for this email | Show login prompt → after login call `POST /invite/accept` |
+| `"claim_account"` | No verified account exists for this email | Show a sign-up form (name + password) → call `POST /workspaces/invite/claim` |
+| `"login"` | A verified account already exists for this email | Show login prompt → after login call `POST /workspaces/invite/accept` |
 
 **Errors**
 | Status | When |
@@ -978,7 +981,7 @@ Sets `refresh_token` httpOnly cookie (same as login). Store the `accessToken` in
 | Status | When |
 |---|---|
 | 404 | Token not found, already used, or expired |
-| 409 | A verified account already exists for this email — use `POST /invite/accept` instead |
+| 409 | A verified account already exists for this email — use `POST /workspaces/invite/accept` instead |
 | 422 | Validation failed |
 
 ---
@@ -1024,9 +1027,7 @@ Redirect the user to the workspace using the returned `workspaceId`.
 
 These endpoints manage workspace membership. They live under `/organizations`. All require `Authorization: Bearer <accessToken>`. The workspace is identified in the request body (not a header).
 
-> **Important:** Both endpoints take the **WorkspaceMember record ID** (the membership record UUID), not the user UUID. This is the `id` field returned by the `GET /workspaces/:workspaceId/members` endpoint... except that endpoint returns the user's `id`. To get the membership record ID, you need to cross-reference — the membership ID is what's stored in the WorkspaceMember table. For practical use, store the membership record IDs from the members list query. See the note below.
-
-> **Practical note:** The members list (`GET /workspaces/:workspaceId/members`) returns user-level data. If you need membership record IDs for role/removal operations, you may need to maintain them client-side from when members are added, or check the Swagger UI for the exact field. The `memberId` in the request body of `DELETE /organizations/members` and the `:id` param of `PUT /organizations/members/:id/role` both refer to the **WorkspaceMember record ID**.
+> **Important:** Both endpoints take the **WorkspaceMember record ID** (the membership record UUID), not the user UUID. The `id` returned by `GET /workspaces/:workspaceId/members` is the **user's UUID**, not the membership record ID. To get membership record IDs, you need to store them from a separate source or look them up via Swagger. The `memberId` field in `DELETE /organizations/members` and the `:id` param in `PUT /organizations/members/:id/role` both refer to the **WorkspaceMember record ID**.
 
 ---
 
@@ -2491,7 +2492,7 @@ or:
 |---|---|---|
 | `description` | No | max 500 chars |
 | `startTime` | Conditional | ISO 8601 datetime — required with `endTime` |
-| `endTime` | ISO 8601 datetime — required with `startTime`, must be after `startTime` |
+| `endTime` | Conditional | ISO 8601 datetime — required with `startTime`, must be after `startTime` |
 | `durationMinutes` | Conditional | Integer 1–1440. Use this instead of time range |
 
 The server converts `durationMinutes` to seconds for storage. The `duration` in the response will be in seconds (`durationMinutes * 60`).
@@ -2527,11 +2528,11 @@ x-workspace-id: <workspaceId>
     "stoppedEntry": null,
     "activeEntry": { ... }
   },
-  "message": "..."
+  "message": "Timer started"
 }
 ```
 
-`stoppedEntry` is non-null when a previously running timer was automatically stopped. `activeEntry` is the new running timer.
+`stoppedEntry` is non-null when a previously running timer was automatically stopped. `activeEntry` is the new running timer. When a previous timer was auto-stopped, the message will be `"Previous timer stopped. New timer started."`.
 
 **Errors**
 | Status | When |
@@ -2664,7 +2665,221 @@ x-workspace-id: <workspaceId>
 
 ---
 
-## 14. System
+## 14. Attachment Endpoints
+
+File attachments are uploaded to S3 via a two-step presign flow. All attachment endpoints require `Authorization: Bearer <accessToken>`. There is **no** `x-workspace-id` header needed — the workspace is resolved server-side from the task.
+
+### Upload Flow
+
+```
+POST /attachments/presign    → get a presigned S3 URL + s3Key
+    ↓
+PUT <uploadUrl>              → upload the file directly to S3 (from the browser)
+    ↓
+POST /attachments            → record the attachment in the DB (pass back the s3Key)
+```
+
+---
+
+### `POST /attachments/presign`
+
+Generate a presigned S3 URL for direct browser upload.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+```
+
+**Request**
+```json
+{
+  "mimeType": "image/png",
+  "fileName": "screenshot.png",
+  "taskId": "task-uuid",
+  "workspaceId": "workspace-uuid"
+}
+```
+
+| Field | Required | Rules |
+|---|---|---|
+| `mimeType` | Yes | MIME type string (e.g. `"image/png"`) |
+| `fileName` | No | Original file name — used to build the S3 key |
+| `taskId` | No | UUID — scopes the upload to a task folder |
+| `workspaceId` | No | UUID — scopes the upload to a workspace folder (used if `taskId` not provided) |
+
+If neither `taskId` nor `workspaceId` is provided, the file is scoped to the user's folder.
+
+**Response `200`**
+```json
+{
+  "success": true,
+  "data": {
+    "uploadUrl": "https://s3.amazonaws.com/bucket/...?X-Amz-Signature=...",
+    "s3Key": "swiftnine/docs/app/attachments/task-uuid/abc123-screenshot.png",
+    "expiresAt": "2026-04-14T12:15:00.000Z"
+  },
+  "message": "Presigned URL generated"
+}
+```
+
+The presigned URL expires in **15 minutes**. Upload by sending a `PUT` request directly to `uploadUrl` from the browser — do not proxy through your server.
+
+---
+
+### `PUT <uploadUrl>` (Direct S3 Upload)
+
+Upload the file directly to S3 using the presigned URL. This is a browser-to-S3 request, not an API call.
+
+```ts
+await fetch(uploadUrl, {
+  method: 'PUT',
+  body: file,
+  headers: { 'Content-Type': file.type },
+});
+```
+
+Do not include auth headers — the presigned URL contains its own credentials. After this succeeds, call `POST /attachments` to record the attachment.
+
+---
+
+### `POST /attachments`
+
+Record an attachment in the database after the S3 upload completes.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+```
+
+**Request**
+```json
+{
+  "taskId": "task-uuid",
+  "memberId": "workspace-member-record-uuid-or-user-uuid",
+  "s3Key": "swiftnine/docs/app/attachments/task-uuid/abc123-screenshot.png",
+  "fileName": "screenshot.png",
+  "mimeType": "image/png",
+  "fileSize": 245000
+}
+```
+
+| Field | Required | Rules |
+|---|---|---|
+| `taskId` | Yes | UUID of the task this attachment belongs to |
+| `memberId` | Yes | WorkspaceMember record UUID **or** user UUID — server resolves either |
+| `s3Key` | Yes | The `s3Key` returned by `POST /attachments/presign` |
+| `fileName` | No | Original file name — server falls back to S3 metadata if omitted |
+| `mimeType` | No | MIME type — server falls back to S3 metadata if omitted |
+| `fileSize` | No | File size in bytes — server fetches from S3 `HeadObject` if omitted |
+
+**Response `200`**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "s3Key": "swiftnine/docs/app/attachments/task-uuid/abc123-screenshot.png",
+    "fileName": "screenshot.png",
+    "mimeType": "image/png",
+    "fileSize": 245000,
+    "createdAt": "2026-04-14T12:00:00.000Z"
+  },
+  "message": "Attachment created"
+}
+```
+
+**Errors**
+| Status | When |
+|---|---|
+| 403 | `actorId` does not match the resolved member's `userId` |
+| 404 | Task or workspace member not found |
+
+---
+
+### `POST /attachments/view`
+
+List all attachments for a task and get presigned download URLs for each.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+```
+
+**Request**
+```json
+{
+  "taskId": "task-uuid",
+  "memberId": "workspace-member-record-uuid-or-user-uuid"
+}
+```
+
+**Response `200`**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid",
+      "fileName": "screenshot.png",
+      "mimeType": "image/png",
+      "s3Key": "swiftnine/docs/app/attachments/task-uuid/abc123-screenshot.png",
+      "fileSize": 245000,
+      "url": "https://s3.amazonaws.com/bucket/...?X-Amz-Signature=...",
+      "expiresAt": "2026-04-14T12:15:00.000Z"
+    }
+  ],
+  "message": "Attachments returned"
+}
+```
+
+Each `url` is a presigned GET URL valid for **15 minutes**. Attachments are ordered by upload time (oldest first).
+
+**Errors**
+| Status | When |
+|---|---|
+| 404 | Task or workspace member not found |
+
+---
+
+### `DELETE /attachments`
+
+Soft-delete an attachment from a task.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+```
+
+**Request**
+```json
+{
+  "taskId": "task-uuid",
+  "memberId": "workspace-member-record-uuid-or-user-uuid",
+  "s3Key": "swiftnine/docs/app/attachments/task-uuid/abc123-screenshot.png"
+}
+```
+
+**Response `200`**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "s3Key": "swiftnine/docs/app/attachments/task-uuid/abc123-screenshot.png"
+  },
+  "message": "Attachment deleted"
+}
+```
+
+**Errors**
+| Status | When |
+|---|---|
+| 403 | `actorId` does not match the resolved member's `userId` |
+| 404 | Task, workspace member, or attachment not found |
+
+---
+
+## 15. System
 
 ### `GET /health`
 
@@ -2700,7 +2915,7 @@ No auth required. Returns database connectivity status.
 | Workspace create/list | `Authorization: Bearer <token>` |
 | Workspace get/update/delete/invite | `Authorization: Bearer <token>` + `x-workspace-id` |
 | Member management (`/organizations`) | `Authorization: Bearer <token>` (workspaceId in body) |
-| Invite preview (`GET /invite/:token`) | None |
+| Invite preview (`GET /workspaces/invite/:token`) | None |
 | Invite claim (new user) | None |
 | Invite accept (existing user) | `Authorization: Bearer <token>` |
 | All project endpoints | `Authorization: Bearer <token>` + `x-workspace-id` |
@@ -2709,6 +2924,7 @@ No auth required. Returns database connectivity status.
 | All task endpoints | `Authorization: Bearer <token>` + `x-workspace-id` |
 | All tag endpoints | `Authorization: Bearer <token>` + `x-workspace-id` |
 | All time entry endpoints | `Authorization: Bearer <token>` + `x-workspace-id` |
+| All attachment endpoints | `Authorization: Bearer <token>` (no `x-workspace-id`) |
 
 ### Who Can Do What
 
@@ -2737,6 +2953,7 @@ No auth required. Returns database connectivity status.
 | Create / update / delete tags | Any workspace member |
 | Log manual time / start-stop timer | Any workspace member (own entries only) |
 | Edit / delete time entry | Entry owner only |
+| Upload / view / delete attachments | Authenticated user (must match memberId) |
 
 ### Registration Flow Summary
 
@@ -2759,15 +2976,23 @@ User opens link → GET /workspaces/invite/:token  (public — preview details)
    "claim_account"            "login"
   (no account yet)        (account exists)
          ↓                       ↓
-POST /invite/claim          log in via
- { token, fullName,        POST /auth/login
-   password }                    ↓
-         ↓               POST /invite/accept
-  account created +         { token }
-  workspace joined               ↓
-         ↓               workspace joined
-  redirect to workspace  redirect to workspace
-  (workspaceId in data)  (workspaceId in data)
+POST /workspaces/invite/claim   log in via
+ { token, fullName,             POST /auth/login
+   password }                         ↓
+         ↓                   POST /workspaces/invite/accept
+  account created +              { token }
+  workspace joined                    ↓
+         ↓                    workspace joined
+  redirect to workspace      redirect to workspace
+  (workspaceId in data)      (workspaceId in data)
+```
+
+### Attachment Upload Flow Summary
+
+```
+POST /attachments/presign   → { uploadUrl, s3Key, expiresAt }
+PUT <uploadUrl>             → direct browser → S3 upload (no auth header)
+POST /attachments           → record in DB { taskId, memberId, s3Key, ... }
 ```
 
 ### Task ID Format
@@ -2830,3 +3055,13 @@ useEffect(() => {
 Min 8 characters, must contain at least one uppercase letter, one lowercase letter, one number, and one special character.
 
 Applies to: register, reset-password, change-password, invite claim.
+
+### Invite Endpoint Paths (Correct Full Paths)
+
+The invite endpoints live under `/workspaces`, not `/invite`:
+
+| Action | Correct path |
+|---|---|
+| Preview invite | `GET /workspaces/invite/:token` |
+| Claim invite (new user) | `POST /workspaces/invite/claim` |
+| Accept invite (existing user) | `POST /workspaces/invite/accept` |

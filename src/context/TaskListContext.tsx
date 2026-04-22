@@ -6,6 +6,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -67,6 +68,8 @@ export function TaskListProvider({ children }: { children: React.ReactNode }) {
   const { activeWorkspace } = useWorkspace();
   const { refetch: refetchProjects } = useProjects();
   const [cache, setCache] = useState<Record<string, CacheEntry>>({});
+  const cacheRef = useRef(cache);
+  cacheRef.current = cache;
 
   const clearLists = useCallback(() => {
     setCache({});
@@ -95,7 +98,7 @@ export function TaskListProvider({ children }: { children: React.ReactNode }) {
     async (projectId: string, options?: GetListsOptions) => {
       const includeArchived = options?.includeArchived ?? false;
       const force = options?.force ?? false;
-      const existing = cache[projectId];
+      const existing = cacheRef.current[projectId];
       const canUseCache =
         !force &&
         existing?.loaded &&
@@ -105,6 +108,10 @@ export function TaskListProvider({ children }: { children: React.ReactNode }) {
         return includeArchived
           ? existing.items
           : existing.items.filter((item) => !item.isArchived);
+      }
+
+      if (existing?.isLoading) {
+        return existing.items;
       }
 
       setLoading(projectId, true);
@@ -125,7 +132,7 @@ export function TaskListProvider({ children }: { children: React.ReactNode }) {
         throw error;
       }
     },
-    [cache, setLoading]
+    [setLoading]
   );
 
   const getProjectLists = useCallback(
