@@ -1,25 +1,28 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
-import { Modal } from "@/components/ui/modal";
-import {
-  Task,
-  TaskPriority,
-  SAMPLE_ASSIGNEES,
-  SAMPLE_TAGS,
-  TaskTag,
-  ALL_PRIORITIES,
-  TASK_PRIORITY_CONFIG,
-} from "@/types/task";
-import { useTasks } from "@/context/TaskContext";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { LuX, LuMaximize2, LuPaperclip, LuSparkles, LuFileText } from "react-icons/lu";
 import { StatusItem } from "@/services/status.service";
 import { TaskList } from "@/services/task-list.service";
-import { legacyStatusFromBackendStatus } from "./status-utils";
+import { WorkspaceMember } from "@/services/workspace.service";
+import { useTaskStore } from "@/stores/task.store";
+import { useWorkspaceStore } from "@/stores/workspace.store";
+import { workspaceService } from "@/services/workspace.service";
+import { tagService, WorkspaceTag } from "@/services/tag.service";
+import TagPicker from "./TagPicker";
+import { TaskPriority } from "@/services/task.service";
+import { parseApiError } from "@/lib/api";
+import { toast } from "sonner";
+import StatusPicker from "./StatusPicker";
+import AssigneePicker from "./AssigneePicker";
+import DatePicker from "./DatePicker";
+import PriorityPicker from "./PriorityPicker";
 
 interface TaskFormProps {
   isOpen: boolean;
   onClose: () => void;
-  editTask?: Task | null;
+  editTask?: import("@/types/task").Task | null;
   projectId: string | null;
   availableLists: TaskList[];
   statuses: StatusItem[];
@@ -27,364 +30,236 @@ interface TaskFormProps {
   defaultListId?: string | null;
 }
 
-type TaskFormState = Omit<Task, "id" | "createdAt">;
-
-function createEmptyTask(
-  projectId: string,
-  listId: string,
-  statuses: StatusItem[],
-  defaultStatusId?: string | null
-): TaskFormState {
-  const firstStatus = statuses.find((status) => status.id === defaultStatusId) ?? statuses[0];
-  const status = firstStatus ? legacyStatusFromBackendStatus(firstStatus) : "todo";
-
-  return {
-    projectId,
-    listId,
-    title: "",
-    description: "",
-    status,
-    statusId: firstStatus?.id,
-    priority: "normal",
-    assignees: [SAMPLE_ASSIGNEES[0]],
-    dueDate: "",
-    tags: [],
-    subtasks: [],
-    checklists: [],
-    comments: [],
-    attachments: [],
-  };
-}
-
 export default function TaskForm({
   isOpen,
   onClose,
-  editTask,
   projectId,
   availableLists,
   statuses,
   defaultStatusId,
   defaultListId,
 }: TaskFormProps) {
-  const { addTask, updateTask } = useTasks();
-  const resolvedStatuses = useMemo(() => {
-    if (statuses.length > 0) return statuses;
-    return [
-      {
-        id: "todo",
-        projectId: projectId ?? "",
-        name: "To Do",
-        color: "#e6e6e6",
-        group: "NOT_STARTED" as const,
-        position: 1000,
-        isDefault: true,
-        isProtected: false,
-        isClosed: false,
-        createdAt: "",
-        updatedAt: "",
-      },
-      {
-        id: "in-progress",
-        projectId: projectId ?? "",
-        name: "In Progress",
-        color: "#3b82f6",
-        group: "ACTIVE" as const,
-        position: 2000,
-        isDefault: true,
-        isProtected: false,
-        isClosed: false,
-        createdAt: "",
-        updatedAt: "",
-      },
-      {
-        id: "review",
-        projectId: projectId ?? "",
-        name: "Review",
-        color: "#f59e0b",
-        group: "DONE" as const,
-        position: 3000,
-        isDefault: true,
-        isProtected: false,
-        isClosed: false,
-        createdAt: "",
-        updatedAt: "",
-      },
-      {
-        id: "done",
-        projectId: projectId ?? "",
-        name: "Complete",
-        color: "#2a9764",
-        group: "CLOSED" as const,
-        position: 4000,
-        isDefault: true,
-        isProtected: true,
-        isClosed: true,
-        createdAt: "",
-        updatedAt: "",
-      },
-    ];
-  }, [projectId, statuses]);
+  const { createTask } = useTaskStore();
+  const { activeWorkspaceId } = useWorkspaceStore();
 
-  const initialForm = useMemo<TaskFormState>(() => {
-    if (editTask) {
-      return {
-        projectId: editTask.projectId,
-        listId: editTask.listId,
-        title: editTask.title,
-        description: editTask.description,
-        status: editTask.status,
-        statusId: editTask.statusId,
-        priority: editTask.priority,
-        assignees: editTask.assignees,
-        dueDate: editTask.dueDate,
-        tags: editTask.tags,
-        subtasks: editTask.subtasks,
-        checklists: editTask.checklists,
-        comments: editTask.comments,
-        attachments: editTask.attachments,
-      };
-    }
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [statusId, setStatusId] = useState<string>(() => defaultStatusId ?? statuses[0]?.id ?? "");
+  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
+  const [assignees, setAssignees] = useState<{ user: { id: string; fullName: string; avatarUrl: null; avatarColor: string }; assignedBy: string }[]>([]);
+  const [startDate, setStartDate] = useState<string | null>(null);
+  const [dueDate, setDueDate] = useState<string | null>(null);
+  const [priority, setPriority] = useState<TaskPriority>("NONE");
+  const [tagIds, setTagIds] = useState<string[]>([]);
+  const [currentTags, setCurrentTags] = useState<{ tag: { id: string; name: string; color: string } }[]>([]);
+  const [allTags, setAllTags] = useState<WorkspaceTag[]>([]);
+  const [members, setMembers] = useState<WorkspaceMember[]>([]);
+  const [saving, setSaving] = useState(false);
 
-    return createEmptyTask(
-      projectId ?? "",
-      defaultListId ?? availableLists[0]?.id ?? "",
-      resolvedStatuses,
-      defaultStatusId
-    );
-  }, [
-    availableLists,
-    defaultListId,
-    defaultStatusId,
-    editTask,
-    projectId,
-    resolvedStatuses,
-  ]);
-  const [form, setForm] = useState<TaskFormState>(initialForm);
-  const [errors, setErrors] = useState<{
-    title?: string;
-    dueDate?: string;
-    listId?: string;
-  }>({});
+  const titleRef = useRef<HTMLInputElement>(null);
 
-  function validate() {
-    const nextErrors: typeof errors = {};
-    if (!form.title.trim()) nextErrors.title = "Title is required.";
-    if (!form.dueDate) nextErrors.dueDate = "Due date is required.";
-    if (!form.listId) nextErrors.listId = "Please select a list.";
-    setErrors(nextErrors);
-    return Object.keys(nextErrors).length === 0;
-  }
+  useEffect(() => {
+    if (!isOpen) return;
+    setTitle("");
+    setDescription("");
+    setStatusId(defaultStatusId ?? statuses[0]?.id ?? "");
+    setAssigneeIds([]);
+    setAssignees([]);
+    setStartDate(null);
+    setDueDate(null);
+    setPriority("NONE");
+    setTagIds([]);
+    setTimeout(() => titleRef.current?.focus(), 50);
+  }, [isOpen, defaultStatusId, statuses]);
 
-  function handleSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    if (!validate()) return;
-    if (editTask) updateTask(editTask.id, form);
-    else addTask(form);
-    onClose();
-  }
+  useEffect(() => {
+    if (!activeWorkspaceId || !isOpen) return;
+    workspaceService.getMembers(activeWorkspaceId).then(setMembers).catch(() => {});
+    tagService.list().then(setAllTags).catch(() => {});
+  }, [activeWorkspaceId, isOpen]);
 
-  function toggleAssignee(assignee: string) {
-    setForm((previous) => ({
-      ...previous,
-      assignees: previous.assignees.includes(assignee)
-        ? previous.assignees.filter((value) => value !== assignee)
-        : [...previous.assignees, assignee],
-    }));
-  }
+  const resolvedListId = defaultListId ?? availableLists[0]?.id ?? "";
+  const currentStatus = statuses.find((s) => s.id === statusId) ?? statuses[0];
 
-  function toggleTag(tag: TaskTag) {
-    setForm((previous) => ({
-      ...previous,
-      tags: previous.tags.some((value) => value.id === tag.id)
-        ? previous.tags.filter((value) => value.id !== tag.id)
-        : [...previous.tags, tag],
-    }));
-  }
-
-  const handleStatusChange = (statusId: string) => {
-    const selectedStatus = resolvedStatuses.find((status) => status.id === statusId);
-    if (!selectedStatus) return;
-
-    setForm((previous) => ({
-      ...previous,
-      statusId: selectedStatus.id,
-      status: legacyStatusFromBackendStatus(selectedStatus),
-    }));
+  const handleAddAssignee = (userId: string) => {
+    if (assigneeIds.includes(userId)) return;
+    const member = members.find((m) => m.id === userId);
+    if (!member) return;
+    setAssigneeIds((p) => [...p, userId]);
+    setAssignees((p) => [...p, { user: { id: member.id, fullName: member.fullName, avatarUrl: null, avatarColor: "#6366f1" }, assignedBy: "" }]);
   };
 
-  const inputClass =
-    "h-9 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 focus:border-brand-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white";
-  const labelClass =
-    "mb-1 block text-xs font-normal uppercase tracking-wide text-gray-500 dark:text-gray-400";
+  const handleRemoveAssignee = (userId: string) => {
+    setAssigneeIds((p) => p.filter((id) => id !== userId));
+    setAssignees((p) => p.filter((a) => a.user.id !== userId));
+  };
 
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} className="mx-4 max-w-lg">
-      <div className="p-6">
-        <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-base font-normal text-gray-800 dark:text-white">
-            {editTask ? "Edit Task" : "Create Task"}
-          </h2>
+  const handleAddTag = async (tagId: string) => {
+    if (tagIds.includes(tagId)) return;
+    const tag = allTags.find((t) => t.id === tagId);
+    if (!tag) return;
+    setTagIds((p) => [...p, tagId]);
+    setCurrentTags((p) => [...p, { tag: { id: tag.id, name: tag.name, color: tag.color } }]);
+  };
+
+  const handleTagCreated = (tag: import("@/services/tag.service").WorkspaceTag) => {
+    setAllTags((p) => [...p, tag]);
+  };
+
+  const handleRemoveTag = async (tagId: string) => {
+    setTagIds((p) => p.filter((id) => id !== tagId));
+    setCurrentTags((p) => p.filter((t) => t.tag.id !== tagId));
+  };
+
+  const handleSubmit = async () => {
+    if (!title.trim() || !resolvedListId || !projectId) return;
+    setSaving(true);
+    try {
+      await createTask(projectId, resolvedListId, {
+        title: title.trim(),
+        description: description.trim() || undefined,
+        statusId: statusId || statuses[0]?.id,
+        assigneeIds: assigneeIds.length ? assigneeIds : undefined,
+        startDate: startDate ?? undefined,
+        dueDate: dueDate ?? undefined,
+        priority: priority !== "NONE" ? priority : undefined,
+        tagIds: tagIds.length ? tagIds : undefined,
+      });
+      toast.success("Task created");
+      onClose();
+    } catch (err) {
+      toast.error(parseApiError(err).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  const listName = availableLists.find((l) => l.id === resolvedListId)?.name ?? "Task";
+
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-2xl rounded-2xl bg-white shadow-2xl dark:bg-gray-900 flex flex-col overflow-hidden">
+
+        {/* Top bar */}
+        <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3 dark:border-gray-800">
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <span className="font-medium text-gray-700 dark:text-gray-200">{listName}</span>
+            <span className="text-gray-300">/</span>
+            <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">Task</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800">
+              <LuMaximize2 className="h-4 w-4" />
+            </button>
+            <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800">
+              <LuX className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className={labelClass}>Title *</label>
-            <input
-              type="text"
-              value={form.title}
-              onChange={(event) =>
-                setForm((previous) => ({ ...previous, title: event.target.value }))
-              }
-              placeholder="Task name"
-              className={`${inputClass} ${errors.title ? "border-red-400" : ""}`}
-            />
-            {errors.title ? <p className="mt-0.5 text-xs text-red-500">{errors.title}</p> : null}
-          </div>
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-3">
+          {/* Title */}
+          <input
+            ref={titleRef}
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") void handleSubmit(); }}
+            placeholder="Task Name or type '/' for commands"
+            className="w-full border-0 bg-transparent text-xl font-normal text-gray-800 placeholder:text-gray-300 outline-none dark:text-white dark:placeholder:text-gray-600"
+          />
 
-          <div>
-            <label className={labelClass}>Description</label>
+          {/* Description */}
+          <button type="button" className="flex items-center gap-2 text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" onClick={() => {}}>
+            <LuFileText className="h-4 w-4" />
+            {description ? null : <span>Add description</span>}
+          </button>
+          {description !== null && (
             <textarea
-              value={form.description}
-              onChange={(event) =>
-                setForm((previous) => ({ ...previous, description: event.target.value }))
-              }
-              placeholder="Add a description…"
-              rows={3}
-              className="w-full resize-none rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-brand-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Add description..."
+              rows={2}
+              className="w-full resize-none border-0 bg-transparent text-sm text-gray-500 placeholder:text-gray-300 outline-none dark:text-gray-400 dark:placeholder:text-gray-600"
+            />
+          )}
+
+          {/* Write with AI */}
+          <button type="button" className="flex items-center gap-2 text-sm text-gray-400 hover:text-brand-500">
+            <LuSparkles className="h-4 w-4 text-brand-400" />
+            <span>Write with AI</span>
+          </button>
+
+          {/* Toolbar pills */}
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            {/* Status */}
+            {currentStatus && (
+              <div
+                className="rounded-lg border"
+                style={{ borderColor: `${currentStatus.color}55`, backgroundColor: `${currentStatus.color}15` }}
+              >
+                <StatusPicker statuses={statuses} value={statusId} onChange={setStatusId} />
+              </div>
+            )}
+
+            {/* Assignee */}
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700">
+              <AssigneePicker assignees={assignees} members={members} onAdd={handleAddAssignee} onRemove={handleRemoveAssignee} iconSize="sm" />
+            </div>
+
+            {/* Due date */}
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700">
+              <DatePicker startDate={startDate} dueDate={dueDate} onChange={(r) => { setStartDate(r.startDate); setDueDate(r.dueDate); }} iconSize="sm" />
+            </div>
+
+            {/* Priority */}
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700">
+              <PriorityPicker value={priority} onChange={setPriority} onClear={() => setPriority("NONE")} iconSize="sm" />
+            </div>
+
+            {/* Tags */}
+            <TagPicker
+              taskId=""
+              listId={resolvedListId}
+              currentTags={currentTags}
+              onAdd={handleAddTag}
+              onRemove={handleRemoveTag}
+              onTagCreated={handleTagCreated}
             />
           </div>
 
-          <div>
-            <label className={labelClass}>List *</label>
-            <select
-              value={form.listId}
-              onChange={(event) =>
-                setForm((previous) => ({ ...previous, listId: event.target.value }))
-              }
-              className={`${inputClass} ${errors.listId ? "border-red-400" : ""}`}
-            >
-              <option value="">Select list</option>
-              {availableLists.map((list) => (
-                <option key={list.id} value={list.id}>
-                  {list.name}
-                </option>
-              ))}
-            </select>
-            {errors.listId ? <p className="mt-0.5 text-xs text-red-500">{errors.listId}</p> : null}
-          </div>
+          {/* Fields section */}
+        </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelClass}>Status</label>
-              <select
-                value={form.statusId ?? ""}
-                onChange={(event) => handleStatusChange(event.target.value)}
-                className={inputClass}
-              >
-                {resolvedStatuses.map((status) => (
-                  <option key={status.id} value={status.id}>
-                    {status.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className={labelClass}>Priority</label>
-              <select
-                value={form.priority}
-                onChange={(event) =>
-                  setForm((previous) => ({
-                    ...previous,
-                    priority: event.target.value as TaskPriority,
-                  }))
-                }
-                className={inputClass}
-              >
-                {ALL_PRIORITIES.map((priority) => (
-                  <option key={priority} value={priority}>
-                    {TASK_PRIORITY_CONFIG[priority].label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className={labelClass}>Due Date *</label>
-            <input
-              type="date"
-              value={form.dueDate}
-              onChange={(event) =>
-                setForm((previous) => ({ ...previous, dueDate: event.target.value }))
-              }
-              className={`${inputClass} ${errors.dueDate ? "border-red-400" : ""}`}
-            />
-            {errors.dueDate ? <p className="mt-0.5 text-xs text-red-500">{errors.dueDate}</p> : null}
-          </div>
-
-          <div>
-            <label className={labelClass}>Assignees</label>
-            <div className="flex flex-wrap gap-2">
-              {SAMPLE_ASSIGNEES.map((assignee) => {
-                const selected = form.assignees.includes(assignee);
-                return (
-                  <button
-                    key={assignee}
-                    type="button"
-                    onClick={() => toggleAssignee(assignee)}
-                    className={`rounded-full px-3 py-1 text-xs font-normal transition-all ${
-                      selected
-                        ? "bg-brand-500 text-white"
-                        : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
-                    }`}
-                  >
-                    {assignee.split(" ")[0]}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div>
-            <label className={labelClass}>Tags</label>
-            <div className="flex flex-wrap gap-1.5">
-              {SAMPLE_TAGS.map((tag) => {
-                const selected = form.tags.some((value) => value.id === tag.id);
-                return (
-                  <button
-                    key={tag.id}
-                    type="button"
-                    onClick={() => toggleTag(tag)}
-                    className={`rounded-full px-2.5 py-1 text-xs font-normal transition-all ${
-                      selected
-                        ? `${tag.color} ring-2 ring-brand-400`
-                        : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400"
-                    }`}
-                  >
-                    {tag.name}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-1">
+        {/* Footer */}
+        <div className="flex items-center justify-between border-t border-gray-100 px-5 py-3 dark:border-gray-800">
+          <button type="button" className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800">
+            <LuPaperclip className="h-4 w-4" />
+          </button>
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="h-9 rounded-lg border border-gray-200 px-4 text-sm font-normal text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+              className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
             >
               Cancel
             </button>
             <button
-              type="submit"
-              className="h-9 rounded-lg bg-brand-500 px-5 text-sm font-normal text-white transition-colors hover:bg-brand-600"
+              type="button"
+              onClick={() => void handleSubmit()}
+              disabled={!title.trim() || saving}
+              className="rounded-lg bg-brand-500 px-5 py-2 text-sm font-normal text-white hover:bg-brand-600 disabled:opacity-50 transition-colors"
             >
-              {editTask ? "Save Changes" : "Create Task"}
+              {saving ? "Creating..." : "Create Task"}
             </button>
           </div>
-        </form>
+        </div>
       </div>
-    </Modal>
+    </div>,
+    document.body
   );
 }

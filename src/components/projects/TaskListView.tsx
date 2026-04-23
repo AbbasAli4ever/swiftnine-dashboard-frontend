@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Task } from "@/types/task";
 import { TaskList } from "@/services/task-list.service";
 import { StatusItem } from "@/services/status.service";
@@ -28,6 +29,8 @@ const FALLBACK_STATUSES: StatusItem[] = [
   { id: "fallback_done", projectId: "", name: "COMPLETE", color: "#2a9764", group: "CLOSED", position: 4000, isDefault: true, isProtected: true, isClosed: true, createdAt: "", updatedAt: "" },
 ];
 
+const TASK_ROW_HEIGHT = 40;
+
 export interface TaskListSectionData {
   list: TaskList;
   tasks: Task[];
@@ -52,6 +55,15 @@ interface TaskListViewProps {
 
 const COL = "minmax(0,1fr) 110px 110px 80px 100px 32px";
 
+interface ListDragState {
+  task: TaskListItem;
+  fromStatusId: string;
+  fromIdx: number;
+  startY: number;
+  offsetY: number;
+  rowWidth: number;
+}
+
 function StatusGroup({
   list,
   projectId,
@@ -59,8 +71,11 @@ function StatusGroup({
   statuses,
   members,
   onOpenTaskDetail,
-  onLegacyView,
-  onAdd,
+  dragState,
+  dropTargetStatusId,
+  dropIdx,
+  onDragStart,
+  onGroupEnter,
 }: {
   list: TaskList;
   projectId: string;
@@ -68,25 +83,30 @@ function StatusGroup({
   statuses: StatusItem[];
   members: WorkspaceMember[];
   onOpenTaskDetail: (taskId: string) => void;
-  onLegacyView: (task: Task) => void;
-  onAdd: (options?: { statusId?: string; listId?: string }) => void;
+  dragState: ListDragState | null;
+  dropTargetStatusId: string | null;
+  dropIdx: number | null;
+  onDragStart: (e: React.PointerEvent, task: TaskListItem, idx: number, rowEl: HTMLDivElement) => void;
+  onGroupEnter: (statusId: string) => void;
 }) {
-  const { tasksByList, loadingLists, fetchTasks, updateTask, completeTask, uncompleteTask, deleteTask, addAssignee, removeAssignee, createTask } = useTaskStore();
+  const { tasksByList, loadingLists, fetchTasks, updateTask, deleteTask, addAssignee, removeAssignee, createTask } = useTaskStore();
   const [collapsed, setCollapsed] = useState(false);
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
 
-  // Fetch tasks for this list on mount
   useEffect(() => {
     if (!tasksByList[list.id] && !loadingLists.has(list.id)) {
       void fetchTasks(projectId, list.id);
     }
   }, [list.id, projectId, fetchTasks, tasksByList, loadingLists]);
 
-  const allListTasks = tasksByList[list.id] ?? [];
   const tasks = useMemo(
-    () => allListTasks.filter((t) => t.status.id === status.id && t.depth === 0),
-    [allListTasks, status.id]
+    () => (tasksByList[list.id] ?? []).filter((t) => t.status.id === status.id && t.depth === 0),
+    [tasksByList, list.id, status.id]
   );
+
+  const isDraggingFromHere = dragState?.fromStatusId === status.id;
+  const isDropTarget = dropTargetStatusId === status.id;
+  const isCrossTarget = isDropTarget && dragState !== null && !isDraggingFromHere;
 
   const handleQuickCreate = async (payload: {
     title: string;
@@ -105,79 +125,41 @@ function StatusGroup({
         priority: payload.priority !== "NONE" ? payload.priority : undefined,
       });
     } catch (err) {
-      const { message } = parseApiError(err);
-      toast.error(message);
+      toast.error(parseApiError(err).message);
     }
     setQuickCreateOpen(false);
   };
 
   const handleUpdateStatus = async (task: TaskListItem, statusId: string) => {
-    try {
-      await updateTask(task.id, list.id, { statusId });
-    } catch (err) {
-      const { message } = parseApiError(err);
-      toast.error(message);
-    }
+    try { await updateTask(task.id, list.id, { statusId }); }
+    catch (err) { toast.error(parseApiError(err).message); }
   };
-
   const handleUpdatePriority = async (task: TaskListItem, priority: TaskPriority) => {
-    try {
-      await updateTask(task.id, list.id, { priority });
-    } catch (err) {
-      const { message } = parseApiError(err);
-      toast.error(message);
-    }
+    try { await updateTask(task.id, list.id, { priority }); }
+    catch (err) { toast.error(parseApiError(err).message); }
   };
-
   const handleUpdateDates = async (task: TaskListItem, startDate: string | null, dueDate: string | null) => {
-    try {
-      await updateTask(task.id, list.id, { startDate, dueDate });
-    } catch (err) {
-      const { message } = parseApiError(err);
-      toast.error(message);
-    }
+    try { await updateTask(task.id, list.id, { startDate, dueDate }); }
+    catch (err) { toast.error(parseApiError(err).message); }
   };
-
   const handleAddAssignee = async (task: TaskListItem, userId: string) => {
-    try {
-      await addAssignee(task.id, list.id, [userId]);
-    } catch (err) {
-      const { message } = parseApiError(err);
-      toast.error(message);
-    }
+    try { await addAssignee(task.id, list.id, [userId]); }
+    catch (err) { toast.error(parseApiError(err).message); }
   };
-
   const handleRemoveAssignee = async (task: TaskListItem, userId: string) => {
-    try {
-      await removeAssignee(task.id, list.id, userId);
-    } catch (err) {
-      const { message } = parseApiError(err);
-      toast.error(message);
-    }
+    try { await removeAssignee(task.id, list.id, userId); }
+    catch (err) { toast.error(parseApiError(err).message); }
   };
-
   const handleDelete = async (task: TaskListItem) => {
-    try {
-      await deleteTask(task.id, list.id);
-      toast.success("Task deleted");
-    } catch (err) {
-      const { message } = parseApiError(err);
-      toast.error(message);
-    }
-  };
-
-  const handleComplete = async (task: TaskListItem) => {
-    try {
-      if (task.isCompleted) await uncompleteTask(task.id, list.id);
-      else await completeTask(task.id, list.id);
-    } catch (err) {
-      const { message } = parseApiError(err);
-      toast.error(message);
-    }
+    try { await deleteTask(task.id, list.id); toast.success("Task deleted"); }
+    catch (err) { toast.error(parseApiError(err).message); }
   };
 
   return (
-    <div className="border-b border-gray-100 last:border-b-0 dark:border-gray-700">
+    <div
+      className={`border-b border-gray-100 last:border-b-0 dark:border-gray-700 transition-colors ${isCrossTarget ? "bg-brand-50 dark:bg-brand-900/10" : ""}`}
+      onPointerEnter={() => { if (dragState) onGroupEnter(status.id); }}
+    >
       {/* Status group header */}
       <div className="flex items-center gap-2 px-4 py-2.5">
         <button
@@ -214,7 +196,6 @@ function StatusGroup({
 
       {!collapsed && (
         <div>
-          {/* Column headers — only shown when there are tasks */}
           {tasks.length > 0 && (
             <div
               className="grid items-center gap-2 border-b border-gray-100 px-4 py-1.5 text-[11px] text-gray-400 dark:border-gray-800"
@@ -229,22 +210,60 @@ function StatusGroup({
             </div>
           )}
 
-          {tasks.map((task) => (
-            <TaskRow
-              key={task.id}
-              task={task}
-              statuses={statuses}
-              members={members}
-              listId={list.id}
-              onView={onOpenTaskDetail}
-              onUpdateStatus={(statusId) => handleUpdateStatus(task, statusId)}
-              onUpdatePriority={(priority) => handleUpdatePriority(task, priority)}
-              onUpdateDates={(start, due) => handleUpdateDates(task, start, due)}
-              onAddAssignee={(userId) => handleAddAssignee(task, userId)}
-              onRemoveAssignee={(userId) => handleRemoveAssignee(task, userId)}
-              onDelete={() => handleDelete(task)}
+          {/* Task rows with animated shifts */}
+          <div>
+            {tasks.map((task, idx) => {
+              const isDraggingThis = dragState?.task.id === task.id && isDraggingFromHere;
+              const from = isDraggingFromHere ? (dragState?.fromIdx ?? idx) : idx;
+              const to = isDraggingFromHere ? (dropIdx ?? from) : from;
+              let shift = 0;
+              if (isDraggingFromHere && dragState && !isDraggingThis) {
+                if (from < to && idx > from && idx <= to) shift = -TASK_ROW_HEIGHT;
+                if (from > to && idx < from && idx >= to) shift = TASK_ROW_HEIGHT;
+              }
+              let rowEl: HTMLDivElement | null = null;
+              return (
+                <div
+                  key={task.id}
+                  ref={(el) => { rowEl = el; }}
+                  style={{
+                    transform: `translateY(${shift}px)`,
+                    transition: "transform 180ms ease",
+                    opacity: isDraggingThis ? 0 : 1,
+                  }}
+                >
+                  <TaskRow
+                    task={task}
+                    statuses={statuses}
+                    members={members}
+                    listId={list.id}
+                    onView={onOpenTaskDetail}
+                    onUpdateStatus={(statusId) => handleUpdateStatus(task, statusId)}
+                    onUpdatePriority={(priority) => handleUpdatePriority(task, priority)}
+                    onUpdateDates={(start, due) => handleUpdateDates(task, start, due)}
+                    onAddAssignee={(userId) => handleAddAssignee(task, userId)}
+                    onRemoveAssignee={(userId) => handleRemoveAssignee(task, userId)}
+                    onDelete={() => handleDelete(task)}
+                    dragHandleProps={{
+                      onPointerDown: (e: React.PointerEvent) => {
+                        if (rowEl) onDragStart(e, task, idx, rowEl);
+                      },
+                      style: { touchAction: "none", cursor: "grab" },
+                    }}
+                  />
+                </div>
+              );
+            })}
+
+            {/* Space that opens in target group when dragging in from another status */}
+            <div
+              style={{
+                height: isCrossTarget ? TASK_ROW_HEIGHT : 0,
+                transition: "height 180ms ease",
+                overflow: "hidden",
+              }}
             />
-          ))}
+          </div>
 
           {loadingLists.has(list.id) && tasks.length === 0 && (
             <div className="px-8 py-3 text-xs text-gray-400">Loading...</div>
@@ -281,8 +300,6 @@ function ListSection({
   statuses,
   members,
   onOpenTaskDetail,
-  onLegacyView,
-  onAdd,
   showListHeader,
 }: {
   list: TaskList;
@@ -290,10 +307,125 @@ function ListSection({
   statuses: StatusItem[];
   members: WorkspaceMember[];
   onOpenTaskDetail: (taskId: string) => void;
-  onLegacyView: (task: Task) => void;
-  onAdd: (options?: { statusId?: string; listId?: string }) => void;
   showListHeader: boolean;
 }) {
+  const { tasksByList, updateTask, reorderTasks, fetchTasks } = useTaskStore();
+
+  const dragRef = useRef<ListDragState | null>(null);
+  const suppressClickRef = useRef(false);
+  const [activeDrag, setActiveDrag] = useState<ListDragState | null>(null);
+  const [dropTargetStatusId, setDropTargetStatusId] = useState<string | null>(null);
+  const [dropIdx, setDropIdx] = useState<number | null>(null);
+  const [ghostPos, setGhostPos] = useState<{ x: number; y: number; width: number } | null>(null);
+
+  const handleDragStart = useCallback((
+    e: React.PointerEvent,
+    task: TaskListItem,
+    idx: number,
+    rowEl: HTMLDivElement,
+  ) => {
+    const target = e.target as HTMLElement;
+    if (target.closest("button") || target.closest("input") || target.closest("a")) return;
+    e.preventDefault();
+    const rect = rowEl.getBoundingClientRect();
+    const state: ListDragState = {
+      task,
+      fromStatusId: task.status.id,
+      fromIdx: idx,
+      startY: e.clientY,
+      offsetY: e.clientY - rect.top,
+      rowWidth: rect.width,
+    };
+    dragRef.current = state;
+    suppressClickRef.current = true;
+    let styleEl = document.getElementById("__drag_cursor__") as HTMLStyleElement | null;
+    if (!styleEl) { styleEl = document.createElement("style"); styleEl.id = "__drag_cursor__"; document.head.appendChild(styleEl); }
+    styleEl.textContent = "*{cursor:grabbing!important}";
+    setActiveDrag(state);
+    setDropTargetStatusId(task.status.id);
+    setDropIdx(idx);
+    setGhostPos({ x: rect.left, y: rect.top, width: rect.width });
+  }, []);
+
+  const handleDragMove = useCallback((e: React.PointerEvent) => {
+    if (!dragRef.current) return;
+    const { fromIdx, startY, offsetY } = dragRef.current;
+    const tasksInGroup = (tasksByList[list.id] ?? []).filter(
+      (t) => t.status.id === dragRef.current!.fromStatusId && t.depth === 0
+    );
+    if (dropTargetStatusId === dragRef.current.fromStatusId) {
+      const dy = e.clientY - startY;
+      const slot = Math.round(fromIdx + dy / TASK_ROW_HEIGHT);
+      setDropIdx(Math.max(0, Math.min(tasksInGroup.length - 1, slot)));
+    }
+    setGhostPos((p) => p ? { ...p, y: e.clientY - offsetY } : p);
+  }, [dropTargetStatusId, tasksByList, list.id]);
+
+  const handleDragEnd = useCallback(async () => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    const targetStatusId = dropTargetStatusId ?? drag.fromStatusId;
+    const from = drag.fromIdx;
+    const to = dropIdx ?? from;
+    dragRef.current = null;
+    const styleEl = document.getElementById("__drag_cursor__");
+    if (styleEl) styleEl.textContent = "";
+    setTimeout(() => { suppressClickRef.current = false; }, 80);
+    setActiveDrag(null);
+    setDropTargetStatusId(null);
+    setDropIdx(null);
+    setGhostPos(null);
+
+    const allListTasks = tasksByList[list.id] ?? [];
+    const isSameStatus = targetStatusId === drag.fromStatusId;
+
+    if (!isSameStatus) {
+      try {
+        await updateTask(drag.task.id, list.id, { statusId: targetStatusId });
+      } catch (err) {
+        toast.error(parseApiError(err).message);
+        void fetchTasks(projectId, list.id);
+      }
+      return;
+    }
+
+    if (from === to) return;
+
+    const groupTasks = allListTasks.filter((t) => t.status.id === drag.fromStatusId && t.depth === 0);
+    const reordered = [...groupTasks];
+    const [moved] = reordered.splice(from, 1);
+    reordered.splice(to, 0, moved);
+
+    const others = allListTasks.filter((t) => !(t.status.id === drag.fromStatusId && t.depth === 0));
+    useTaskStore.setState((s) => ({
+      tasksByList: { ...s.tasksByList, [list.id]: [...others, ...reordered] },
+    }));
+
+    try {
+      const allRoot = allListTasks.filter((t) => t.depth === 0);
+      const reorderedIds = new Set(reordered.map((t) => t.id));
+      const withGap = allRoot.filter((t) => !reorderedIds.has(t.id));
+      const firstOfGroup = allRoot.find((t) => t.status.id === drag.fromStatusId);
+      const insertAt = firstOfGroup ? withGap.findIndex((t) => {
+        const origIdx = allRoot.findIndex((r) => r.id === t.id);
+        const groupStart = allRoot.findIndex((r) => r.id === firstOfGroup.id);
+        return origIdx > groupStart;
+      }) : -1;
+      withGap.splice(insertAt < 0 ? withGap.length : insertAt, 0, ...reordered);
+      await reorderTasks(projectId, list.id, withGap.map((t) => t.id));
+    } catch (err) {
+      toast.error(parseApiError(err).message);
+      void fetchTasks(projectId, list.id);
+    }
+  }, [dropTargetStatusId, dropIdx, tasksByList, list.id, projectId, updateTask, reorderTasks, fetchTasks]);
+
+  const handleGroupEnter = useCallback((statusId: string) => {
+    setDropTargetStatusId(statusId);
+    if (dragRef.current && statusId !== dragRef.current.fromStatusId) {
+      setDropIdx(null);
+    }
+  }, []);
+
   const groups = statuses.map((status) => (
     <StatusGroup
       key={`${list.id}-${status.id}`}
@@ -302,20 +434,64 @@ function ListSection({
       status={status}
       statuses={statuses}
       members={members}
-      onOpenTaskDetail={onOpenTaskDetail}
-      onLegacyView={onLegacyView}
-      onAdd={onAdd}
+      onOpenTaskDetail={(taskId) => { if (!suppressClickRef.current) onOpenTaskDetail(taskId); }}
+      dragState={activeDrag}
+      dropTargetStatusId={dropTargetStatusId}
+      dropIdx={dropIdx}
+      onDragStart={handleDragStart}
+      onGroupEnter={handleGroupEnter}
     />
   ));
 
-  if (!showListHeader) return <>{groups}</>;
+  const content = (
+    <div
+      style={{ userSelect: activeDrag ? "none" : undefined }}
+      onPointerMove={activeDrag ? handleDragMove : undefined}
+      onPointerUp={activeDrag ? () => void handleDragEnd() : undefined}
+      onPointerCancel={activeDrag ? () => void handleDragEnd() : undefined}
+    >
+      {groups}
+      {ghostPos && activeDrag && createPortal(
+        <div
+          style={{
+            position: "fixed",
+            top: ghostPos.y,
+            left: ghostPos.x,
+            width: ghostPos.width,
+            zIndex: 9999,
+            pointerEvents: "none",
+            opacity: 0.85,
+            transform: "rotate(0.5deg) scale(1.01)",
+          }}
+          className="rounded-md border border-brand-400 bg-white shadow-xl dark:bg-gray-900"
+        >
+          <TaskRow
+            task={activeDrag.task}
+            statuses={statuses}
+            members={members}
+            listId={list.id}
+            onView={() => {}}
+            onUpdateStatus={() => {}}
+            onUpdatePriority={() => {}}
+            onUpdateDates={() => {}}
+            onAddAssignee={() => {}}
+            onRemoveAssignee={() => {}}
+            onDelete={() => {}}
+          />
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+
+  if (!showListHeader) return content;
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
       <div className="flex items-center gap-2 border-b border-gray-100 px-4 py-3 dark:border-gray-800">
         <span className="text-sm font-medium text-gray-800 dark:text-white">{list.name}</span>
       </div>
-      {groups}
+      {content}
     </div>
   );
 }
@@ -327,8 +503,6 @@ export default function TaskListView({
   sections,
   statuses,
   archivedLists = [],
-  onView,
-  onAdd,
   onCreateList,
   onRenameList,
   onArchiveList,
@@ -341,15 +515,10 @@ export default function TaskListView({
   const { activeWorkspaceId } = useWorkspaceStore();
   const resolvedStatuses = statuses.length > 0 ? statuses : FALLBACK_STATUSES;
 
-  // Load workspace members for assignee picker
   useEffect(() => {
     if (!activeWorkspaceId) return;
     workspaceService.getMembers(activeWorkspaceId).then(setMembers).catch(() => {});
   }, [activeWorkspaceId]);
-
-  const handleOpenTaskDetail = (taskId: string) => {
-    onOpenTaskDetail?.(taskId);
-  };
 
   return (
     <div className="space-y-4 pb-4">
@@ -376,9 +545,7 @@ export default function TaskListView({
           projectId={projectId}
           statuses={resolvedStatuses}
           members={members}
-          onOpenTaskDetail={handleOpenTaskDetail}
-          onLegacyView={onView}
-          onAdd={onAdd}
+          onOpenTaskDetail={(taskId) => onOpenTaskDetail?.(taskId)}
           showListHeader={mode === "project" && sections.length > 1}
         />
       ))}

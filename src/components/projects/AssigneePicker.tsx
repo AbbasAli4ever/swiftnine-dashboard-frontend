@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { LuSearch, LuUsers, LuCheck } from "react-icons/lu";
 import { WorkspaceMember } from "@/services/workspace.service";
 import { TaskAssignee } from "@/services/task.service";
+import UserAvatarHoverCard from "@/components/user-profile/UserAvatarHoverCard";
 
 function getInitials(name: string): string {
   return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
@@ -90,14 +91,11 @@ export default function AssigneePicker({ assignees, members, onAdd, onRemove, al
         ) : (
           <div className="flex -space-x-1.5">
             {assignees.slice(0, 3).map((a) => (
-              <span
+              <UserAvatarHoverCard
                 key={a.user.id}
-                className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[8px] font-medium text-white ring-1 ring-white dark:ring-gray-900"
-                style={{ backgroundColor: avatarBg(a.user.id) }}
-                title={a.user.fullName}
-              >
-                {getInitials(a.user.fullName)}
-              </span>
+                user={{ id: a.user.id, fullName: a.user.fullName, avatarColor: a.user.avatarColor }}
+                size="sm"
+              />
             ))}
             {assignees.length > 3 && (
               <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-200 text-[8px] text-gray-600 ring-1 ring-white dark:bg-gray-700 dark:text-gray-300 dark:ring-gray-900">

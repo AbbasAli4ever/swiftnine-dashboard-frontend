@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { LuTag, LuPlus, LuCheck, LuLoader, LuX, LuPencil, LuTrash2 } from "react-icons/lu";
 import { tagService, WorkspaceTag } from "@/services/tag.service";
 import { TaskTagInfo } from "@/services/task.service";
+import { useTaskStore } from "@/stores/task.store";
 import { toast } from "sonner";
 import { parseApiError } from "@/lib/api";
 
@@ -14,12 +15,88 @@ const TAG_COLORS = [
   "#3b82f6", "#06b6d4", "#64748b", "#78716c",
 ];
 
+function ColorGrid({ formColor, setFormColor }: { formColor: string; setFormColor: (c: string) => void }) {
+  return (
+    <div className="flex flex-wrap gap-1.5 pt-1">
+      {TAG_COLORS.map((c) => (
+        <button
+          key={c}
+          type="button"
+          onClick={() => setFormColor(c)}
+          className="h-5 w-5 rounded-full transition-transform hover:scale-110"
+          style={{
+            backgroundColor: c,
+            outline: formColor === c ? `2px solid ${c}` : undefined,
+            outlineOffset: formColor === c ? "2px" : undefined,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function FormPanel({
+  nameRef,
+  formName,
+  setFormName,
+  formColor,
+  setFormColor,
+  onSave,
+  onCancel,
+  saving,
+}: {
+  nameRef: React.RefObject<HTMLInputElement | null>;
+  formName: string;
+  setFormName: (v: string) => void;
+  formColor: string;
+  setFormColor: (v: string) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  saving: boolean;
+}) {
+  return (
+    <div className="px-3 py-2.5 space-y-2.5">
+      <div className="flex items-center gap-2">
+        <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: formColor }} />
+        <input
+          ref={nameRef}
+          type="text"
+          value={formName}
+          onChange={(e) => setFormName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onSave(); } if (e.key === "Escape") onCancel(); }}
+          placeholder="Tag name..."
+          className="flex-1 bg-transparent text-sm text-gray-700 outline-none placeholder:text-gray-400 dark:text-gray-200"
+        />
+      </div>
+      <ColorGrid formColor={formColor} setFormColor={setFormColor} />
+      <div className="flex gap-2 pt-1">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="flex-1 rounded-lg border border-gray-200 py-1.5 text-xs text-gray-500 hover:bg-gray-50 dark:border-gray-700"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={saving || !formName.trim()}
+          className="flex-1 rounded-lg bg-brand-500 py-1.5 text-xs font-medium text-white hover:bg-brand-600 disabled:opacity-50"
+        >
+          {saving ? "..." : "Save"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 interface TagPickerProps {
   taskId: string;
   listId: string;
   currentTags: TaskTagInfo[];
   onAdd: (tagId: string) => Promise<void>;
   onRemove: (tagId: string) => Promise<void>;
+  onTagCreated?: (tag: WorkspaceTag) => void;
   variant?: "compact" | "expanded";
 }
 
@@ -31,6 +108,7 @@ export default function TagPicker({
   currentTags,
   onAdd,
   onRemove,
+  onTagCreated,
   variant = "compact",
 }: TagPickerProps) {
   const [open, setOpen] = useState(false);
@@ -43,6 +121,7 @@ export default function TagPicker({
   const [formName, setFormName] = useState("");
   const [formColor, setFormColor] = useState(TAG_COLORS[0]);
   const [busy, setBusy] = useState<string | null>(null);
+  const { purgeTag, updateTagInStore } = useTaskStore();
 
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -126,6 +205,7 @@ export default function TagPicker({
     try {
       const created = await tagService.create({ name, color: formColor });
       setTags((prev) => [...prev, created]);
+      onTagCreated?.(created);
       await onAdd(created.id);
       setFormName("");
       setMode("list");
@@ -145,6 +225,7 @@ export default function TagPicker({
     try {
       const updated = await tagService.update(editTarget.id, { name, color: formColor });
       setTags((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      updateTagInStore({ id: updated.id, name: updated.name, color: updated.color });
       toast.success("Tag updated");
       setMode("list");
       setEditTarget(null);
@@ -161,6 +242,7 @@ export default function TagPicker({
     try {
       await tagService.delete(tag.id);
       setTags((prev) => prev.filter((t) => t.id !== tag.id));
+      purgeTag(tag.id);
       toast.success("Tag deleted");
     } catch (err) {
       toast.error(parseApiError(err).message);
@@ -168,59 +250,6 @@ export default function TagPicker({
       setBusy(null);
     }
   };
-
-  const ColorGrid = () => (
-    <div className="flex flex-wrap gap-1.5 pt-1">
-      {TAG_COLORS.map((c) => (
-        <button
-          key={c}
-          type="button"
-          onClick={() => setFormColor(c)}
-          className="h-5 w-5 rounded-full transition-transform hover:scale-110"
-          style={{
-            backgroundColor: c,
-            outline: formColor === c ? `2px solid ${c}` : undefined,
-            outlineOffset: formColor === c ? "2px" : undefined,
-          }}
-        />
-      ))}
-    </div>
-  );
-
-  const FormPanel = ({ onSave, saving }: { onSave: () => void; saving: boolean }) => (
-    <div className="px-3 py-2.5 space-y-2.5">
-      <div className="flex items-center gap-2">
-        <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: formColor }} />
-        <input
-          ref={nameRef}
-          type="text"
-          value={formName}
-          onChange={(e) => setFormName(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void onSave(); } if (e.key === "Escape") setMode("list"); }}
-          placeholder="Tag name..."
-          className="flex-1 bg-transparent text-sm text-gray-700 outline-none placeholder:text-gray-400 dark:text-gray-200"
-        />
-      </div>
-      <ColorGrid />
-      <div className="flex gap-2 pt-1">
-        <button
-          type="button"
-          onClick={() => { setMode("list"); setEditTarget(null); }}
-          className="flex-1 rounded-lg border border-gray-200 py-1.5 text-xs text-gray-500 hover:bg-gray-50 dark:border-gray-700"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          onClick={() => void onSave()}
-          disabled={saving || !formName.trim()}
-          className="flex-1 rounded-lg bg-brand-500 py-1.5 text-xs font-medium text-white hover:bg-brand-600 disabled:opacity-50"
-        >
-          {saving ? "..." : "Save"}
-        </button>
-      </div>
-    </div>
-  );
 
   return (
     <>
@@ -371,10 +400,17 @@ export default function TagPicker({
                 </>
               )}
             </div>
-          ) : mode === "create" ? (
-            <FormPanel onSave={handleSaveCreate} saving={busy === "creating"} />
           ) : (
-            <FormPanel onSave={handleSaveEdit} saving={busy === "editing"} />
+            <FormPanel
+              nameRef={nameRef}
+              formName={formName}
+              setFormName={setFormName}
+              formColor={formColor}
+              setFormColor={setFormColor}
+              onSave={mode === "create" ? () => void handleSaveCreate() : () => void handleSaveEdit()}
+              onCancel={() => { setMode("list"); setEditTarget(null); }}
+              saving={mode === "create" ? busy === "creating" : busy === "editing"}
+            />
           )}
 
           {/* Footer — create new when no search */}

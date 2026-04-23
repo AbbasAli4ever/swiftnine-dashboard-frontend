@@ -37,6 +37,8 @@ interface TaskState {
   removeAssignee: (taskId: string, listId: string, userId: string) => Promise<void>;
   addTag: (taskId: string, listId: string, tagId: string) => Promise<void>;
   removeTag: (taskId: string, listId: string, tagId: string) => Promise<void>;
+  purgeTag: (tagId: string) => void;
+  updateTagInStore: (tag: { id: string; name: string; color: string }) => void;
 }
 
 export const useTaskStore = create<TaskState>((set, get) => ({
@@ -313,10 +315,8 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   },
 
   reorderTasks: async (projectId, listId, taskIds) => {
-    const reordered = await taskService.reorder(projectId, listId, taskIds);
-    set((s) => ({
-      tasksByList: { ...s.tasksByList, [listId]: reordered },
-    }));
+    await taskService.reorder(projectId, listId, taskIds);
+    // Optimistic update already applied by the caller — don't overwrite with server response
   },
 
   createSubtask: async (taskId, listId, payload) => {
@@ -415,6 +415,57 @@ export const useTaskStore = create<TaskState>((set, get) => ({
         ),
       },
       openTask: s.openTask?.id === taskId ? updated : s.openTask,
+    }));
+  },
+
+  purgeTag: (tagId) => {
+    set((s) => ({
+      tasksByList: Object.fromEntries(
+        Object.entries(s.tasksByList).map(([listId, tasks]) => [
+          listId,
+          tasks.map((t) => ({ ...t, tags: t.tags.filter((tag) => tag.tag.id !== tagId) })),
+        ])
+      ),
+      subtasksByParent: Object.fromEntries(
+        Object.entries(s.subtasksByParent).map(([parentId, tasks]) => [
+          parentId,
+          tasks.map((t) => ({ ...t, tags: t.tags.filter((tag) => tag.tag.id !== tagId) })),
+        ])
+      ),
+      openTask: s.openTask
+        ? { ...s.openTask, tags: s.openTask.tags.filter((tag) => tag.tag.id !== tagId) }
+        : null,
+    }));
+  },
+
+  updateTagInStore: (tag) => {
+    set((s) => ({
+      tasksByList: Object.fromEntries(
+        Object.entries(s.tasksByList).map(([listId, tasks]) => [
+          listId,
+          tasks.map((t) => ({
+            ...t,
+            tags: t.tags.map((tt) => tt.tag.id === tag.id ? { ...tt, tag: { ...tt.tag, ...tag } } : tt),
+          })),
+        ])
+      ),
+      subtasksByParent: Object.fromEntries(
+        Object.entries(s.subtasksByParent).map(([parentId, tasks]) => [
+          parentId,
+          tasks.map((t) => ({
+            ...t,
+            tags: t.tags.map((tt) => tt.tag.id === tag.id ? { ...tt, tag: { ...tt.tag, ...tag } } : tt),
+          })),
+        ])
+      ),
+      openTask: s.openTask
+        ? {
+            ...s.openTask,
+            tags: s.openTask.tags.map((tt) =>
+              tt.tag.id === tag.id ? { ...tt, tag: { ...tt.tag, ...tag } } : tt
+            ),
+          }
+        : null,
     }));
   },
 }));

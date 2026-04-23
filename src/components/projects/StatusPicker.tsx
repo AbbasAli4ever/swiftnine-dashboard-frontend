@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { LuSearch } from "react-icons/lu";
 import { StatusItem } from "@/services/status.service";
 import StatusIcon from "./StatusIcon";
@@ -25,12 +26,15 @@ const GROUP_ORDER: GroupKey[] = ["NOT_STARTED", "ACTIVE", "DONE", "CLOSED"];
 export default function StatusPicker({ statuses, value, onChange, className = "", align = "left" }: StatusPickerProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (!btnRef.current?.contains(target) && !dropdownRef.current?.contains(target)) {
         setOpen(false);
         setSearch("");
       }
@@ -38,6 +42,18 @@ export default function StatusPicker({ statuses, value, onChange, className = ""
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
+
+  const handleOpen = () => {
+    if (btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setPos(
+        align === "right"
+          ? { top: rect.bottom + 4, left: rect.right - 208 }
+          : { top: rect.bottom + 4, left: rect.left }
+      );
+    }
+    setOpen((v) => !v);
+  };
 
   const current = statuses.find((s) => s.id === value);
 
@@ -51,10 +67,11 @@ export default function StatusPicker({ statuses, value, onChange, className = ""
   })).filter((g) => g.items.length > 0);
 
   return (
-    <div ref={ref} className={`relative ${className}`}>
+    <div className={`relative ${className}`}>
       <button
+        ref={btnRef}
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={handleOpen}
         className="flex items-center gap-1.5 rounded px-1.5 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-800"
       >
         {current ? (
@@ -67,11 +84,11 @@ export default function StatusPicker({ statuses, value, onChange, className = ""
         )}
       </button>
 
-      {open && (
+      {open && createPortal(
         <div
-          className={`absolute top-full z-50 mt-1 w-52 rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900 ${
-            align === "right" ? "right-0" : "left-0"
-          }`}
+          ref={dropdownRef}
+          style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 9999 }}
+          className="w-52 rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900"
         >
           <div className="border-b border-gray-100 px-3 py-2 dark:border-gray-800">
             <div className="flex items-center gap-2 rounded-lg bg-gray-50 px-2 py-1 dark:bg-gray-800">
@@ -90,7 +107,7 @@ export default function StatusPicker({ statuses, value, onChange, className = ""
             {grouped.map(({ group, items }) => (
               <div key={group}>
                 <p className="px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-gray-400">
-                  {GROUP_LABELS[group]}
+                  {GROUP_LABELS[group as GroupKey]}
                 </p>
                 {items.map((s) => (
                   <button
@@ -109,7 +126,8 @@ export default function StatusPicker({ statuses, value, onChange, className = ""
               <p className="px-3 py-4 text-center text-xs text-gray-400">No statuses found</p>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

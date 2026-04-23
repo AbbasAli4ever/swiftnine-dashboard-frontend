@@ -412,7 +412,7 @@ export default function TaskDetailModal({ task, statuses, members, listId, onClo
   const projectName = task.list.project.name;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+    <div data-modal className="fixed inset-0 z-50 flex items-center justify-center p-6">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
 

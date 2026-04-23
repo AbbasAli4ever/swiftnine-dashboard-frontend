@@ -6,6 +6,7 @@ import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
 import CreateWorkspaceModal from "@/components/workspace/CreateWorkspaceModal";
 import UserProfilePanel from "@/components/user-profile/UserProfilePanel";
+import ViewUserProfilePanel from "@/components/user-profile/ViewUserProfilePanel";
 import { useUiStore } from "@/stores/ui.store";
 import React, { useEffect } from "react";
 
@@ -16,7 +17,7 @@ export default function AdminLayoutClient({
 }) {
   const { isAuthenticated, isLoading } = useAuth();
   const { workspaces, isLoading: workspacesLoading } = useWorkspace();
-  const { profilePanelOpen, closeProfilePanel } = useUiStore();
+  const { profilePanelOpen, closeProfilePanel, viewingUserId, closeUserPanel } = useUiStore();
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -48,8 +49,11 @@ export default function AdminLayoutClient({
         </main>
       </div>
 
-      {/* Profile panel — slides in beside the content (not over it) */}
+      {/* Own profile panel */}
       <UserProfilePanel isOpen={profilePanelOpen} onClose={closeProfilePanel} />
+
+      {/* Other user's profile panel */}
+      <ViewUserProfilePanel userId={viewingUserId} onClose={closeUserPanel} />
 
       <CreateWorkspaceModal isOpen={forcedModal} />
     </div>
