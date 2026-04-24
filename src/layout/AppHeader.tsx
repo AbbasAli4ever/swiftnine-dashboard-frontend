@@ -7,6 +7,7 @@ import { useUiStore } from "@/stores/ui.store";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useRef, useState } from "react";
 import { getInitials } from "@/lib/getInitials";
+import GlobalTaskSearchModal from "@/components/header/GlobalTaskSearchModal";
 
 const AppHeader: React.FC = () => {
   const { user, logout } = useAuth();
@@ -17,18 +18,22 @@ const AppHeader: React.FC = () => {
 
   useEffect(() => {
     fetchProfile();
-  }, []);
+  }, [fetchProfile]);
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchAnchor, setSearchAnchor] = useState<DOMRect | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const searchBarRef = useRef<HTMLDivElement>(null);
 
   // Ctrl/Cmd+K focuses search
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
-        inputRef.current?.focus();
+        setSearchAnchor(searchBarRef.current?.getBoundingClientRect() ?? null);
+        setSearchOpen(true);
       }
     };
     document.addEventListener("keydown", handler);
@@ -53,7 +58,7 @@ const AppHeader: React.FC = () => {
     <header className="sticky top-0 z-40 flex items-center h-14 px-4 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
       {/* Centered search */}
       <div className="flex-1 flex justify-center">
-        <div className="relative w-full max-w-[480px]">
+        <div ref={searchBarRef} className="relative w-full max-w-[480px]">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
@@ -62,7 +67,16 @@ const AppHeader: React.FC = () => {
           <input
             ref={inputRef}
             type="text"
+            readOnly
             placeholder="Search"
+            onFocus={() => {
+              setSearchAnchor(searchBarRef.current?.getBoundingClientRect() ?? null);
+              setSearchOpen(true);
+            }}
+            onClick={() => {
+              setSearchAnchor(searchBarRef.current?.getBoundingClientRect() ?? null);
+              setSearchOpen(true);
+            }}
             className="w-full h-9 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 pl-9 pr-20 text-sm text-gray-800 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-500/10 transition-colors"
           />
           <span className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-0.5 text-[11px] text-gray-400 font-normal bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-1.5 py-0.5 pointer-events-none">
@@ -163,6 +177,8 @@ const AppHeader: React.FC = () => {
           </div>
         )}
       </div>
+
+      <GlobalTaskSearchModal isOpen={searchOpen} onClose={() => setSearchOpen(false)} anchorRect={searchAnchor} />
     </header>
   );
 };

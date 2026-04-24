@@ -6,7 +6,15 @@ interface ApiWrapper<T> {
   message: string | null;
 }
 
+interface PaginatedApiWrapper<T> extends ApiWrapper<T> {
+  meta: TaskSearchMeta;
+}
+
 export type TaskPriority = "URGENT" | "HIGH" | "NORMAL" | "LOW" | "NONE";
+export type TaskSortOrder = "asc" | "desc";
+export type TaskAssigneeMatch = "any" | "all";
+export type TaskTagMatch = "any" | "all";
+export type TaskStatusGroup = "NOT_STARTED" | "ACTIVE" | "DONE" | "CLOSED";
 
 export interface TaskStatusInfo {
   id: string;
@@ -102,6 +110,41 @@ export interface TaskTimeEntry {
   user: TaskUserInfo;
 }
 
+export interface TaskSearchMeta {
+  page: number;
+  limit: number;
+  total: number;
+  total_pages: number;
+  has_next: boolean;
+  has_prev: boolean;
+}
+
+export interface TaskSearchResult {
+  items: TaskListItem[];
+  meta: TaskSearchMeta;
+}
+
+export interface TaskSearchParams {
+  q?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+  sort_by?: string;
+  sort_order?: TaskSortOrder;
+  status_ids?: string[];
+  status_groups?: TaskStatusGroup[];
+  priority?: TaskPriority[];
+  assignee_ids?: string[];
+  assignee_match?: TaskAssigneeMatch;
+  tag_ids?: string[];
+  tag_match?: TaskTagMatch;
+  due_date?: string;
+  include_subtasks?: boolean;
+  include_closed?: boolean;
+  include_archived?: boolean;
+  me?: boolean;
+}
+
 export interface CreateTaskPayload {
   title: string;
   statusId: string;
@@ -132,11 +175,67 @@ export interface CreateSubtaskPayload {
   dueDate?: string | null;
 }
 
+function serializeTaskSearchParams(params?: TaskSearchParams) {
+  if (!params) return undefined;
+
+  const query: Record<string, string | number | boolean> = {};
+  const append = (key: keyof TaskSearchParams, value: unknown) => {
+    if (value === undefined || value === null || value === "") return;
+    if (Array.isArray(value)) {
+      if (value.length === 0) return;
+      query[key] = value.join(",");
+      return;
+    }
+    query[key] = value as string | number | boolean;
+  };
+
+  append("q", params.q ?? params.search);
+  append("page", params.page);
+  append("limit", params.limit);
+  append("sort_by", params.sort_by);
+  append("sort_order", params.sort_order);
+  append("status_ids", params.status_ids);
+  append("status_groups", params.status_groups);
+  append("priority", params.priority);
+  append("assignee_ids", params.assignee_ids);
+  append("assignee_match", params.assignee_match);
+  append("tag_ids", params.tag_ids);
+  append("tag_match", params.tag_match);
+  append("due_date", params.due_date);
+  append("include_subtasks", params.include_subtasks);
+  append("include_closed", params.include_closed);
+  append("include_archived", params.include_archived);
+  append("me", params.me);
+
+  return query;
+}
+
 export const taskService = {
   list: (projectId: string, listId: string) =>
     api
       .get<ApiWrapper<TaskListItem[]>>(`/projects/${projectId}/lists/${listId}/tasks`)
       .then((r) => r.data.data),
+
+  searchWorkspace: (params?: TaskSearchParams) =>
+    api
+      .get<PaginatedApiWrapper<TaskListItem[]>>("/tasks", {
+        params: serializeTaskSearchParams(params),
+      })
+      .then((r) => ({ items: r.data.data, meta: r.data.meta })),
+
+  searchProject: (projectId: string, params?: TaskSearchParams) =>
+    api
+      .get<PaginatedApiWrapper<TaskListItem[]>>(`/projects/${projectId}/tasks`, {
+        params: serializeTaskSearchParams(params),
+      })
+      .then((r) => ({ items: r.data.data, meta: r.data.meta })),
+
+  searchList: (projectId: string, listId: string, params?: TaskSearchParams) =>
+    api
+      .get<PaginatedApiWrapper<TaskListItem[]>>(`/projects/${projectId}/lists/${listId}/tasks`, {
+        params: serializeTaskSearchParams(params),
+      })
+      .then((r) => ({ items: r.data.data, meta: r.data.meta })),
 
   get: (taskId: string) =>
     api
@@ -200,4 +299,50 @@ export const taskService = {
     api
       .delete<ApiWrapper<TaskDetail>>(`/tasks/${taskId}/tags/${tagId}`)
       .then((r) => r.data.data),
+
+  getBoard: (projectId: string, params?: TaskSearchParams) =>
+    api
+      .get<ApiWrapper<BoardResponse>>(`/projects/${projectId}/board/tasks`, {
+        params: serializeTaskSearchParams(params),
+      })
+      .then((r) => r.data.data),
+
+  boardReorder: (projectId: string, payload: BoardReorderPayload) =>
+    api
+      .put<ApiWrapper<BoardResponse>>(`/projects/${projectId}/board/tasks/reorder`, payload)
+      .then((r) => r.data.data),
 };
+
+export interface BoardStatusInfo {
+  id: string;
+  name: string;
+  color: string;
+  group: "NOT_STARTED" | "ACTIVE" | "DONE" | "CLOSED";
+  position: number;
+  isDefault: boolean;
+  isProtected: boolean;
+  isClosed: boolean;
+}
+
+export interface BoardColumn {
+  status: BoardStatusInfo;
+  tasks: TaskListItem[];
+  total: number;
+}
+
+export interface BoardResponse {
+  groupBy: string;
+  projectId: string;
+  columns: BoardColumn[];
+  total: number;
+}
+
+export interface BoardReorderPayload {
+  mode: "manual";
+  taskId: string;
+  toStatusId: string;
+  toListId?: string;
+  orderedTaskIds: string[];
+}
+
+export { serializeTaskSearchParams };

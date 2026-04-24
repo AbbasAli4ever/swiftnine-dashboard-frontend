@@ -7,6 +7,7 @@ import {
   UpdateTaskPayload,
   CreateSubtaskPayload,
 } from "@/services/task.service";
+import { useTaskSearchStore } from "@/stores/task-search.store";
 
 interface TaskState {
   tasksByList: Record<string, TaskListItem[]>;
@@ -17,6 +18,7 @@ interface TaskState {
   openTaskId: string | null;
   openTask: TaskDetail | null;
   openTaskLoading: boolean;
+  setTasksForLists: (tasksByList: Record<string, TaskListItem[]>) => void;
 
   fetchTasks: (projectId: string, listId: string) => Promise<void>;
   fetchSubtasks: (taskId: string) => Promise<void>;
@@ -50,6 +52,19 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   openTaskId: null,
   openTask: null,
   openTaskLoading: false,
+  setTasksForLists: (incoming) => {
+    set((s) => {
+      const listsChanged = Object.keys(incoming).some((k) => {
+        const prev = s.tasksByList[k];
+        const next = incoming[k];
+        if (!prev) return true;
+        if (prev.length !== next.length) return true;
+        return prev.some((t, i) => t.id !== next[i]?.id || t.updatedAt !== next[i]?.updatedAt);
+      });
+      if (!listsChanged) return s;
+      return { tasksByList: { ...s.tasksByList, ...incoming } };
+    });
+  },
 
   fetchTasks: async (projectId, listId) => {
     set((s) => {
@@ -161,6 +176,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
         [listId]: [...(s.tasksByList[listId] ?? []), listItem],
       },
     }));
+    await useTaskSearchStore.getState().refreshMatchingCaches({ projectId, listId });
     return created;
   },
 
@@ -223,6 +239,10 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       }
       return newState as Partial<TaskState>;
     });
+    await useTaskSearchStore.getState().refreshMatchingCaches({
+      projectId: updated.list.project.id,
+      listId: updated.list.id,
+    });
   },
 
   updateSubtask: async (subtaskId, parentId, listId, payload) => {
@@ -258,9 +278,14 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       }
       return newState as Partial<TaskState>;
     });
+    await useTaskSearchStore.getState().refreshMatchingCaches({
+      projectId: updated.list.project.id,
+      listId: updated.list.id,
+    });
   },
 
   deleteTask: async (taskId, listId) => {
+    const task = get().tasksByList[listId]?.find((item) => item.id === taskId);
     await taskService.delete(taskId);
     set((s) => ({
       tasksByList: {
@@ -270,9 +295,14 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       openTask: s.openTask?.id === taskId ? null : s.openTask,
       openTaskId: s.openTaskId === taskId ? null : s.openTaskId,
     }));
+    await useTaskSearchStore.getState().refreshMatchingCaches({
+      projectId: task?.list.project.id,
+      listId,
+    });
   },
 
   deleteSubtask: async (subtaskId, parentId, listId) => {
+    const parentTask = get().tasksByList[listId]?.find((item) => item.id === parentId);
     await taskService.delete(subtaskId);
     set((s) => {
       const updatedSubs = (s.subtasksByParent[parentId] ?? []).filter((t) => t.id !== subtaskId);
@@ -285,6 +315,10 @@ export const useTaskStore = create<TaskState>((set, get) => ({
         openTask: s.openTask?.id === subtaskId ? null : s.openTask,
         openTaskId: s.openTaskId === subtaskId ? null : s.openTaskId,
       };
+    });
+    await useTaskSearchStore.getState().refreshMatchingCaches({
+      projectId: parentTask?.list.project.id,
+      listId,
     });
   },
 
@@ -299,6 +333,10 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       },
       openTask: s.openTask?.id === taskId ? updated : s.openTask,
     }));
+    await useTaskSearchStore.getState().refreshMatchingCaches({
+      projectId: updated.list.project.id,
+      listId: updated.list.id,
+    });
   },
 
   uncompleteTask: async (taskId, listId) => {
@@ -312,11 +350,15 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       },
       openTask: s.openTask?.id === taskId ? updated : s.openTask,
     }));
+    await useTaskSearchStore.getState().refreshMatchingCaches({
+      projectId: updated.list.project.id,
+      listId: updated.list.id,
+    });
   },
 
   reorderTasks: async (projectId, listId, taskIds) => {
     await taskService.reorder(projectId, listId, taskIds);
-    // Optimistic update already applied by the caller — don't overwrite with server response
+    useTaskSearchStore.getState().applyLocalReorder({ projectId, listId, orderedIds: taskIds });
   },
 
   createSubtask: async (taskId, listId, payload) => {
@@ -363,6 +405,10 @@ export const useTaskStore = create<TaskState>((set, get) => ({
         openTask,
       };
     });
+    await useTaskSearchStore.getState().refreshMatchingCaches({
+      projectId: subtask.list.project.id,
+      listId: subtask.list.id,
+    });
     return subtask;
   },
 
@@ -377,6 +423,10 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       },
       openTask: s.openTask?.id === taskId ? updated : s.openTask,
     }));
+    await useTaskSearchStore.getState().refreshMatchingCaches({
+      projectId: updated.list.project.id,
+      listId: updated.list.id,
+    });
   },
 
   removeAssignee: async (taskId, listId, userId) => {
@@ -390,6 +440,10 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       },
       openTask: s.openTask?.id === taskId ? updated : s.openTask,
     }));
+    await useTaskSearchStore.getState().refreshMatchingCaches({
+      projectId: updated.list.project.id,
+      listId: updated.list.id,
+    });
   },
 
   addTag: async (taskId, listId, tagId) => {
@@ -403,6 +457,10 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       },
       openTask: s.openTask?.id === taskId ? updated : s.openTask,
     }));
+    await useTaskSearchStore.getState().refreshMatchingCaches({
+      projectId: updated.list.project.id,
+      listId: updated.list.id,
+    });
   },
 
   removeTag: async (taskId, listId, tagId) => {
@@ -416,6 +474,10 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       },
       openTask: s.openTask?.id === taskId ? updated : s.openTask,
     }));
+    await useTaskSearchStore.getState().refreshMatchingCaches({
+      projectId: updated.list.project.id,
+      listId: updated.list.id,
+    });
   },
 
   purgeTag: (tagId) => {

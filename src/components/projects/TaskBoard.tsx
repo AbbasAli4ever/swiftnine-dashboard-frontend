@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { LuPlus, LuEllipsis } from "react-icons/lu";
 import { StatusItem } from "@/services/status.service";
 import { WorkspaceMember } from "@/services/workspace.service";
-import { TaskListItem, TaskPriority } from "@/services/task.service";
+import { TaskListItem, TaskPriority, BoardColumn as BoardColumnData, taskService } from "@/services/task.service";
 import { TaskList } from "@/services/task-list.service";
 import { useTaskStore } from "@/stores/task.store";
 import { parseApiError } from "@/lib/api";
@@ -236,6 +236,9 @@ function BoardColumn({
   suppressClickRef,
   onOpenDetail,
   onDragStart,
+  disableAutoFetch,
+  overrideTasks,
+  defaultListId,
 }: {
   status: StatusItem;
   statuses: StatusItem[];
@@ -248,20 +251,25 @@ function BoardColumn({
   suppressClickRef: React.RefObject<boolean>;
   onOpenDetail: (taskId: string) => void;
   onDragStart: (e: React.PointerEvent, task: TaskListItem, listId: string, cardEl: HTMLDivElement) => void;
+  disableAutoFetch?: boolean;
+  overrideTasks?: TaskListItem[];
+  defaultListId?: string;
 }) {
   const { tasksByList, loadingLists, fetchTasks, createTask } = useTaskStore();
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
 
   useEffect(() => {
-    if (!tasksByList[list.id] && !loadingLists.has(list.id)) {
+    if (overrideTasks) return;
+    if (!disableAutoFetch && !tasksByList[list.id] && !loadingLists.has(list.id)) {
       void fetchTasks(projectId, list.id);
     }
-  }, [list.id, projectId, fetchTasks, tasksByList, loadingLists]);
+  }, [overrideTasks, disableAutoFetch, list.id, projectId, fetchTasks, tasksByList, loadingLists]);
 
   const tasks = useMemo(() => {
+    if (overrideTasks) return overrideTasks;
     const all = tasksByList[list.id] ?? [];
     return all.filter((t) => t.status.id === status.id && t.depth === 0);
-  }, [tasksByList, list.id, status.id]);
+  }, [overrideTasks, tasksByList, list.id, status.id]);
 
   const handleQuickCreate = async (payload: {
     title: string;
@@ -271,7 +279,7 @@ function BoardColumn({
     priority: TaskPriority;
   }) => {
     try {
-      await createTask(projectId, list.id, {
+      await createTask(projectId, defaultListId ?? list.id, {
         title: payload.title,
         statusId: status.id,
         assigneeIds: payload.assigneeIds.length ? payload.assigneeIds : undefined,
@@ -289,15 +297,12 @@ function BoardColumn({
   const isDraggingFromHere = dragState?.fromStatusId === status.id;
   const isCrossColumnTarget = isOver && !isDraggingFromHere;
 
-  const cardRefsMap = useRef<Record<string, HTMLDivElement | null>>({});
-
   const getCardShift = (task: TaskListItem, idx: number): number => {
     if (!isDraggingFromHere || !dragState) return 0;
     if (task.id === dragState.task.id) return 0;
     const from = dragState.fromIdx;
     const to = dropIdx ?? from;
-    const draggedCard = cardRefsMap.current[dragState.task.id];
-    const draggedHeight = (draggedCard?.offsetHeight ?? CARD_HEIGHT) + 8; // +8 for gap
+    const draggedHeight = CARD_HEIGHT + 8;
     if (from < to && idx > from && idx <= to) return -draggedHeight;
     if (from > to && idx < from && idx >= to) return draggedHeight;
     return 0;
@@ -346,7 +351,6 @@ function BoardColumn({
           return (
             <div
               key={task.id}
-              ref={(el) => { cardRefsMap.current[task.id] = el; }}
               style={{
                 transform: `translateY(${getCardShift(task, idx)}px)`,
                 transition: "transform 180ms ease",
@@ -407,11 +411,51 @@ interface TaskBoardProps {
   statuses: StatusItem[];
   members: WorkspaceMember[];
   onOpenTaskDetail: (taskId: string) => void;
+  disableAutoFetch?: boolean;
+  disableSameStatusReorder?: boolean;
+  taskSearchParams?: import("@/services/task.service").TaskSearchParams;
 }
 
-export default function TaskBoard({ projectId, lists, statuses, members, onOpenTaskDetail }: TaskBoardProps) {
+export default function TaskBoard({
+  projectId,
+  lists,
+  statuses,
+  members,
+  onOpenTaskDetail,
+  disableAutoFetch = false,
+  disableSameStatusReorder = false,
+  taskSearchParams,
+}: TaskBoardProps) {
   const resolvedStatuses = statuses.length > 0 ? statuses : FALLBACK_STATUSES;
+  const isProjectBoard = lists.length > 1;
 
+  // ── Project board state (multi-list) ──────────────────────────────────────
+  const [boardColumns, setBoardColumns] = useState<BoardColumnData[]>([]);
+  const [boardLoading, setBoardLoading] = useState(false);
+  const boardColumnsRef = useRef<BoardColumnData[]>([]);
+
+  useEffect(() => {
+    if (!isProjectBoard) return;
+    setBoardLoading(true);
+    taskService.getBoard(projectId, taskSearchParams)
+      .then((data) => {
+        setBoardColumns(data.columns);
+        boardColumnsRef.current = data.columns;
+      })
+      .catch(() => {})
+      .finally(() => setBoardLoading(false));
+  }, [isProjectBoard, projectId, taskSearchParams]);
+
+  const refetchBoard = useCallback(() => {
+    taskService.getBoard(projectId, taskSearchParams)
+      .then((data) => {
+        setBoardColumns(data.columns);
+        boardColumnsRef.current = data.columns;
+      })
+      .catch(() => {});
+  }, [projectId, taskSearchParams]);
+
+  // ── Single-list board state ────────────────────────────────────────────────
   const { tasksByList, updateTask, reorderTasks, fetchTasks } = useTaskStore();
 
   const dragRef = useRef<DragState | null>(null);
@@ -425,10 +469,8 @@ export default function TaskBoard({ projectId, lists, statuses, members, onOpenT
 
   const DRAG_THRESHOLD = 5;
 
-  // Use window-level listeners so they always fire regardless of render state
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
-      // Threshold check — activate drag once moved enough
       if (pendingRef.current && !dragRef.current) {
         const { state } = pendingRef.current;
         const dx = Math.abs(e.clientX - state.startX);
@@ -454,7 +496,6 @@ export default function TaskBoard({ projectId, lists, statuses, members, onOpenT
       setCursorX(e.clientX - drag.cardOffsetX);
       setCursorY(e.clientY - drag.cardOffsetY);
 
-      // Detect which column the cursor is over via elementFromPoint
       const el = document.elementFromPoint(e.clientX, e.clientY);
       const colEl = el?.closest("[data-status-id]");
       const hoveredStatusId = colEl?.getAttribute("data-status-id") ?? null;
@@ -469,11 +510,18 @@ export default function TaskBoard({ projectId, lists, statuses, members, onOpenT
       }
 
       setDropIdx((currentDrop) => {
-        if ((hoveredStatusId ?? dragOverStatusIdRef.current) === drag.fromStatusId) {
+        const activeStatusId = hoveredStatusId ?? dragOverStatusIdRef.current;
+        if (activeStatusId === drag.fromStatusId) {
           const dy = e.clientY - drag.startY;
-          const columnTasks = (useTaskStore.getState().tasksByList[drag.listId] ?? []).filter(
-            (t) => t.status.id === drag.fromStatusId && t.depth === 0
-          );
+          let columnTasks: TaskListItem[];
+          if (isProjectBoard) {
+            const col = boardColumnsRef.current.find((c) => c.status.id === drag.fromStatusId);
+            columnTasks = col?.tasks ?? [];
+          } else {
+            columnTasks = (useTaskStore.getState().tasksByList[drag.listId] ?? []).filter(
+              (t) => t.status.id === drag.fromStatusId && t.depth === 0
+            );
+          }
           const slot = Math.round(drag.fromIdx + dy / CARD_HEIGHT);
           return Math.max(0, Math.min(columnTasks.length - 1, slot));
         }
@@ -482,7 +530,6 @@ export default function TaskBoard({ projectId, lists, statuses, members, onOpenT
     };
 
     const onUp = () => {
-      // Released before threshold — clear pending, allow normal click
       if (pendingRef.current) {
         pendingRef.current = null;
         return;
@@ -491,7 +538,6 @@ export default function TaskBoard({ projectId, lists, statuses, members, onOpenT
       const drag = dragRef.current;
       if (!drag) return;
 
-      // Suppress the click that fires right after pointerUp
       suppressClickRef.current = true;
       setTimeout(() => { suppressClickRef.current = false; }, 80);
 
@@ -509,12 +555,56 @@ export default function TaskBoard({ projectId, lists, statuses, members, onOpenT
       const isSameStatus = targetStatusId === drag.fromStatusId;
       if (isSameStatus && from === to) return;
 
+      // ── Project board: use board reorder API ──────────────────────────────
+      if (isProjectBoard) {
+        const cols = boardColumnsRef.current;
+        const targetCol = cols.find((c) => c.status.id === targetStatusId);
+        if (!targetCol) return;
+
+        // Build optimistic column order
+        const sourceCol = cols.find((c) => c.status.id === drag.fromStatusId);
+        let destTasks = [...(targetCol.tasks)];
+
+        if (isSameStatus) {
+          const [moved] = destTasks.splice(from, 1);
+          destTasks.splice(to, 0, moved);
+        } else {
+          const draggedTask = sourceCol?.tasks[from] ?? drag.task;
+          destTasks.splice(to ?? destTasks.length, 0, draggedTask);
+        }
+
+        // Optimistic update
+        setBoardColumns((prev) => prev.map((col) => {
+          if (col.status.id === targetStatusId) return { ...col, tasks: destTasks };
+          if (!isSameStatus && col.status.id === drag.fromStatusId) {
+            return { ...col, tasks: col.tasks.filter((t) => t.id !== drag.task.id) };
+          }
+          return col;
+        }));
+
+        taskService.boardReorder(projectId, {
+          mode: "manual",
+          taskId: drag.task.id,
+          toStatusId: targetStatusId,
+          orderedTaskIds: destTasks.map((t) => t.id),
+        }).then((data) => {
+          setBoardColumns(data.columns);
+          boardColumnsRef.current = data.columns;
+        }).catch((err) => {
+          toast.error(parseApiError(err).message);
+          refetchBoard();
+        });
+        return;
+      }
+
+      // ── Single-list board: existing behavior ──────────────────────────────
       if (!isSameStatus) {
         updateTask(drag.task.id, drag.listId, { statusId: targetStatusId }).catch((err) => {
           toast.error(parseApiError(err).message);
-          void fetchTasks(projectId, drag.listId);
+          if (!disableAutoFetch) void fetchTasks(projectId, drag.listId);
         });
       } else {
+        if (disableSameStatusReorder) return;
         const allListTasks = useTaskStore.getState().tasksByList[drag.listId] ?? [];
         const columnTasks = allListTasks.filter((t) => t.status.id === drag.fromStatusId && t.depth === 0);
         const reordered = [...columnTasks];
@@ -539,7 +629,7 @@ export default function TaskBoard({ projectId, lists, statuses, members, onOpenT
         withGap.splice(finalInsert, 0, ...reordered);
         reorderTasks(projectId, drag.listId, withGap.map((t) => t.id)).catch((err) => {
           toast.error(parseApiError(err).message);
-          void fetchTasks(projectId, drag.listId);
+          if (!disableAutoFetch) void fetchTasks(projectId, drag.listId);
         });
       }
     };
@@ -552,10 +642,8 @@ export default function TaskBoard({ projectId, lists, statuses, members, onOpenT
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, updateTask, reorderTasks, fetchTasks]);
+  }, [isProjectBoard, disableAutoFetch, disableSameStatusReorder, projectId, updateTask, reorderTasks, fetchTasks, refetchBoard]);
 
-  // Refs to read latest state inside the window listener without stale closure
   const dragOverStatusIdRef = useRef<string | null>(null);
   const dropIdxRef = useRef<number | null>(null);
   useEffect(() => { dragOverStatusIdRef.current = dragOverStatusId; }, [dragOverStatusId]);
@@ -571,14 +659,22 @@ export default function TaskBoard({ projectId, lists, statuses, members, onOpenT
     if (target.closest("button") || target.closest("input") || target.closest("a")) return;
 
     const rect = cardEl.getBoundingClientRect();
+    let fromIdx: number;
+    if (isProjectBoard) {
+      const col = boardColumnsRef.current.find((c) => c.status.id === task.status.id);
+      fromIdx = col?.tasks.findIndex((t) => t.id === task.id) ?? 0;
+    } else {
+      fromIdx = (tasksByList[listId] ?? [])
+        .filter((t) => t.status.id === task.status.id && t.depth === 0)
+        .findIndex((t) => t.id === task.id);
+    }
+
     pendingRef.current = {
       state: {
         task,
         listId,
         fromStatusId: task.status.id,
-        fromIdx: (tasksByList[listId] ?? [])
-          .filter((t) => t.status.id === task.status.id && t.depth === 0)
-          .findIndex((t) => t.id === task.id),
+        fromIdx,
         startX: e.clientX,
         startY: e.clientY,
         cardWidth: rect.width,
@@ -586,7 +682,51 @@ export default function TaskBoard({ projectId, lists, statuses, members, onOpenT
         cardOffsetY: e.clientY - rect.top,
       },
     };
-  }, [tasksByList]);
+  }, [isProjectBoard, tasksByList]);
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+  const defaultListId = lists[0]?.id ?? "";
+
+  if (isProjectBoard) {
+    const activeCols = boardColumns.length > 0
+      ? boardColumns
+      : resolvedStatuses.map((s) => ({ status: s, tasks: [], total: 0 }));
+
+    return (
+      <div
+        className="overflow-x-auto pb-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+        style={{ userSelect: activeDrag ? "none" : undefined }}
+      >
+        {boardLoading && boardColumns.length === 0 && (
+          <p className="px-4 py-8 text-sm text-gray-400">Loading board...</p>
+        )}
+        <div className="flex min-w-[860px] gap-3 items-start">
+          {activeCols.map((col) => (
+            <BoardColumn
+              key={col.status.id}
+              status={col.status as StatusItem}
+              statuses={resolvedStatuses}
+              list={lists[0]}
+              projectId={projectId}
+              members={members}
+              dragState={activeDrag}
+              dragOverStatusId={dragOverStatusId}
+              dropIdx={dropIdx}
+              suppressClickRef={suppressClickRef}
+              onOpenDetail={onOpenTaskDetail}
+              onDragStart={handleDragStart}
+              disableAutoFetch
+              overrideTasks={col.tasks}
+              defaultListId={defaultListId}
+            />
+          ))}
+        </div>
+        {activeDrag && (
+          <GhostCard task={activeDrag.task} x={cursorX} y={cursorY} width={activeDrag.cardWidth} />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div
@@ -609,6 +749,7 @@ export default function TaskBoard({ projectId, lists, statuses, members, onOpenT
               suppressClickRef={suppressClickRef}
               onOpenDetail={onOpenTaskDetail}
               onDragStart={handleDragStart}
+              disableAutoFetch={disableAutoFetch}
             />
           ))
         )}

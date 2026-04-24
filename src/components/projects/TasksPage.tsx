@@ -2,42 +2,40 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Task } from "@/types/task";
 import { useModal } from "@/hooks/useModal";
 import { useProjects } from "@/context/ProjectContext";
 import { useTaskLists } from "@/context/TaskListContext";
-import { useTasks } from "@/context/TaskContext";
 import { parseApiError } from "@/lib/api";
 import { StatusItem, flattenGroupedStatuses, statusService } from "@/services/status.service";
 import { TaskList } from "@/services/task-list.service";
 import { WorkspaceMember, workspaceService } from "@/services/workspace.service";
+import { WorkspaceTag, tagService } from "@/services/tag.service";
+import { TaskListItem } from "@/services/task.service";
 import { useWorkspaceStore } from "@/stores/workspace.store";
+import { getTaskSearchCacheKey, useTaskSearchStore } from "@/stores/task-search.store";
 import { useTaskStore } from "@/stores/task.store";
 import TaskListView, { TaskListSectionData } from "./TaskListView";
 import TaskBoard from "./TaskBoard";
 import TaskDashboardHome from "./TaskDashboardHome";
 import TaskCalendarView from "./TaskCalendarView";
 import TaskForm from "./TaskForm";
-import TaskDetailPanel from "./TaskDetailPanel";
 import TaskDetailModal from "./TaskDetailModal";
 import CreateListModal from "./CreateListModal";
 import RenameListModal from "./RenameListModal";
 import ConfirmActionModal from "@/components/common/ConfirmActionModal";
+import TaskFiltersModal from "./TaskFiltersModal";
+import ProjectTaskHeader from "./ProjectTaskHeader";
+import ListTaskHeader from "./ListTaskHeader";
+import TaskPagination from "./TaskPagination";
+import {
+  clearTaskSearchPatch,
+  countActiveTaskSearchFilters,
+  hasActiveTaskSearchFilters,
+  parseTaskSearchParams,
+} from "./task-search-utils";
 import { toast } from "sonner";
 import type { ReactElement } from "react";
-import {
-  LuChevronDown,
-  LuCircle,
-  LuCalendarDays,
-  LuFilter,
-  LuLayoutDashboard,
-  LuList,
-  LuSearch,
-  LuSettings,
-  LuSquareKanban,
-  LuStar,
-  LuUser,
-} from "react-icons/lu";
+import { LuCalendarDays, LuLayoutDashboard, LuList, LuSquareKanban, LuStar } from "react-icons/lu";
 
 type ProjectView = "overview" | "list" | "board" | "calendar";
 
@@ -62,32 +60,39 @@ export default function TasksPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { projects, isLoading: projectsLoading } = useProjects();
-  const { getLists, getProjectLists, renameList, archiveList, restoreList, deleteList } =
-    useTaskLists();
-  const { getFilteredTasks } = useTasks();
+  const { getLists, getProjectLists, renameList, archiveList, restoreList, deleteList } = useTaskLists();
   const { activeWorkspaceId } = useWorkspaceStore();
-  const { openTaskDetail, closeTaskDetail, openTask, openTaskLoading } = useTaskStore();
+  const {
+    openTaskDetail,
+    closeTaskDetail,
+    openTask,
+    openTaskLoading,
+    setTasksForLists,
+  } = useTaskStore();
+  const { searchProject, searchList } = useTaskSearchStore();
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
-
-  const projectId = searchParams.get("projectId");
-  const listId = searchParams.get("listId");
-  const requestedView = (searchParams.get("view") as ProjectView | null) ?? null;
-  const project = projects.find((item) => item.id === projectId) ?? null;
+  const [tags, setTags] = useState<WorkspaceTag[]>([]);
   const [statuses, setStatuses] = useState<StatusItem[]>([]);
-  const [editTask, setEditTask] = useState<Task | null>(null);
-  const [viewTask, setViewTask] = useState<Task | null>(null);
-  const [panelOpen, setPanelOpen] = useState(false);
   const [pendingDefaults, setPendingDefaults] = useState<PendingCreateDefaults>({});
   const [createListOpen, setCreateListOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<TaskList | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<TaskList | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<TaskList | null>(null);
   const [isMutatingList, setIsMutatingList] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filterAnchor, setFilterAnchor] = useState<DOMRect | null>(null);
   const formModal = useModal();
 
-  // Close task detail modal when this page unmounts (prevents backdrop persisting on other pages)
+  const projectId = searchParams.get("projectId");
+  const listId = searchParams.get("listId");
+  const requestedView = (searchParams.get("view") as ProjectView | null) ?? null;
+  const project = projects.find((item) => item.id === projectId) ?? null;
+  const taskSearchParams = useMemo(() => parseTaskSearchParams(searchParams), [searchParams]);
+
   useEffect(() => {
-    return () => { closeTaskDetail(); };
+    return () => {
+      closeTaskDetail();
+    };
   }, [closeTaskDetail]);
 
   const currentView: ProjectView = useMemo(() => {
@@ -102,14 +107,13 @@ export default function TasksPage() {
   const activeLists = allLists.filter((list) => !list.isArchived);
   const archivedLists = allLists.filter((list) => list.isArchived);
   const selectedList = activeLists.find((list) => list.id === listId) ?? null;
+  const visibleTabs = listId ? VIEW_TABS.filter((tab) => tab.id !== "overview") : VIEW_TABS;
 
   useEffect(() => {
     if (!projectId) return;
     void getLists(projectId, {
       includeArchived: !listId && currentView === "list",
-    }).catch(() => {
-      // The page can still render structure without list data.
-    });
+    }).catch(() => {});
   }, [currentView, getLists, listId, projectId]);
 
   useEffect(() => {
@@ -117,9 +121,7 @@ export default function TasksPage() {
     statusService
       .list(projectId)
       .then((grouped) => setStatuses(flattenGroupedStatuses(grouped)))
-      .catch(() => {
-        setStatuses([]);
-      });
+      .catch(() => setStatuses([]));
   }, [projectId]);
 
   useEffect(() => {
@@ -128,11 +130,74 @@ export default function TasksPage() {
     }
   }, [activeLists.length, listId, projectId, router, selectedList]);
 
-  // Load workspace members for task assignee picker
   useEffect(() => {
     if (!activeWorkspaceId) return;
-    workspaceService.getMembers(activeWorkspaceId).then(setMembers).catch(() => {});
+    workspaceService.getMembers(activeWorkspaceId).then(setMembers).catch(() => setMembers([]));
+    tagService.list().then(setTags).catch(() => setTags([]));
   }, [activeWorkspaceId]);
+
+  const taskScope = useMemo(() => {
+    if (!projectId) return null;
+    if (selectedList) {
+      return { type: "list" as const, projectId, listId: selectedList.id };
+    }
+    return { type: "project" as const, projectId };
+  }, [projectId, selectedList]);
+
+  const pagedCacheKey = useMemo(() => (
+    taskScope ? getTaskSearchCacheKey(taskScope, taskSearchParams, "page") : null
+  ), [taskScope, taskSearchParams]);
+
+  const fullCacheKey = useMemo(() => (
+    taskScope ? getTaskSearchCacheKey(taskScope, taskSearchParams, "all") : null
+  ), [taskScope, taskSearchParams]);
+
+  const pagedCache = useTaskSearchStore((state) => (pagedCacheKey ? state.caches[pagedCacheKey] : undefined));
+  const fullCache = useTaskSearchStore((state) => (fullCacheKey ? state.caches[fullCacheKey] : undefined));
+
+  useEffect(() => {
+    if (!taskScope) return;
+    if (taskScope.type === "list") {
+      void searchList(taskScope.projectId, taskScope.listId, taskSearchParams, "page");
+      return;
+    }
+    void searchProject(taskScope.projectId, taskSearchParams, "page");
+  }, [taskScope, taskSearchParams, searchList, searchProject]);
+
+  useEffect(() => {
+    if (!taskScope || currentView === "list") return;
+    if (taskScope.type === "list") {
+      void searchList(taskScope.projectId, taskScope.listId, taskSearchParams, "all");
+      return;
+    }
+    void searchProject(taskScope.projectId, taskSearchParams, "all");
+  }, [currentView, taskScope, taskSearchParams, searchList, searchProject]);
+
+  const activeSearchItems = useMemo<TaskListItem[]>(
+    () => (currentView === "list" ? pagedCache?.items ?? [] : fullCache?.items ?? []),
+    [currentView, fullCache?.items, pagedCache?.items]
+  );
+
+  const groupedTasksByList = useMemo<Record<string, TaskListItem[]>>(() => {
+    const initial = Object.fromEntries(activeLists.map((list) => [list.id, [] as TaskListItem[]]));
+    activeSearchItems.forEach((task) => {
+      if (!initial[task.list.id]) return;
+      initial[task.list.id].push(task);
+    });
+    return initial;
+  }, [activeLists, activeSearchItems]);
+
+  useEffect(() => {
+    if (!projectId) return;
+    setTasksForLists(groupedTasksByList);
+  }, [groupedTasksByList, projectId, setTasksForLists]);
+
+  const listSections = useMemo<TaskListSectionData[]>(() => {
+    return activeLists.map((list) => ({
+      list,
+      tasks: groupedTasksByList[list.id] ?? [],
+    }));
+  }, [activeLists, groupedTasksByList]);
 
   const updateQuery = (patch: Record<string, string | null>) => {
     const next = new URLSearchParams(searchParams.toString());
@@ -143,28 +208,10 @@ export default function TasksPage() {
     router.push(`${pathname}?${next.toString()}`);
   };
 
-  const projectTasks = useMemo(() => {
-    if (!projectId) return [];
-    const scoped = getFilteredTasks({ projectId });
-    const activeListIds = new Set(activeLists.map((list) => list.id));
-    return scoped.filter((task) => activeListIds.has(task.listId));
-  }, [activeLists, getFilteredTasks, projectId]);
-
-  const selectedListTasks = useMemo(() => {
-    if (!projectId || !selectedList) return [];
-    return getFilteredTasks({ projectId, listId: selectedList.id });
-  }, [getFilteredTasks, projectId, selectedList]);
-
-  const listSections = useMemo<TaskListSectionData[]>(() => {
-    return activeLists.map((list) => ({
-      list,
-      tasks: getFilteredTasks({ projectId: projectId ?? undefined, listId: list.id }),
-    }));
-  }, [activeLists, getFilteredTasks, projectId]);
-
-  const visibleTabs = listId
-    ? VIEW_TABS.filter((tab) => tab.id !== "overview")
-    : VIEW_TABS;
+  const filterCount = countActiveTaskSearchFilters(taskSearchParams);
+  const hasActiveFilters = hasActiveTaskSearchFilters(taskSearchParams);
+  const disableListReorder = hasActiveFilters || (pagedCache?.meta?.total_pages ?? 1) > 1;
+  const disableBoardReorder = hasActiveFilters;
 
   const openCreate = (defaults?: PendingCreateDefaults) => {
     if (!projectId) return;
@@ -173,27 +220,11 @@ export default function TasksPage() {
       return;
     }
 
-    setEditTask(null);
     setPendingDefaults({
       listId: defaults?.listId ?? selectedList?.id ?? null,
       statusId: defaults?.statusId ?? null,
     });
     formModal.openModal();
-  };
-
-  const openEdit = (task: Task) => {
-    setPanelOpen(false);
-    setEditTask(task);
-    setPendingDefaults({
-      listId: task.listId,
-      statusId: task.statusId ?? null,
-    });
-    formModal.openModal();
-  };
-
-  const openDetail = (task: Task) => {
-    setViewTask(task);
-    setPanelOpen(true);
   };
 
   const openTaskDetailById = async (taskId: string) => {
@@ -208,8 +239,7 @@ export default function TasksPage() {
       toast.success(`List "${name}" renamed`);
       setRenameTarget(null);
     } catch (error) {
-      const { message } = parseApiError(error);
-      toast.error(message);
+      toast.error(parseApiError(error).message);
     } finally {
       setIsMutatingList(false);
     }
@@ -226,8 +256,7 @@ export default function TasksPage() {
       toast.success(`List "${archiveTarget.name}" archived`);
       setArchiveTarget(null);
     } catch (error) {
-      const { message } = parseApiError(error);
-      toast.error(message);
+      toast.error(parseApiError(error).message);
     } finally {
       setIsMutatingList(false);
     }
@@ -238,8 +267,7 @@ export default function TasksPage() {
       await restoreList(list.projectId, list.id);
       toast.success(`List "${list.name}" restored`);
     } catch (error) {
-      const { message } = parseApiError(error);
-      toast.error(message);
+      toast.error(parseApiError(error).message);
     }
   };
 
@@ -254,8 +282,7 @@ export default function TasksPage() {
       toast.success(`List "${deleteTarget.name}" deleted`);
       setDeleteTarget(null);
     } catch (error) {
-      const { message } = parseApiError(error);
-      toast.error(message);
+      toast.error(parseApiError(error).message);
     } finally {
       setIsMutatingList(false);
     }
@@ -297,7 +324,30 @@ export default function TasksPage() {
 
   const projectInitial = project.name.charAt(0).toUpperCase();
   const heading = selectedList ? selectedList.name : project.name;
-  const subheading = selectedList ? project.name : "Space";
+  const scopeHeader = selectedList ? (
+    <ListTaskHeader
+      listName={selectedList.name}
+      searchValue={taskSearchParams.q ?? ""}
+      filterCount={filterCount}
+      onSearchChange={(value) => updateQuery({ q: value || null, page: null })}
+      onOpenFilters={(rect) => { setFilterAnchor(rect); setFiltersOpen(true); }}
+      onAddTask={() => openCreate({ listId: selectedList.id })}
+    />
+  ) : (
+    <ProjectTaskHeader
+      searchValue={taskSearchParams.q ?? ""}
+      filterCount={filterCount}
+      onSearchChange={(value) => updateQuery({ q: value || null, page: null })}
+      onOpenFilters={(rect) => { setFilterAnchor(rect); setFiltersOpen(true); }}
+      onAddTask={() => openCreate({ listId: null })}
+    />
+  );
+
+  const isLoadingTasks = taskScope
+    ? currentView === "list"
+      ? !pagedCache || pagedCache.loading
+      : !fullCache || fullCache.loading
+    : false;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -351,124 +401,75 @@ export default function TasksPage() {
         </div>
       </div>
 
-      {currentView !== "overview" ? (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-4 dark:border-gray-800">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-violet-50 px-3 py-1.5 text-sm font-normal text-violet-600 dark:bg-violet-500/10 dark:text-violet-300"
-            >
-              Group: Status
-              <LuChevronDown className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              className="text-sm font-normal text-gray-600 transition-colors hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
-            >
-              Subtasks
-            </button>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 hover:text-gray-700 dark:hover:text-gray-200"
-            >
-              <LuFilter className="h-4 w-4" />
-              Filter
-            </button>
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 hover:text-gray-700 dark:hover:text-gray-200"
-            >
-              <LuCircle className="h-4 w-4" />
-              Closed
-            </button>
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 hover:text-gray-700 dark:hover:text-gray-200"
-            >
-              <LuUser className="h-4 w-4" />
-              Assignee
-            </button>
-            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-black text-[10px] font-normal text-white dark:bg-white dark:text-gray-900">
-              {subheading.charAt(0).toUpperCase()}
-            </span>
-            <div className="h-4 w-px bg-gray-200 dark:bg-gray-700" />
-            <button type="button" className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
-              <LuSearch className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 hover:text-gray-700 dark:hover:text-gray-200"
-            >
-              <LuSettings className="h-4 w-4" />
-              Customize
-            </button>
-            <button
-              onClick={() =>
-                openCreate({
-                  listId: selectedList?.id ?? null,
-                })
-              }
-              className="inline-flex items-center gap-1 rounded-md bg-brand-500 px-3 py-1.5 font-normal text-white transition-colors hover:bg-brand-600"
-            >
-              Add Task
-              <LuChevronDown className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      ) : null}
+      {scopeHeader}
 
       <div className="min-h-0 flex-1 overflow-auto">
-        {currentView === "overview" ? (
+        {isLoadingTasks ? (
+          <div className="flex h-full items-center justify-center">
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-brand-500 border-t-transparent" />
+          </div>
+        ) : null}
+
+        {!isLoadingTasks && currentView === "overview" ? (
           <TaskDashboardHome
             projectName={project.name}
             lists={activeLists}
-            tasks={projectTasks}
+            tasks={fullCache?.items ?? []}
             onCreateList={() => setCreateListOpen(true)}
           />
         ) : null}
 
-        {currentView === "list" ? (
-          <TaskListView
-            mode={selectedList ? "list" : "project"}
-            projectName={project.name}
-            projectId={project.id}
-            sections={selectedList ? [{ list: selectedList, tasks: selectedListTasks }] : listSections}
-            statuses={statuses}
-            archivedLists={selectedList ? [] : archivedLists}
-            onView={openDetail}
-            onAdd={openCreate}
-            onCreateList={() => setCreateListOpen(true)}
-            onRenameList={setRenameTarget}
-            onArchiveList={setArchiveTarget}
-            onRestoreList={handleRestoreList}
-            onDeleteList={setDeleteTarget}
-            onOpenTaskDetail={(taskId) => void openTaskDetailById(taskId)}
-          />
+        {!isLoadingTasks && currentView === "list" ? (
+          <>
+            <TaskListView
+              mode={selectedList ? "list" : "project"}
+              projectName={project.name}
+              projectId={project.id}
+              sections={selectedList ? [{ list: selectedList, tasks: groupedTasksByList[selectedList.id] ?? [] }] : listSections}
+              statuses={statuses}
+              archivedLists={selectedList ? [] : archivedLists}
+              onAdd={openCreate}
+              onCreateList={() => setCreateListOpen(true)}
+              onRenameList={setRenameTarget}
+              onArchiveList={setArchiveTarget}
+              onRestoreList={handleRestoreList}
+              onDeleteList={setDeleteTarget}
+              onOpenTaskDetail={(taskId) => void openTaskDetailById(taskId)}
+              disableAutoFetch
+              disableSameStatusReorder={disableListReorder}
+            />
+            <TaskPagination
+              meta={pagedCache?.meta ?? null}
+              onPageChange={(page) => updateQuery({ page: String(page) })}
+            />
+          </>
         ) : null}
 
-        {currentView === "board" ? (
+        {!isLoadingTasks && currentView === "board" ? (
           <TaskBoard
             projectId={project.id}
             lists={selectedList ? [selectedList] : activeLists}
             statuses={statuses}
             members={members}
             onOpenTaskDetail={(taskId) => void openTaskDetailById(taskId)}
+            disableAutoFetch
+            disableSameStatusReorder={disableBoardReorder}
+            taskSearchParams={selectedList ? undefined : taskSearchParams}
           />
         ) : null}
 
-        {currentView === "calendar" ? (
-          <TaskCalendarView tasks={selectedList ? selectedListTasks : projectTasks} onView={openDetail} />
+        {!isLoadingTasks && currentView === "calendar" ? (
+          <TaskCalendarView
+            tasks={fullCache?.items ?? []}
+            onView={(taskId) => void openTaskDetailById(taskId)}
+          />
         ) : null}
       </div>
 
       <TaskForm
-        key={`${editTask?.id ?? "new"}-${project.id}-${pendingDefaults.listId ?? "none"}-${pendingDefaults.statusId ?? "none"}-${formModal.isOpen ? "open" : "closed"}`}
+        key={`${project.id}-${pendingDefaults.listId ?? "none"}-${pendingDefaults.statusId ?? "none"}-${formModal.isOpen ? "open" : "closed"}`}
         isOpen={formModal.isOpen}
         onClose={formModal.closeModal}
-        editTask={editTask}
         projectId={project.id}
         availableLists={activeLists}
         statuses={statuses}
@@ -476,17 +477,6 @@ export default function TasksPage() {
         defaultStatusId={pendingDefaults.statusId ?? null}
       />
 
-      <TaskDetailPanel
-        key={viewTask?.id ?? "task-detail"}
-        task={viewTask}
-        isOpen={panelOpen}
-        onClose={() => setPanelOpen(false)}
-        onEdit={openEdit}
-        statuses={statuses}
-        lists={allLists}
-      />
-
-      {/* New full-screen task detail modal from task store */}
       {openTask && !openTaskLoading && (
         <TaskDetailModal
           key={openTask.id}
@@ -535,6 +525,22 @@ export default function TasksPage() {
         }}
         onConfirm={handleDeleteList}
         isLoading={isMutatingList}
+      />
+
+      <TaskFiltersModal
+        key={`project-filters-${project.id}-${selectedList?.id ?? "project"}-${searchParams.toString()}`}
+        isOpen={filtersOpen}
+        anchorRect={filterAnchor}
+        onClose={() => setFiltersOpen(false)}
+        value={taskSearchParams}
+        statuses={statuses}
+        members={members}
+        tags={tags}
+        onApply={(patch) => updateQuery(patch)}
+        onClear={() => {
+          updateQuery(clearTaskSearchPatch());
+          setFiltersOpen(false);
+        }}
       />
     </div>
   );

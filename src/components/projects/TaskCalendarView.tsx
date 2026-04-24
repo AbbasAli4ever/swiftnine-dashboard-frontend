@@ -11,12 +11,12 @@ import {
   EventInput,
 } from "@fullcalendar/core";
 import { LuChevronLeft, LuChevronRight } from "react-icons/lu";
-import { Task } from "@/types/task";
+import { TaskListItem } from "@/services/task.service";
 import styles from "./task-calendar-ui.module.css";
 
 interface TaskCalendarViewProps {
-  tasks: Task[];
-  onView: (task: Task) => void;
+  tasks: TaskListItem[];
+  onView: (taskId: string) => void;
 }
 
 type EventTone = "red" | "amber" | "blue" | "purple" | "slate";
@@ -51,12 +51,12 @@ function getMonthStart(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
 }
 
-function resolveEventTone(task: Task, index: number): EventTone {
-  if (task.priority === "urgent") return "red";
-  if (task.priority === "high") return "amber";
-  if (task.status === "in-progress") return "blue";
-  if (task.status === "review") return "purple";
-  if (task.status === "done") return "slate";
+function resolveEventTone(task: TaskListItem, index: number): EventTone {
+  if (task.priority === "URGENT") return "red";
+  if (task.priority === "HIGH") return "amber";
+  if (task.status.group === "ACTIVE") return "blue";
+  if (task.status.group === "DONE") return "purple";
+  if (task.status.group === "CLOSED") return "slate";
 
   const fallbackTones: EventTone[] = ["red", "amber", "blue", "purple", "slate"];
   return fallbackTones[index % fallbackTones.length];
@@ -77,7 +77,7 @@ export default function TaskCalendarView({ tasks, onView }: TaskCalendarViewProp
   const [visibleMonth, setVisibleMonth] = useState(() => getMonthStart(new Date()));
 
   const taskById = useMemo(() => {
-    const map = new Map<string, Task>();
+    const map = new Map<string, TaskListItem>();
     tasks.forEach((task) => map.set(task.id, task));
     return map;
   }, [tasks]);
@@ -87,7 +87,7 @@ export default function TaskCalendarView({ tasks, onView }: TaskCalendarViewProp
       tasks.map((task, index) => ({
         id: `task-${task.id}`,
         title: task.title,
-        start: task.dueDate,
+        start: task.dueDate ?? task.createdAt,
         allDay: true,
         extendedProps: {
           taskId: task.id,
@@ -103,7 +103,8 @@ export default function TaskCalendarView({ tasks, onView }: TaskCalendarViewProp
     let maxYear = currentYear + 3;
 
     tasks.forEach((task) => {
-      const taskYear = Number.parseInt(task.dueDate.slice(0, 4), 10);
+      const sourceDate = task.dueDate ?? task.createdAt;
+      const taskYear = Number.parseInt(sourceDate.slice(0, 4), 10);
       if (Number.isNaN(taskYear)) return;
       if (taskYear < minYear) minYear = taskYear;
       if (taskYear > maxYear) maxYear = taskYear;
@@ -167,8 +168,7 @@ export default function TaskCalendarView({ tasks, onView }: TaskCalendarViewProp
 
   const handleEventClick = (clickInfo: EventClickArg) => {
     const taskId = String(clickInfo.event.extendedProps.taskId || "");
-    const task = taskById.get(taskId);
-    if (task) onView(task);
+    if (taskById.has(taskId)) onView(taskId);
   };
 
   return (

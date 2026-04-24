@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Task } from "@/types/task";
 import { TaskList } from "@/services/task-list.service";
+import { TaskListItem } from "@/services/task.service";
 import {
   LuBookmark,
   LuCalendarDays,
@@ -19,7 +19,7 @@ import {
 interface TaskDashboardHomeProps {
   projectName: string;
   lists: TaskList[];
-  tasks: Task[];
+  tasks: TaskListItem[];
   onCreateList?: () => void;
 }
 
@@ -39,11 +39,11 @@ export default function TaskDashboardHome({
 
   const listRows = useMemo<ListRow[]>(() => {
     return lists.map((list) => {
-      const listTasks = tasks.filter((task) => task.listId === list.id);
+      const listTasks = tasks.filter((task) => task.list.id === list.id);
       return {
         list,
         total: listTasks.length,
-        done: listTasks.filter((task) => task.status === "done").length,
+        done: listTasks.filter((task) => task.status.group === "CLOSED").length,
       };
     });
   }, [lists, tasks]);

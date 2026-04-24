@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Task } from "@/types/task";
 import { TaskList } from "@/services/task-list.service";
 import { StatusItem } from "@/services/status.service";
 import { WorkspaceMember, workspaceService } from "@/services/workspace.service";
@@ -33,7 +32,7 @@ const TASK_ROW_HEIGHT = 40;
 
 export interface TaskListSectionData {
   list: TaskList;
-  tasks: Task[];
+  tasks: TaskListItem[];
 }
 
 interface TaskListViewProps {
@@ -43,7 +42,6 @@ interface TaskListViewProps {
   sections: TaskListSectionData[];
   statuses: StatusItem[];
   archivedLists?: TaskList[];
-  onView: (task: Task) => void;
   onAdd: (options?: { statusId?: string; listId?: string }) => void;
   onCreateList?: () => void;
   onRenameList?: (list: TaskList) => void;
@@ -51,6 +49,8 @@ interface TaskListViewProps {
   onRestoreList?: (list: TaskList) => void;
   onDeleteList?: (list: TaskList) => void;
   onOpenTaskDetail?: (taskId: string) => void;
+  disableAutoFetch?: boolean;
+  disableSameStatusReorder?: boolean;
 }
 
 const COL = "minmax(0,1fr) 110px 110px 80px 100px 32px";
@@ -76,6 +76,7 @@ function StatusGroup({
   dropIdx,
   onDragStart,
   onGroupEnter,
+  disableAutoFetch,
 }: {
   list: TaskList;
   projectId: string;
@@ -88,16 +89,17 @@ function StatusGroup({
   dropIdx: number | null;
   onDragStart: (e: React.PointerEvent, task: TaskListItem, idx: number, rowEl: HTMLDivElement) => void;
   onGroupEnter: (statusId: string) => void;
+  disableAutoFetch?: boolean;
 }) {
   const { tasksByList, loadingLists, fetchTasks, updateTask, deleteTask, addAssignee, removeAssignee, createTask } = useTaskStore();
   const [collapsed, setCollapsed] = useState(false);
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
 
   useEffect(() => {
-    if (!tasksByList[list.id] && !loadingLists.has(list.id)) {
+    if (!disableAutoFetch && !tasksByList[list.id] && !loadingLists.has(list.id)) {
       void fetchTasks(projectId, list.id);
     }
-  }, [list.id, projectId, fetchTasks, tasksByList, loadingLists]);
+  }, [disableAutoFetch, list.id, projectId, fetchTasks, tasksByList, loadingLists]);
 
   const tasks = useMemo(
     () => (tasksByList[list.id] ?? []).filter((t) => t.status.id === status.id && t.depth === 0),
@@ -301,6 +303,8 @@ function ListSection({
   members,
   onOpenTaskDetail,
   showListHeader,
+  disableAutoFetch,
+  disableSameStatusReorder,
 }: {
   list: TaskList;
   projectId: string;
@@ -308,15 +312,22 @@ function ListSection({
   members: WorkspaceMember[];
   onOpenTaskDetail: (taskId: string) => void;
   showListHeader: boolean;
+  disableAutoFetch?: boolean;
+  disableSameStatusReorder?: boolean;
 }) {
-  const { tasksByList, updateTask, reorderTasks, fetchTasks } = useTaskStore();
+  const { updateTask, reorderTasks, fetchTasks } = useTaskStore();
 
   const dragRef = useRef<ListDragState | null>(null);
   const suppressClickRef = useRef(false);
+  const dropTargetStatusIdRef = useRef<string | null>(null);
+  const dropIdxRef = useRef<number | null>(null);
   const [activeDrag, setActiveDrag] = useState<ListDragState | null>(null);
   const [dropTargetStatusId, setDropTargetStatusId] = useState<string | null>(null);
   const [dropIdx, setDropIdx] = useState<number | null>(null);
   const [ghostPos, setGhostPos] = useState<{ x: number; y: number; width: number } | null>(null);
+
+  useEffect(() => { dropTargetStatusIdRef.current = dropTargetStatusId; }, [dropTargetStatusId]);
+  useEffect(() => { dropIdxRef.current = dropIdx; }, [dropIdx]);
 
   const handleDragStart = useCallback((
     e: React.PointerEvent,
@@ -338,6 +349,8 @@ function ListSection({
     };
     dragRef.current = state;
     suppressClickRef.current = true;
+    dropTargetStatusIdRef.current = task.status.id;
+    dropIdxRef.current = idx;
     let styleEl = document.getElementById("__drag_cursor__") as HTMLStyleElement | null;
     if (!styleEl) { styleEl = document.createElement("style"); styleEl.id = "__drag_cursor__"; document.head.appendChild(styleEl); }
     styleEl.textContent = "*{cursor:grabbing!important}";
@@ -347,61 +360,72 @@ function ListSection({
     setGhostPos({ x: rect.left, y: rect.top, width: rect.width });
   }, []);
 
-  const handleDragMove = useCallback((e: React.PointerEvent) => {
-    if (!dragRef.current) return;
-    const { fromIdx, startY, offsetY } = dragRef.current;
-    const tasksInGroup = (tasksByList[list.id] ?? []).filter(
-      (t) => t.status.id === dragRef.current!.fromStatusId && t.depth === 0
-    );
-    if (dropTargetStatusId === dragRef.current.fromStatusId) {
-      const dy = e.clientY - startY;
-      const slot = Math.round(fromIdx + dy / TASK_ROW_HEIGHT);
-      setDropIdx(Math.max(0, Math.min(tasksInGroup.length - 1, slot)));
-    }
-    setGhostPos((p) => p ? { ...p, y: e.clientY - offsetY } : p);
-  }, [dropTargetStatusId, tasksByList, list.id]);
+  useEffect(() => {
+    if (!activeDrag) return;
 
-  const handleDragEnd = useCallback(async () => {
-    const drag = dragRef.current;
-    if (!drag) return;
-    const targetStatusId = dropTargetStatusId ?? drag.fromStatusId;
-    const from = drag.fromIdx;
-    const to = dropIdx ?? from;
-    dragRef.current = null;
-    const styleEl = document.getElementById("__drag_cursor__");
-    if (styleEl) styleEl.textContent = "";
-    setTimeout(() => { suppressClickRef.current = false; }, 80);
-    setActiveDrag(null);
-    setDropTargetStatusId(null);
-    setDropIdx(null);
-    setGhostPos(null);
-
-    const allListTasks = tasksByList[list.id] ?? [];
-    const isSameStatus = targetStatusId === drag.fromStatusId;
-
-    if (!isSameStatus) {
-      try {
-        await updateTask(drag.task.id, list.id, { statusId: targetStatusId });
-      } catch (err) {
-        toast.error(parseApiError(err).message);
-        void fetchTasks(projectId, list.id);
+    const onMove = (e: PointerEvent) => {
+      const drag = dragRef.current;
+      if (!drag) return;
+      const { fromIdx, startY, offsetY } = drag;
+      const currentTarget = dropTargetStatusIdRef.current ?? drag.fromStatusId;
+      if (currentTarget === drag.fromStatusId) {
+        const tasksInGroup = (useTaskStore.getState().tasksByList[list.id] ?? []).filter(
+          (t) => t.status.id === drag.fromStatusId && t.depth === 0
+        );
+        const dy = e.clientY - startY;
+        const slot = Math.round(fromIdx + dy / TASK_ROW_HEIGHT);
+        const next = Math.max(0, Math.min(Math.max(0, tasksInGroup.length - 1), slot));
+        if (next !== dropIdxRef.current) {
+          dropIdxRef.current = next;
+          setDropIdx(next);
+        }
       }
-      return;
-    }
+      setGhostPos((p) => p ? { ...p, y: e.clientY - offsetY } : p);
+    };
 
-    if (from === to) return;
+    const onUp = () => {
+      const drag = dragRef.current;
+      if (!drag) return;
+      const targetStatusId = dropTargetStatusIdRef.current ?? drag.fromStatusId;
+      const from = drag.fromIdx;
+      const to = dropIdxRef.current ?? from;
 
-    const groupTasks = allListTasks.filter((t) => t.status.id === drag.fromStatusId && t.depth === 0);
-    const reordered = [...groupTasks];
-    const [moved] = reordered.splice(from, 1);
-    reordered.splice(to, 0, moved);
+      dragRef.current = null;
+      const styleEl = document.getElementById("__drag_cursor__");
+      if (styleEl) styleEl.textContent = "";
+      setTimeout(() => { suppressClickRef.current = false; }, 80);
+      setActiveDrag(null);
+      setDropTargetStatusId(null);
+      setDropIdx(null);
+      setGhostPos(null);
+      dropTargetStatusIdRef.current = null;
+      dropIdxRef.current = null;
 
-    const others = allListTasks.filter((t) => !(t.status.id === drag.fromStatusId && t.depth === 0));
-    useTaskStore.setState((s) => ({
-      tasksByList: { ...s.tasksByList, [list.id]: [...others, ...reordered] },
-    }));
+      const allListTasks = useTaskStore.getState().tasksByList[list.id] ?? [];
+      const isSameStatus = targetStatusId === drag.fromStatusId;
 
-    try {
+      if (!isSameStatus) {
+        updateTask(drag.task.id, list.id, { statusId: targetStatusId }).catch((err) => {
+          toast.error(parseApiError(err).message);
+          if (!disableAutoFetch) void fetchTasks(projectId, list.id);
+        });
+        return;
+      }
+
+      if (disableSameStatusReorder) return;
+      if (from === to) return;
+
+      const groupTasks = allListTasks.filter((t) => t.status.id === drag.fromStatusId && t.depth === 0);
+      const reordered = [...groupTasks];
+      const [moved] = reordered.splice(from, 1);
+      if (!moved) return;
+      reordered.splice(to, 0, moved);
+
+      const others = allListTasks.filter((t) => !(t.status.id === drag.fromStatusId && t.depth === 0));
+      useTaskStore.setState((s) => ({
+        tasksByList: { ...s.tasksByList, [list.id]: [...others, ...reordered] },
+      }));
+
       const allRoot = allListTasks.filter((t) => t.depth === 0);
       const reorderedIds = new Set(reordered.map((t) => t.id));
       const withGap = allRoot.filter((t) => !reorderedIds.has(t.id));
@@ -412,16 +436,28 @@ function ListSection({
         return origIdx > groupStart;
       }) : -1;
       withGap.splice(insertAt < 0 ? withGap.length : insertAt, 0, ...reordered);
-      await reorderTasks(projectId, list.id, withGap.map((t) => t.id));
-    } catch (err) {
-      toast.error(parseApiError(err).message);
-      void fetchTasks(projectId, list.id);
-    }
-  }, [dropTargetStatusId, dropIdx, tasksByList, list.id, projectId, updateTask, reorderTasks, fetchTasks]);
+
+      reorderTasks(projectId, list.id, withGap.map((t) => t.id)).catch((err) => {
+        toast.error(parseApiError(err).message);
+        if (!disableAutoFetch) void fetchTasks(projectId, list.id);
+      });
+    };
+
+    window.addEventListener("pointermove", onMove, { passive: false });
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, [activeDrag, disableAutoFetch, disableSameStatusReorder, list.id, projectId, updateTask, reorderTasks, fetchTasks]);
 
   const handleGroupEnter = useCallback((statusId: string) => {
+    dropTargetStatusIdRef.current = statusId;
     setDropTargetStatusId(statusId);
     if (dragRef.current && statusId !== dragRef.current.fromStatusId) {
+      dropIdxRef.current = null;
       setDropIdx(null);
     }
   }, []);
@@ -440,16 +476,12 @@ function ListSection({
       dropIdx={dropIdx}
       onDragStart={handleDragStart}
       onGroupEnter={handleGroupEnter}
+      disableAutoFetch={disableAutoFetch}
     />
   ));
 
   const content = (
-    <div
-      style={{ userSelect: activeDrag ? "none" : undefined }}
-      onPointerMove={activeDrag ? handleDragMove : undefined}
-      onPointerUp={activeDrag ? () => void handleDragEnd() : undefined}
-      onPointerCancel={activeDrag ? () => void handleDragEnd() : undefined}
-    >
+    <div style={{ userSelect: activeDrag ? "none" : undefined }}>
       {groups}
       {ghostPos && activeDrag && createPortal(
         <div
@@ -509,6 +541,8 @@ export default function TaskListView({
   onRestoreList,
   onDeleteList,
   onOpenTaskDetail,
+  disableAutoFetch = false,
+  disableSameStatusReorder = false,
 }: TaskListViewProps) {
   const [archivedOpen, setArchivedOpen] = useState(false);
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
@@ -547,6 +581,8 @@ export default function TaskListView({
           members={members}
           onOpenTaskDetail={(taskId) => onOpenTaskDetail?.(taskId)}
           showListHeader={mode === "project" && sections.length > 1}
+          disableAutoFetch={disableAutoFetch}
+          disableSameStatusReorder={disableSameStatusReorder}
         />
       ))}
 

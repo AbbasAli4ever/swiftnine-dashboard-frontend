@@ -23,6 +23,7 @@ import {
   LuPencil,
   LuGripVertical,
 } from "react-icons/lu";
+import { activityService, ActivityItem } from "@/services/activity.service";
 import { MdOutlineDonutSmall } from "react-icons/md";
 import { RiAiGenerate } from "react-icons/ri";
 import { TaskDetail, TaskPriority, TaskAssignee, UpdateTaskPayload } from "@/services/task.service";
@@ -346,6 +347,109 @@ function SubtaskQuickAdd({
   );
 }
 
+function ActivityFeed({ taskId, createdAt, creatorName, creatorId }: {
+  taskId: string;
+  createdAt: string;
+  creatorName: string;
+  creatorId: string;
+}) {
+  const [items, setItems] = useState<ActivityItem[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null | undefined>(undefined);
+  const [loading, setLoading] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const load = useCallback(async (cursor?: string) => {
+    setLoading(true);
+    try {
+      const page = await activityService.getTaskActivity(taskId, { cursor, limit: 25 });
+      setItems((prev) => cursor ? [...prev, ...page.items] : page.items);
+      setNextCursor(page.nextCursor);
+    } catch {
+      // silently fail — activity is non-critical
+    } finally {
+      setLoading(false);
+    }
+  }, [taskId]);
+
+  useEffect(() => {
+    setItems([]);
+    setNextCursor(undefined);
+    void load();
+  }, [load]);
+
+  // Infinite scroll — load more when bottom sentinel enters view
+  useEffect(() => {
+    const el = bottomRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && nextCursor && !loading) {
+          void load(nextCursor);
+        }
+      },
+      { root: containerRef.current, threshold: 0.1 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [nextCursor, loading, load]);
+
+  return (
+    <div ref={containerRef} className="flex-1 overflow-y-auto p-4">
+      <div className="space-y-4">
+        {/* Task created row — always shown first */}
+        {/* <div className="flex items-start gap-2.5">
+          <span
+            className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-medium text-white"
+            style={{ backgroundColor: avatarBg(creatorId) }}
+          >
+            {getInitials(creatorName)}
+          </span>
+          <div className="flex-1">
+            <p className="text-xs text-gray-700 dark:text-gray-300">
+              <span className="font-semibold">{creatorName}</span>
+              {" "}created this task
+            </p>
+            <p className="mt-0.5 text-[11px] text-gray-400">{formatDate(createdAt)}</p>
+          </div>
+        </div> */}
+
+        {[...items].reverse().map((item) => (
+          <ActivityRow key={item.id} item={item} />
+        ))}
+
+        {loading && (
+          <div className="flex justify-center py-2">
+            <span className="text-xs text-gray-400">Loading...</span>
+          </div>
+        )}
+
+        <div ref={bottomRef} className="h-px" />
+      </div>
+    </div>
+  );
+}
+
+function ActivityRow({ item }: { item: ActivityItem }) {
+  const bg = avatarBg(item.actor.id);
+  return (
+    <div className="flex items-start gap-2.5">
+      <span
+        className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-medium text-white"
+        style={{ backgroundColor: bg }}
+      >
+        {getInitials(item.actor.fullName)}
+      </span>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">
+          {item.displayText}
+        </p>
+        <p className="mt-0.5 text-[11px] text-gray-400">{formatDate(item.createdAt)}</p>
+      </div>
+    </div>
+  );
+}
+
 export default function TaskDetailModal({ task, statuses, members, listId, onClose }: TaskDetailModalProps) {
   const { updateTask, addAssignee, removeAssignee, addTag, removeTag, openTaskDetail, refreshOpenTask } = useTaskStore();
   const currentUser = useAuthStore(s => s.user);
@@ -355,12 +459,6 @@ export default function TaskDetailModal({ task, statuses, members, listId, onClo
   const [addingSubtask, setAddingSubtask] = useState(false);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const titleSaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-
-  useEffect(() => {
-    setTitle(task.title);
-    setDescription(task.description ?? "");
-  }, [task.id, task.title, task.description]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -663,25 +761,12 @@ export default function TaskDetailModal({ task, statuses, members, listId, onClo
             </div>
 
             {/* Activity feed */}
-            <div className="flex-1 overflow-y-auto p-4">
-              <div className="space-y-4">
-                <div className="flex items-start gap-2.5">
-                  <span
-                    className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-medium text-white"
-                    style={{ backgroundColor: avatarBg(task.creator.id) }}
-                  >
-                    {getInitials(task.creator.fullName)}
-                  </span>
-                  <div className="flex-1">
-                    <p className="text-xs text-gray-700 dark:text-gray-300">
-                      <span className="font-semibold">{task.creator.fullName}</span>
-                      {" "}created this task
-                    </p>
-                    <p className="mt-0.5 text-[11px] text-gray-400">{formatDate(task.createdAt)}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <ActivityFeed
+              taskId={task.id}
+              createdAt={task.createdAt}
+              creatorName={task.creator.fullName}
+              creatorId={task.creator.id}
+            />
 
             {/* Reply box — pinned to bottom */}
             <div className="shrink-0 border-t border-gray-100 p-3 dark:border-gray-800">
