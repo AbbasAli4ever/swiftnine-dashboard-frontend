@@ -139,7 +139,11 @@ export default function WorkspaceSwitcher({ isOpen, onClose, onCreateWorkspace, 
           <LuSettings className="w-3.5 h-3.5" />
           Settings
         </button>
-        <button className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-xs font-normal text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+        <button
+          type="button"
+          onClick={() => { onClose(); router.push("/settings?tab=people"); }}
+          className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-xs font-normal text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+        >
           <LuUsers className="w-3.5 h-3.5" />
           People
         </button>

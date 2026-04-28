@@ -1,115 +1,405 @@
 "use client";
 
-import React, { useState } from "react";
-import { LuSettings2, LuCheck, LuMessageSquare, LuClock, LuListFilter } from "react-icons/lu";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  LuSettings2,
+  LuCheck,
+  LuClock,
+  LuListFilter,
+  LuMail,
+  LuMailOpen,
+} from "react-icons/lu";
+import { toast } from "sonner";
+import { useNotifications } from "@/context/NotificationContext";
+import { useWorkspaceStore } from "@/stores/workspace.store";
+import { useTaskStore } from "@/stores/task.store";
+import { notificationService } from "@/services/notification.service";
+import { taskService, TaskStatusInfo, TaskUserInfo } from "@/services/task.service";
+import { Notification } from "@/types/notification";
+import StatusIcon from "@/components/projects/StatusIcon";
+import SnoozePopover from "./SnoozePopover";
 
-// ── Types ────────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 type Tab = "primary" | "other" | "later" | "cleared";
+type DateGroup = "Today" | "Yesterday" | "Last 7 days" | "Earlier this month";
 
-type InboxItem = {
-  id: string;
-  icon: "clock" | "check" | "circle-dot";
-  iconColor: string;
+interface TaskMeta {
   title: string;
-  authorName: string;
-  authorInitials: string;
-  authorColor: string;
-  action: string;
-  commentCount?: number;
-  date: string;
-  group: "Today" | "Last 7 days";
-};
+  status: TaskStatusInfo;
+  // keyed by userId
+  users: Record<string, TaskUserInfo>;
+}
 
-// ── Mock data ────────────────────────────────────────────────────────────────
-const inboxItems: InboxItem[] = [
-  {
-    id: "1", group: "Today",
-    icon: "circle-dot", iconColor: "text-gray-400",
-    title: "Project List UI & API Integration",
-    authorName: "Dania Tariq", authorInitials: "DT", authorColor: "bg-violet-500",
-    action: "assigned this task to you",
-    commentCount: 2,
-    date: "1:01 PM",
-  },
-  {
-    id: "2", group: "Last 7 days",
-    icon: "check", iconColor: "text-green-500",
-    title: "Custom Task Statuses API integration with…",
-    authorName: "Dania Tariq", authorInitials: "DT", authorColor: "bg-violet-500",
-    action: "assigned this task to you",
-    commentCount: 4,
-    date: "Apr 17",
-  },
-  {
-    id: "3", group: "Last 7 days",
-    icon: "circle-dot", iconColor: "text-gray-400",
-    title: "Task List API Integration",
-    authorName: "Dania Tariq", authorInitials: "DT", authorColor: "bg-violet-500",
-    action: "assigned this task to you",
-    commentCount: 4,
-    date: "Apr 17",
-  },
-  {
-    id: "4", group: "Last 7 days",
-    icon: "circle-dot", iconColor: "text-gray-400",
-    title: "Frontend: Subtask Management",
-    authorName: "Dania Tariq", authorInitials: "DT", authorColor: "bg-violet-500",
-    action: "assigned this task to you",
-    commentCount: 2,
-    date: "Apr 17",
-  },
-  {
-    id: "5", group: "Last 7 days",
-    icon: "circle-dot", iconColor: "text-gray-400",
-    title: "User Profile Integrations",
-    authorName: "Dania Tariq", authorInitials: "DT", authorColor: "bg-violet-500",
-    action: "assigned this task to you",
-    commentCount: 3,
-    date: "Apr 17",
-  },
-  {
-    id: "6", group: "Last 7 days",
-    icon: "circle-dot", iconColor: "text-gray-400",
-    title: "Task Management UI and Integration",
-    authorName: "Dania Tariq", authorInitials: "DT", authorColor: "bg-violet-500",
-    action: "assigned this task to you",
-    commentCount: 2,
-    date: "Apr 17",
-  },
-  {
-    id: "7", group: "Last 7 days",
-    icon: "check", iconColor: "text-green-500",
-    title: "Workspace flow changes with multiple user",
-    authorName: "Dania Tariq", authorInitials: "DT", authorColor: "bg-violet-500",
-    action: "set due date to Apr 17",
-    date: "Apr 17",
-  },
-];
+const GROUP_ORDER: DateGroup[] = ["Today", "Yesterday", "Last 7 days", "Earlier this month"];
 
-// ── Sub-icons ────────────────────────────────────────────────────────────────
-function StatusIcon({ type, color }: { type: InboxItem["icon"]; color: string }) {
-  if (type === "clock") return (
-    <svg className={`w-4 h-4 ${color}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  );
-  if (type === "check") return (
-    <svg className={`w-4 h-4 ${color}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  );
+// ── Utilities ─────────────────────────────────────────────────────────────────
+function getDateGroup(iso: string): DateGroup {
+  const now = new Date();
+  const date = new Date(iso);
+  if (date.toDateString() === now.toDateString()) return "Today";
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
+  const sevenDaysAgo = new Date(now);
+  sevenDaysAgo.setDate(now.getDate() - 7);
+  if (date >= sevenDaysAgo) return "Last 7 days";
+  return "Earlier this month";
+}
+
+function formatDate(iso: string): string {
+  const date = new Date(iso);
+  const now = new Date();
+  if (date.toDateString() === now.toDateString()) {
+    return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  }
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function formatSnoozedUntil(iso: string | null): string {
+  if (!iso) return "Indefinitely";
+  const date = new Date(iso);
   return (
-    <svg className={`w-4 h-4 ${color}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <circle cx="12" cy="12" r="9" strokeWidth={1.8} />
-      <circle cx="12" cy="12" r="3" fill="currentColor" />
-    </svg>
+    date.toLocaleDateString("en-US", { month: "short", day: "numeric" }) +
+    " at " +
+    date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
   );
 }
 
-// ── Tab config ───────────────────────────────────────────────────────────────
-const tabs: { id: Tab; label: string; icon: React.ReactNode; count?: string }[] = [
+// ── Avatar helpers ─────────────────────────────────────────────────────────────
+function hashColor(id: string): string {
+  const colors = [
+    "#6366f1","#8b5cf6","#ec4899","#f59e0b",
+    "#10b981","#3b82f6","#ef4444","#14b8a6",
+  ];
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return colors[h % colors.length];
+}
+
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0][0]?.toUpperCase() ?? "?";
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+interface ActorAvatarProps {
+  actorId: string | null;
+  userInfo?: TaskUserInfo;
+  size?: number;
+}
+
+function ActorAvatar({ actorId, userInfo, size = 28 }: ActorAvatarProps) {
+  const dim = `${size}px`;
+  if (!actorId) return null;
+
+  if (userInfo?.avatarUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={userInfo.avatarUrl}
+        alt={userInfo.fullName}
+        style={{ width: dim, height: dim }}
+        className="rounded-full object-cover shrink-0"
+      />
+    );
+  }
+
+  const name = userInfo?.fullName ?? "";
+  const bg = userInfo?.avatarColor ?? hashColor(actorId);
+  const initials = name ? getInitials(name) : "?";
+
+  return (
+    <span
+      style={{ width: dim, height: dim, backgroundColor: bg, fontSize: size * 0.4 }}
+      className="rounded-full shrink-0 flex items-center justify-center text-white font-medium select-none"
+    >
+      {initials}
+    </span>
+  );
+}
+
+// ── Empty state ───────────────────────────────────────────────────────────────
+function EmptyState({ message = "Congratulations! You cleared your important notifications" }: { message?: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center flex-1 py-24 select-none">
+      <div className="relative mb-6">
+        <div className="w-24 h-24 rounded-2xl bg-brand-100 dark:bg-brand-900/30 flex items-center justify-center">
+          <svg className="w-12 h-12 text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.4} d="M21.75 9v.906a2.25 2.25 0 01-1.183 1.981l-6.478 3.488M2.25 9v.906a2.25 2.25 0 001.183 1.981l6.478 3.488m8.839 2.51l-4.66-2.51m0 0l-1.023-.55a2.25 2.25 0 00-2.134 0l-1.022.55m0 0l-4.661 2.51m16.5 1.615a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V8.844a2.25 2.25 0 011.183-1.98l7.5-4.04a2.25 2.25 0 012.134 0l7.5 4.04a2.25 2.25 0 011.183 1.98V19.5z" />
+          </svg>
+        </div>
+        <div className="absolute -top-1 -right-1 w-8 h-8 rounded-lg bg-brand-500 flex items-center justify-center shadow-md">
+          <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M1.5 8.67v8.58a3 3 0 003 3h15a3 3 0 003-3V8.67l-8.928 5.493a3 3 0 01-3.144 0L1.5 8.67z" />
+            <path d="M22.5 6.908V6.75a3 3 0 00-3-3h-15a3 3 0 00-3 3v.158l9.714 5.978a1.5 1.5 0 001.572 0L22.5 6.908z" />
+          </svg>
+        </div>
+      </div>
+      <h3 className="text-base font-normal text-gray-800 dark:text-gray-100 mb-1">Inbox Zero</h3>
+      <p className="text-sm text-gray-400">{message}</p>
+      <div className="mt-10 flex flex-col items-center gap-3">
+        <span className="text-[11px] font-normal uppercase tracking-widest text-gray-300 dark:text-gray-600 border border-gray-200 dark:border-gray-700 rounded-full px-3 py-0.5">ClickTip</span>
+        <p className="text-sm text-gray-500 text-center max-w-xs leading-relaxed">
+          Create a Reminder on the fly by pressing &apos;R&apos;<br />anywhere in your Workspace!
+        </p>
+        <button className="text-xs font-normal text-gray-400 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+          Learn more
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Primary inbox row ─────────────────────────────────────────────────────────
+interface PrimaryRowProps {
+  item: Notification;
+  isLast: boolean;
+  taskMeta: TaskMeta | undefined;
+  onClear: (id: string) => void;
+  onSnooze: (id: string, until?: string) => void;
+  onMarkRead: (id: string) => void;
+  onMarkUnread: (id: string) => void;
+  onRowClick: (item: Notification) => void;
+}
+
+function PrimaryRow({ item, isLast, taskMeta, onClear, onSnooze, onMarkRead, onMarkUnread, onRowClick }: PrimaryRowProps) {
+  const [snoozeAnchor, setSnoozeAnchor] = useState<DOMRect | null>(null);
+  const snoozeRef = useRef<HTMLButtonElement>(null);
+
+  const handleSnoozeClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (snoozeRef.current) setSnoozeAnchor(snoozeRef.current.getBoundingClientRect());
+  };
+
+  const actorInfo = item.actorId ? taskMeta?.users[item.actorId] : undefined;
+  const taskTitle = taskMeta?.title ?? item.title;
+  const taskStatus = taskMeta?.status;
+
+  return (
+    <>
+      <div
+        onClick={() => onRowClick(item)}
+        className={`group flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors ${!isLast ? "border-b border-gray-100 dark:border-gray-800" : ""} ${item.isRead ? "opacity-70" : ""}`}
+      >
+        {/* Task status icon */}
+        <div className="shrink-0 flex items-center justify-center w-5">
+          {taskStatus ? (
+            <StatusIcon
+              group={taskStatus.group}
+              color={taskStatus.group === "CLOSED" ? "#2a9764" : taskStatus.color}
+              size={16}
+            />
+          ) : (
+            <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <circle cx="12" cy="12" r="9" strokeWidth={1.8} />
+            </svg>
+          )}
+        </div>
+
+        {/* Task title */}
+        <p className={`w-64 shrink-0 text-sm truncate ${item.isRead ? "text-gray-500 dark:text-gray-400" : "text-gray-800 dark:text-gray-100"}`}>
+          {taskTitle}
+        </p>
+
+        {/* Actor: icon + name + action */}
+        <div className="flex-1 flex items-center gap-1.5">
+          <ActorAvatar actorId={item.actorId} userInfo={actorInfo} size={16} />
+          {actorInfo?.fullName && (
+            <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap font-medium">
+              {actorInfo.fullName}
+            </span>
+          )}
+          <span className="text-xs text-brand-500 truncate">{item.title}</span>
+        </div>
+
+        {/* Right col: date on idle, actions on hover */}
+        <div className="relative flex items-center justify-end w-40 h-6 shrink-0">
+          <div className="absolute inset-0 flex items-center justify-end group-hover:opacity-0 group-hover:pointer-events-none transition-opacity">
+            <span className="text-xs text-gray-400 whitespace-nowrap">{formatDate(item.createdAt)}</span>
+          </div>
+          <div className="absolute inset-0 flex items-center justify-end gap-1 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity">
+            <button
+              title={item.isRead ? "Mark unread" : "Mark read"}
+              onClick={(e) => { e.stopPropagation(); item.isRead ? onMarkUnread(item.id) : onMarkRead(item.id); }}
+              className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+            >
+              {item.isRead ? <LuMail className="w-4 h-4" /> : <LuMailOpen className="w-4 h-4" />}
+            </button>
+            <button
+              ref={snoozeRef}
+              title="Snooze"
+              onClick={handleSnoozeClick}
+              className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+            >
+              <LuClock className="w-4 h-4" />
+            </button>
+            <button
+              title="Clear"
+              onClick={(e) => { e.stopPropagation(); onClear(item.id); }}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-brand-500 text-white text-xs hover:bg-brand-600 transition-colors"
+            >
+              <LuCheck className="w-3.5 h-3.5" />
+              Clear
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {snoozeAnchor && (
+        <SnoozePopover
+          notificationId={item.id}
+          anchorRect={snoozeAnchor}
+          onClose={() => setSnoozeAnchor(null)}
+          onSnooze={(id, until) => { onSnooze(id, until); setSnoozeAnchor(null); }}
+        />
+      )}
+    </>
+  );
+}
+
+// ── Later row (snoozed) ───────────────────────────────────────────────────────
+interface LaterRowProps {
+  item: Notification;
+  isLast: boolean;
+  taskMeta: TaskMeta | undefined;
+  onUnsnooze: (id: string) => void;
+}
+
+function LaterRow({ item, isLast, taskMeta, onUnsnooze }: LaterRowProps) {
+  const taskTitle = taskMeta?.title ?? item.title;
+  const taskStatus = taskMeta?.status;
+  const actorInfo = item.actorId ? taskMeta?.users[item.actorId] : undefined;
+
+  return (
+    <div className={`group flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-default transition-colors ${!isLast ? "border-b border-gray-100 dark:border-gray-800" : ""}`}>
+      <div className="shrink-0 flex items-center justify-center w-5">
+        {taskStatus ? (
+          <StatusIcon group={taskStatus.group} color={taskStatus.group === "CLOSED" ? "#2a9764" : taskStatus.color} size={16} />
+        ) : (
+          <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <circle cx="12" cy="12" r="9" strokeWidth={1.8} />
+          </svg>
+        )}
+      </div>
+      <p className="w-64 shrink-0 text-sm text-gray-800 dark:text-gray-100 truncate">{taskTitle}</p>
+      <div className="flex-1 flex items-center gap-1.5">
+        <ActorAvatar actorId={item.actorId} userInfo={actorInfo} size={16} />
+        {actorInfo?.fullName && (
+          <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap font-medium">{actorInfo.fullName}</span>
+        )}
+        <span className="text-xs text-brand-500 truncate">Snoozed until {formatSnoozedUntil(item.snoozedAt)}</span>
+      </div>
+      <div className="relative flex items-center justify-end w-40 h-6 shrink-0">
+        <div className="absolute inset-0 flex items-center justify-end group-hover:opacity-0 group-hover:pointer-events-none transition-opacity">
+          <span className="text-xs text-gray-400 whitespace-nowrap">{formatDate(item.createdAt)}</span>
+        </div>
+        <div className="absolute inset-0 flex items-center justify-end opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity">
+          <button
+            onClick={() => onUnsnooze(item.id)}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          >
+            <LuClock className="w-3.5 h-3.5" />
+            Unsnooze
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Cleared row ───────────────────────────────────────────────────────────────
+interface ClearedRowProps {
+  item: Notification;
+  isLast: boolean;
+  taskMeta: TaskMeta | undefined;
+  onRestore: (id: string) => void;
+}
+
+function ClearedRow({ item, isLast, taskMeta, onRestore }: ClearedRowProps) {
+  const taskTitle = taskMeta?.title ?? item.title;
+  const taskStatus = taskMeta?.status;
+  const actorInfo = item.actorId ? taskMeta?.users[item.actorId] : undefined;
+
+  return (
+    <div className={`group flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-default transition-colors opacity-60 ${!isLast ? "border-b border-gray-100 dark:border-gray-800" : ""}`}>
+      <div className="shrink-0 flex items-center justify-center w-5">
+        {taskStatus ? (
+          <StatusIcon group={taskStatus.group} color={taskStatus.group === "CLOSED" ? "#2a9764" : taskStatus.color} size={16} />
+        ) : (
+          <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <circle cx="12" cy="12" r="9" strokeWidth={1.8} />
+          </svg>
+        )}
+      </div>
+      <p className="w-64 shrink-0 text-sm text-gray-800 dark:text-gray-100 truncate">{taskTitle}</p>
+      <div className="flex-1 flex items-center gap-1.5">
+        <ActorAvatar actorId={item.actorId} userInfo={actorInfo} size={16} />
+        {actorInfo?.fullName && (
+          <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap font-medium">{actorInfo.fullName}</span>
+        )}
+        <span className="text-xs text-brand-500 truncate">{item.title}</span>
+      </div>
+      <div className="relative flex items-center justify-end w-40 h-6 shrink-0">
+        <div className="absolute inset-0 flex items-center justify-end group-hover:opacity-0 group-hover:pointer-events-none transition-opacity">
+          <span className="text-xs text-gray-400 whitespace-nowrap">{formatDate(item.createdAt)}</span>
+        </div>
+        <div className="absolute inset-0 flex items-center justify-end opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity">
+          <button
+            onClick={() => onRestore(item.id)}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          >
+            Move to inbox
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Grouped list ──────────────────────────────────────────────────────────────
+function GroupedList<T extends { createdAt: string }>({
+  items,
+  renderRow,
+  headerExtra,
+}: {
+  items: T[];
+  renderRow: (item: T, isLast: boolean) => React.ReactNode;
+  headerExtra?: React.ReactNode;
+}) {
+  const grouped = GROUP_ORDER.reduce<Record<string, T[]>>((acc, g) => {
+    acc[g] = [];
+    return acc;
+  }, {} as Record<string, T[]>);
+
+  for (const item of items) {
+    const g = getDateGroup(item.createdAt);
+    grouped[g].push(item);
+  }
+
+  return (
+    <div className="flex flex-col gap-4 p-4">
+      {headerExtra}
+      {items.length === 0 && <EmptyState />}
+      {GROUP_ORDER.map((group) => {
+        const groupItems = grouped[group];
+        if (!groupItems.length) return null;
+        return (
+          <div key={group}>
+            <p className="mb-2 text-sm text-gray-500 dark:text-gray-400 px-1">{group}</p>
+            <div className="rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden bg-white dark:bg-gray-900">
+              {groupItems.map((item, idx) => renderRow(item, idx === groupItems.length - 1))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Tab config ────────────────────────────────────────────────────────────────
+const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
   {
-    id: "primary", label: "Primary", count: "27 unread",
+    id: "primary", label: "Primary",
     icon: (
       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M2.25 13.5h3.86a2.25 2.25 0 012.012 1.244l.256.512a2.25 2.25 0 002.013 1.244h3.218a2.25 2.25 0 002.013-1.244l.256-.512a2.25 2.25 0 012.013-1.244h3.859m-19.5.338V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18v-4.162c0-.224-.034-.447-.1-.661L19.24 5.338a2.25 2.25 0 00-2.15-1.588H6.911a2.25 2.25 0 00-2.15 1.588L2.35 13.177a2.25 2.25 0 00-.1.661z" />
@@ -117,7 +407,7 @@ const tabs: { id: Tab; label: string; icon: React.ReactNode; count?: string }[] 
     ),
   },
   {
-    id: "other", label: "Other", count: "99+ unread",
+    id: "other", label: "Other",
     icon: (
       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
@@ -142,175 +432,160 @@ const tabs: { id: Tab; label: string; icon: React.ReactNode; count?: string }[] 
   },
 ];
 
-// ── Empty state ───────────────────────────────────────────────────────────────
-function EmptyState() {
-  return (
-    <div className="flex flex-col items-center justify-center flex-1 py-24 select-none">
-      {/* Envelope illustration */}
-      <div className="relative mb-6">
-        <div className="w-24 h-24 rounded-2xl bg-brand-100 dark:bg-brand-900/30 flex items-center justify-center">
-          <svg className="w-12 h-12 text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.4} d="M21.75 9v.906a2.25 2.25 0 01-1.183 1.981l-6.478 3.488M2.25 9v.906a2.25 2.25 0 001.183 1.981l6.478 3.488m8.839 2.51l-4.66-2.51m0 0l-1.023-.55a2.25 2.25 0 00-2.134 0l-1.022.55m0 0l-4.661 2.51m16.5 1.615a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V8.844a2.25 2.25 0 011.183-1.98l7.5-4.04a2.25 2.25 0 012.134 0l7.5 4.04a2.25 2.25 0 011.183 1.98V19.5z" />
-          </svg>
-        </div>
-        {/* Blue badge top-right */}
-        <div className="absolute -top-1 -right-1 w-8 h-8 rounded-lg bg-brand-500 flex items-center justify-center shadow-md">
-          <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M1.5 8.67v8.58a3 3 0 003 3h15a3 3 0 003-3V8.67l-8.928 5.493a3 3 0 01-3.144 0L1.5 8.67z" />
-            <path d="M22.5 6.908V6.75a3 3 0 00-3-3h-15a3 3 0 00-3 3v.158l9.714 5.978a1.5 1.5 0 001.572 0L22.5 6.908z" />
-          </svg>
-        </div>
-      </div>
-      <h3 className="text-base font-normal text-gray-800 dark:text-gray-100 mb-1">Inbox Zero</h3>
-      <p className="text-sm text-gray-400">Congratulations! You cleared your important notifications</p>
-
-      {/* ClickTip */}
-      <div className="mt-10 flex flex-col items-center gap-3">
-        <span className="text-[11px] font-normal uppercase tracking-widest text-gray-300 dark:text-gray-600 border border-gray-200 dark:border-gray-700 rounded-full px-3 py-0.5">ClickTip</span>
-        <p className="text-sm text-gray-500 text-center max-w-xs leading-relaxed">
-          Create a Reminder on the fly by pressing &apos;R&apos;<br />
-          anywhere in your Workspace!
-        </p>
-        <button className="text-xs font-normal text-gray-400 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-          Learn more
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ── Single inbox row ──────────────────────────────────────────────────────────
-function InboxRow({ item, isLast }: { item: InboxItem; isLast: boolean }) {
-  const [cleared, setCleared] = useState(false);
-
-  if (cleared) return null;
-
-  return (
-    <div
-      className={`group grid grid-cols-[20px_minmax(0,1fr)_minmax(0,1.2fr)_160px] items-center gap-5 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors ${!isLast ? "border-b border-gray-100 dark:border-gray-800" : ""}`}
-    >
-      {/* Status icon */}
-      <div className="shrink-0 flex items-center justify-center">
-        <StatusIcon type={item.icon} color={item.iconColor} />
-      </div>
-
-      {/* Title */}
-      <p className="text-sm text-gray-800 dark:text-gray-100 truncate">{item.title}</p>
-
-      {/* Author + action */}
-      <div className="flex items-center gap-2 min-w-0">
-        <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[9px] text-white shrink-0 ${item.authorColor}`}>
-          {item.authorInitials.slice(0, 1)}
-        </span>
-        <p className="text-xs truncate">
-          <span className="text-gray-700 dark:text-gray-300">{item.authorName}</span>
-          {" "}<span className="text-brand-500">{item.action}</span>
-        </p>
-      </div>
-
-      {/* Right col — always 160px, both layers always in DOM, CSS toggles visibility */}
-      <div className="relative flex items-center justify-end w-full h-6">
-        {/* Default: comment count + date — hidden on hover */}
-        <div className="absolute inset-0 flex items-center justify-end gap-2 group-hover:opacity-0 group-hover:pointer-events-none transition-opacity">
-          {item.commentCount !== undefined && (
-            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full border border-gray-300 dark:border-gray-600 text-[11px] text-gray-500 dark:text-gray-400 shrink-0">
-              {item.commentCount}
-            </span>
-          )}
-          {item.date && (
-            <span className="text-xs text-gray-400 whitespace-nowrap">{item.date}</span>
-          )}
-        </div>
-
-        {/* Hover: action buttons — hidden by default */}
-        <div className="absolute inset-0 flex items-center justify-end gap-1 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity">
-          <button
-            title="Message"
-            onClick={(e) => e.stopPropagation()}
-            className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-          >
-            <LuMessageSquare className="w-4 h-4" />
-          </button>
-          <button
-            title="Snooze"
-            onClick={(e) => e.stopPropagation()}
-            className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-          >
-            <LuClock className="w-4 h-4" />
-          </button>
-          <button
-            title="Clear"
-            onClick={(e) => { e.stopPropagation(); setCleared(true); }}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-brand-500 text-white text-xs hover:bg-brand-600 transition-colors"
-          >
-            <LuCheck className="w-3.5 h-3.5" />
-            Clear
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Content list ──────────────────────────────────────────────────────────────
-function ContentList({ items }: { items: InboxItem[] }) {
-  const groups = ["Today", "Last 7 days"] as const;
-
-  return (
-    <div className="flex flex-col gap-4 p-4">
-      {/* Filter + Clear all bar */}
-      <div className="flex items-center justify-between">
-        <button className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
-          <LuListFilter className="w-4 h-4" />
-          Filter
-        </button>
-        <div className="flex items-center gap-3">
-          <button className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-            <LuSettings2 className="w-4 h-4" />
-          </button>
-          <button className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors">
-            <LuCheck className="w-4 h-4" />
-            Clear all
-          </button>
-        </div>
-      </div>
-
-      {/* Grouped tables */}
-      {groups.map((group) => {
-        const groupItems = items.filter((i) => i.group === group);
-        if (!groupItems.length) return null;
-        return (
-          <div key={group}>
-            <p className="mb-2 text-sm text-gray-500 dark:text-gray-400 px-1">{group}</p>
-            <div className="rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden bg-white dark:bg-gray-900">
-              {groupItems.map((item, idx) => (
-                <InboxRow key={item.id} item={item} isLast={idx === groupItems.length - 1} />
-              ))}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 // ── Main InboxPage ────────────────────────────────────────────────────────────
 export default function InboxPage() {
+  const { notifications, unreadCount, clearNotification, clearAll, snoozeNotification, unsnoozeNotification, markRead, markUnread } = useNotifications();
+  const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
+  const openTaskDetail = useTaskStore((s) => s.openTaskDetail);
   const [activeTab, setActiveTab] = useState<Tab>("primary");
 
-  // "primary" has content, others show empty state
-  const hasContent = activeTab === "primary";
+  const [snoozed, setSnoozed] = useState<Notification[]>([]);
+  const [cleared, setCleared] = useState<Notification[]>([]);
+  const [laterLoaded, setLaterLoaded] = useState(false);
+  const [clearedLoaded, setClearedLoaded] = useState(false);
+  const [laterLoading, setLaterLoading] = useState(false);
+  const [clearedLoading, setClearedLoading] = useState(false);
+
+  // taskId → TaskMeta cache
+  const [taskMetaMap, setTaskMetaMap] = useState<Record<string, TaskMeta>>({});
+  const fetchingRef = useRef<Set<string>>(new Set());
+
+  // Fetch task metadata for notifications that have a taskId
+  useEffect(() => {
+    const allItems = [...notifications, ...snoozed, ...cleared];
+    const needed = allItems
+      .map((n) => n.taskId)
+      .filter((id): id is string => !!id && !taskMetaMap[id] && !fetchingRef.current.has(id));
+
+    const unique = [...new Set(needed)];
+    if (!unique.length) return;
+
+    unique.forEach((taskId) => fetchingRef.current.add(taskId));
+
+    Promise.allSettled(unique.map((taskId) => taskService.get(taskId))).then((results) => {
+      const updates: Record<string, TaskMeta> = {};
+      results.forEach((r, i) => {
+        if (r.status === "fulfilled") {
+          const task = r.value;
+          const users: Record<string, TaskUserInfo> = {};
+          users[task.creator.id] = task.creator;
+          task.assignees.forEach((a) => { users[a.user.id] = a.user; });
+          updates[unique[i]] = { title: task.title, status: task.status, users };
+        }
+        fetchingRef.current.delete(unique[i]);
+      });
+      if (Object.keys(updates).length) {
+        setTaskMetaMap((prev) => ({ ...prev, ...updates }));
+      }
+    });
+  }, [notifications, snoozed, cleared, taskMetaMap]);
+
+  // Reset secondary tabs on workspace switch
+  useEffect(() => {
+    setLaterLoaded(false);
+    setClearedLoaded(false);
+    setSnoozed([]);
+    setCleared([]);
+    setTaskMetaMap({});
+    fetchingRef.current.clear();
+  }, [activeWorkspaceId]);
+
+  const handleTabChange = useCallback(async (tab: Tab) => {
+    setActiveTab(tab);
+    if (tab === "later" && !laterLoaded) {
+      setLaterLoading(true);
+      try {
+        const data = await notificationService.getSnoozed();
+        setSnoozed(Array.isArray(data) ? data : []);
+        setLaterLoaded(true);
+      } catch {
+        toast.error("Failed to load snoozed notifications");
+      } finally {
+        setLaterLoading(false);
+      }
+    }
+    if (tab === "cleared" && !clearedLoaded) {
+      setClearedLoading(true);
+      try {
+        const data = await notificationService.getCleared();
+        setCleared(Array.isArray(data) ? data : []);
+        setClearedLoaded(true);
+      } catch {
+        toast.error("Failed to load cleared notifications");
+      } finally {
+        setClearedLoading(false);
+      }
+    }
+  }, [laterLoaded, clearedLoaded]);
+
+  const handleRowClick = useCallback((item: Notification) => {
+    if (!item.isRead) markRead(item.id);
+    if (item.taskId) openTaskDetail(item.taskId);
+  }, [markRead, openTaskDetail]);
+
+  const handleClear = useCallback(async (id: string) => {
+    await clearNotification(id);
+    setLaterLoaded(false);
+    setClearedLoaded(false);
+  }, [clearNotification]);
+
+  const handleClearAll = useCallback(async () => {
+    await clearAll();
+    setLaterLoaded(false);
+    setClearedLoaded(false);
+  }, [clearAll]);
+
+  const handleSnooze = useCallback(async (id: string, until?: string) => {
+    await snoozeNotification(id, until);
+    setLaterLoaded(false);
+  }, [snoozeNotification]);
+
+  const handleUnsnooze = useCallback(async (id: string) => {
+    await unsnoozeNotification(id);
+    setSnoozed((prev) => prev.filter((n) => n.id !== id));
+  }, [unsnoozeNotification]);
+
+  const handleRestore = useCallback(async (id: string) => {
+    try {
+      await notificationService.patchClear(id, false);
+      setCleared((prev) => prev.filter((n) => n.id !== id));
+    } catch {
+      toast.error("Failed to restore notification");
+    }
+  }, []);
+
+  const primaryHeader = (
+    <div className="flex items-center justify-between">
+      <button className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
+        <LuListFilter className="w-4 h-4" />
+        Filter
+      </button>
+      <div className="flex items-center gap-3">
+        <button className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+          <LuSettings2 className="w-4 h-4" />
+        </button>
+        <button
+          onClick={handleClearAll}
+          className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors"
+        >
+          <LuCheck className="w-4 h-4" />
+          Clear all
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      {/* 4-tab bar */}
+      {/* Tab bar */}
       <div className="flex border-b border-gray-200 dark:border-gray-800 shrink-0">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
+          const count = tab.id === "primary" && unreadCount > 0 ? `${unreadCount} unread` : undefined;
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabChange(tab.id)}
               className={`flex flex-1 flex-col items-center justify-center gap-0.5 py-3.5 px-2 text-sm transition-colors border-b-2
                 ${isActive
                   ? "border-brand-500 text-brand-600 dark:text-brand-400"
@@ -319,9 +594,9 @@ export default function InboxPage() {
             >
               <span className={`${isActive ? "text-brand-500" : "text-gray-400"}`}>{tab.icon}</span>
               <span className="font-normal leading-none">{tab.label}</span>
-              {tab.count && (
+              {count && (
                 <span className={`text-[11px] leading-none ${isActive ? "text-brand-400" : "text-gray-400"}`}>
-                  {tab.count}
+                  {count}
                 </span>
               )}
             </button>
@@ -329,9 +604,75 @@ export default function InboxPage() {
         })}
       </div>
 
-      {/* Content area */}
+      {/* Content */}
       <div className="flex-1 overflow-y-auto">
-        {hasContent ? <ContentList items={inboxItems} /> : <EmptyState />}
+        {activeTab === "primary" && (
+          notifications.length === 0
+            ? <EmptyState />
+            : (
+              <GroupedList
+                items={notifications}
+                headerExtra={primaryHeader}
+                renderRow={(item, isLast) => (
+                  <PrimaryRow
+                    key={item.id}
+                    item={item}
+                    isLast={isLast}
+                    taskMeta={item.taskId ? taskMetaMap[item.taskId] : undefined}
+                    onClear={handleClear}
+                    onSnooze={handleSnooze}
+                    onMarkRead={markRead}
+                    onMarkUnread={markUnread}
+                    onRowClick={handleRowClick}
+                  />
+                )}
+              />
+            )
+        )}
+
+        {activeTab === "other" && <EmptyState message="No other notifications" />}
+
+        {activeTab === "later" && (
+          laterLoading
+            ? <div className="flex justify-center py-16"><div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" /></div>
+            : (snoozed ?? []).length === 0
+              ? <EmptyState message="No snoozed notifications" />
+              : (
+                <GroupedList
+                  items={snoozed ?? []}
+                  renderRow={(item, isLast) => (
+                    <LaterRow
+                      key={item.id}
+                      item={item}
+                      isLast={isLast}
+                      taskMeta={item.taskId ? taskMetaMap[item.taskId] : undefined}
+                      onUnsnooze={handleUnsnooze}
+                    />
+                  )}
+                />
+              )
+        )}
+
+        {activeTab === "cleared" && (
+          clearedLoading
+            ? <div className="flex justify-center py-16"><div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" /></div>
+            : (cleared ?? []).length === 0
+              ? <EmptyState message="No cleared notifications" />
+              : (
+                <GroupedList
+                  items={cleared ?? []}
+                  renderRow={(item, isLast) => (
+                    <ClearedRow
+                      key={item.id}
+                      item={item}
+                      isLast={isLast}
+                      taskMeta={item.taskId ? taskMetaMap[item.taskId] : undefined}
+                      onRestore={handleRestore}
+                    />
+                  )}
+                />
+              )
+        )}
       </div>
     </div>
   );

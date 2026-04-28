@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { LuFlag, LuX } from "react-icons/lu";
+import { LuX } from "react-icons/lu";
+import { GrFlagFill } from "react-icons/gr";
 import { TaskPriority } from "@/services/task.service";
 
 interface PriorityOption {
@@ -55,10 +56,18 @@ export default function PriorityPicker({ value, onChange, onClear, iconSize = "m
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  const handleOpen = () => {
+  const handleOpen = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
     if (btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect();
-      setPos({ top: rect.bottom + 4, left: rect.left });
+      const dropW = 144;
+      const dropH = 180;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceRight = window.innerWidth - rect.left;
+      const top = spaceBelow < dropH && rect.top > dropH ? rect.top - dropH - 4 : rect.bottom + 4;
+      let left = spaceRight < dropW ? rect.right - dropW : rect.left;
+      left = Math.max(8, Math.min(left, window.innerWidth - dropW - 8));
+      setPos({ top, left });
     }
     setOpen((v) => !v);
   };
@@ -70,12 +79,12 @@ export default function PriorityPicker({ value, onChange, onClear, iconSize = "m
       <button
         ref={btnRef}
         type="button"
-        onClick={handleOpen}
+        onClick={(e) => handleOpen(e)}
         className={`flex items-center gap-1.5 rounded text-xs hover:bg-gray-100 dark:hover:bg-gray-800 ${iconSize === "sm" ? "p-1" : "px-1.5 py-1"}`}
         title={current ? current.label : "Set priority"}
       >
-        <LuFlag
-          className={iconSize === "sm" ? "h-3 w-3" : "h-4 w-4"}
+        <GrFlagFill
+          className={iconSize === "sm" ? "h-2.5 w-2.5" : "h-3 w-3"}
           style={{ color: current ? current.color : "#4b5563" }}
         />
         {current ? (
@@ -99,7 +108,7 @@ export default function PriorityPicker({ value, onChange, onClear, iconSize = "m
                 onClick={() => { onChange(opt.value); setOpen(false); }}
                 className={`flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800 ${value === opt.value ? "font-medium" : ""}`}
               >
-                <LuFlag className="h-3.5 w-3.5 shrink-0" style={{ color: opt.color }} />
+                <GrFlagFill className="h-3 w-3 shrink-0" style={{ color: opt.color }} />
                 <span style={{ color: opt.color }}>{opt.label}</span>
               </button>
             ))}

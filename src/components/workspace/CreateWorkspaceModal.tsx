@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { useAuth } from "@/context/AuthContext";
 import { workspaceService, WorkspaceUse, WorkspaceManagementType } from "@/services/workspace.service";
@@ -52,6 +53,8 @@ export default function CreateWorkspaceModal({ isOpen, onClose }: Props) {
 
   const nameInputRef = useRef<HTMLInputElement>(null);
   const emailInputRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(panelRef, isOpen);
 
   useEffect(() => {
     if (step === 4) nameInputRef.current?.focus();
@@ -134,6 +137,7 @@ export default function CreateWorkspaceModal({ isOpen, onClose }: Props) {
       onClick={onClose ? () => onClose() : undefined}
     >
       <div
+        ref={panelRef}
         className="relative w-full max-w-[780px] rounded-2xl bg-white dark:bg-gray-900 shadow-2xl mx-4"
         onClick={(e) => e.stopPropagation()}
       >

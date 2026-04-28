@@ -35,6 +35,7 @@ interface TaskSearchState {
   searchProject: (projectId: string, params?: TaskSearchParams, mode?: TaskSearchMode) => Promise<TaskSearchResult>;
   searchList: (projectId: string, listId: string, params?: TaskSearchParams, mode?: TaskSearchMode) => Promise<TaskSearchResult>;
   refreshMatchingCaches: (context: { projectId?: string; listId?: string }) => Promise<void>;
+  applyLocalUpdate: (taskId: string, patch: Partial<TaskListItem>) => void;
   applyLocalReorder: (context: { projectId: string; listId: string; orderedIds: string[] }) => void;
   clearCache: (matcher?: (entry: TaskSearchCacheEntry) => boolean) => void;
 }
@@ -201,6 +202,22 @@ export const useTaskSearchStore = create<TaskSearchState>((set, get) => {
       for (const entry of entries) {
         await runSearch(entry.scope, entry.params, entry.mode);
       }
+    },
+
+    applyLocalUpdate: (taskId, patch) => {
+      set((state) => {
+        const nextCaches: Record<string, TaskSearchCacheEntry> = {};
+        let changed = false;
+        for (const [key, entry] of Object.entries(state.caches)) {
+          const idx = entry.items.findIndex((t) => t.id === taskId);
+          if (idx === -1) { nextCaches[key] = entry; continue; }
+          const nextItems = entry.items.slice();
+          nextItems[idx] = { ...nextItems[idx], ...patch };
+          nextCaches[key] = { ...entry, items: nextItems };
+          changed = true;
+        }
+        return changed ? { caches: nextCaches } : state;
+      });
     },
 
     applyLocalReorder: ({ projectId, listId, orderedIds }) => {

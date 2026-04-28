@@ -31,9 +31,19 @@ export default function AuthLayout({
           </span>
           <Link
             href={isSignIn ? "/signup" : "/signin"}
-            className="rounded-full border border-brand-500 px-5 py-2 text-sm font-normal text-brand-500 transition-colors hover:bg-brand-500 hover:text-white"
+            className="group relative inline-flex min-h-10 min-w-[78px] items-center justify-center px-5 py-2 text-sm font-semibold text-white transition-transform duration-200 hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2"
           >
-            {isSignIn ? "Sign up" : "Login"}
+            <span
+              aria-hidden="true"
+              className="absolute inset-x-2.5 -bottom-2 h-4 rounded-full bg-brand-500/40 blur-md transition-opacity duration-200 group-hover:opacity-100"
+            />
+            <span
+              aria-hidden="true"
+              className="absolute inset-0 rounded-[11px] bg-linear-to-b from-brand-400 via-brand-500 to-brand-600 shadow-[0_7px_16px_rgba(70,95,255,0.2)]"
+            />
+            <span className="relative">
+              {isSignIn ? "Sign up" : "Login"}
+            </span>
           </Link>
         </div>
       </header>

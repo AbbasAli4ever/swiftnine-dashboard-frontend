@@ -61,6 +61,7 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   onEdit: () => void;
+  onRename: () => void;
   onDelete: () => void;
 }
 
@@ -70,6 +71,7 @@ export default function SpaceContextMenu({
   isOpen,
   onClose,
   onEdit,
+  onRename,
   onDelete,
 }: Props) {
   const [position, setPosition] = useState({ top: 0, left: 0 });
@@ -125,7 +127,8 @@ export default function SpaceContextMenu({
       className="fixed z-9999 w-64 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-2xl py-1.5 max-h-[calc(100vh-32px)] overflow-y-auto"
     >
       <MenuItem icon={<LuStar className="w-4 h-4" />} label="Favorite" hasSubmenu onClick={onClose} />
-      <MenuItem icon={<LuPencil className="w-4 h-4" />} label="Rename" onClick={onEdit} />
+      <MenuItem icon={<LuPencil className="w-4 h-4" />} label="Edit" onClick={onEdit} />
+      <MenuItem icon={<LuPencil className="w-4 h-4" />} label="Rename" onClick={() => { onClose(); onRename(); }} />
       <MenuItem icon={<LuLink className="w-4 h-4" />} label="Copy link" onClick={handleCopyLink} />
 
       <div className="my-1 border-t border-gray-100 dark:border-gray-800" />

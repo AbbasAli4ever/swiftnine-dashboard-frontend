@@ -73,12 +73,18 @@ export default function DatePicker({ startDate, dueDate, onChange, align = "left
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  const handleOpen = () => {
+  const handleOpen = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
     if (btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect();
       const dropW = 288;
-      const left = align === "right" ? rect.right - dropW : rect.left;
-      setPos({ top: rect.bottom + 4, left });
+      const dropH = 380;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceRight = window.innerWidth - rect.left;
+      const top = spaceBelow < dropH && rect.top > dropH ? rect.top - dropH - 4 : rect.bottom + 4;
+      let left = align === "right" || spaceRight < dropW ? rect.right - dropW : rect.left;
+      left = Math.max(8, Math.min(left, window.innerWidth - dropW - 8));
+      setPos({ top, left });
     }
     setOpen((v) => !v);
   };
@@ -132,7 +138,7 @@ export default function DatePicker({ startDate, dueDate, onChange, align = "left
       <button
         ref={btnRef}
         type="button"
-        onClick={handleOpen}
+        onClick={(e) => handleOpen(e)}
         className={`flex items-center gap-1.5 rounded text-xs hover:bg-gray-100 dark:hover:bg-gray-800 ${iconSize === "sm" ? "p-1" : "px-1.5 py-1"}`}
         title="Due date"
       >

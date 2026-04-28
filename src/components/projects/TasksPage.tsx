@@ -410,11 +410,11 @@ export default function TasksPage() {
           </div>
         ) : null}
 
-        {!isLoadingTasks && currentView === "overview" ? (
+        {currentView === "overview" ? (
           <TaskDashboardHome
+            projectId={project.id}
             projectName={project.name}
-            lists={activeLists}
-            tasks={fullCache?.items ?? []}
+            members={members}
             onCreateList={() => setCreateListOpen(true)}
           />
         ) : null}

@@ -37,7 +37,7 @@ interface TaskState {
   createSubtask: (taskId: string, listId: string, payload: CreateSubtaskPayload) => Promise<TaskDetail>;
   addAssignee: (taskId: string, listId: string, userIds: string[]) => Promise<void>;
   removeAssignee: (taskId: string, listId: string, userId: string) => Promise<void>;
-  addTag: (taskId: string, listId: string, tagId: string) => Promise<void>;
+  addTag: (taskId: string, listId: string, tagId: string, tagInfo?: { name: string; color: string }) => Promise<void>;
   removeTag: (taskId: string, listId: string, tagId: string) => Promise<void>;
   purgeTag: (tagId: string) => void;
   updateTagInStore: (tag: { id: string; name: string; color: string }) => void;
@@ -181,107 +181,171 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   },
 
   updateTask: async (taskId, listId, payload) => {
-    const updated = await taskService.update(taskId, payload);
+    // Optimistic update
+    const prev = get().tasksByList[listId]?.find((t) => t.id === taskId);
+    const prevOpenTask = get().openTask?.id === taskId ? get().openTask : null;
+    useTaskSearchStore.getState().applyLocalUpdate(taskId, payload as Partial<TaskListItem>);
     set((s) => {
       const updatedTasks = (s.tasksByList[listId] ?? []).map((t) =>
-        t.id === taskId
-          ? {
-              ...t,
-              title: updated.title,
-              priority: updated.priority,
-              startDate: updated.startDate,
-              dueDate: updated.dueDate,
-              status: updated.status,
-              assignees: updated.assignees,
-              tags: updated.tags,
-              isCompleted: updated.isCompleted,
-              completedAt: updated.completedAt,
-              updatedAt: updated.updatedAt,
-            }
-          : t
+        t.id === taskId ? { ...t, ...payload } : t
       );
-
       const newState: Partial<TaskState> = {
         tasksByList: { ...s.tasksByList, [listId]: updatedTasks },
       };
-
-      if (payload.listId && payload.listId !== listId) {
-        const oldListTasks = (s.tasksByList[listId] ?? []).filter((t) => t.id !== taskId);
-        const newListItem: TaskListItem = {
-          id: updated.id,
-          taskId: updated.taskId,
-          taskNumber: updated.taskNumber,
-          title: updated.title,
-          priority: updated.priority,
-          startDate: updated.startDate,
-          dueDate: updated.dueDate,
-          position: updated.position,
-          depth: updated.depth,
-          isCompleted: updated.isCompleted,
-          completedAt: updated.completedAt,
-          createdAt: updated.createdAt,
-          updatedAt: updated.updatedAt,
-          status: updated.status,
-          assignees: updated.assignees,
-          tags: updated.tags,
-          list: updated.list,
-          _count: { children: updated.children.length },
-        };
-        newState.tasksByList = {
-          ...s.tasksByList,
-          [listId]: oldListTasks,
-          [payload.listId]: [...(s.tasksByList[payload.listId] ?? []), newListItem],
-        };
-      }
-
       if (s.openTask?.id === taskId) {
-        return { ...newState, openTask: updated } as Partial<TaskState>;
+        return { ...newState, openTask: { ...s.openTask, ...payload } } as Partial<TaskState>;
       }
       return newState as Partial<TaskState>;
     });
-    await useTaskSearchStore.getState().refreshMatchingCaches({
-      projectId: updated.list.project.id,
-      listId: updated.list.id,
-    });
+
+    try {
+      const updated = await taskService.update(taskId, payload);
+      set((s) => {
+        const updatedTasks = (s.tasksByList[listId] ?? []).map((t) =>
+          t.id === taskId
+            ? {
+                ...t,
+                title: updated.title,
+                priority: updated.priority,
+                startDate: updated.startDate,
+                dueDate: updated.dueDate,
+                status: updated.status,
+                assignees: updated.assignees,
+                tags: updated.tags,
+                isCompleted: updated.isCompleted,
+                completedAt: updated.completedAt,
+                updatedAt: updated.updatedAt,
+              }
+            : t
+        );
+
+        const newState: Partial<TaskState> = {
+          tasksByList: { ...s.tasksByList, [listId]: updatedTasks },
+        };
+
+        if (payload.listId && payload.listId !== listId) {
+          const oldListTasks = (s.tasksByList[listId] ?? []).filter((t) => t.id !== taskId);
+          const newListItem: TaskListItem = {
+            id: updated.id,
+            taskId: updated.taskId,
+            taskNumber: updated.taskNumber,
+            title: updated.title,
+            priority: updated.priority,
+            startDate: updated.startDate,
+            dueDate: updated.dueDate,
+            position: updated.position,
+            depth: updated.depth,
+            isCompleted: updated.isCompleted,
+            completedAt: updated.completedAt,
+            createdAt: updated.createdAt,
+            updatedAt: updated.updatedAt,
+            status: updated.status,
+            assignees: updated.assignees,
+            tags: updated.tags,
+            list: updated.list,
+            _count: { children: updated.children.length },
+          };
+          newState.tasksByList = {
+            ...s.tasksByList,
+            [listId]: oldListTasks,
+            [payload.listId]: [...(s.tasksByList[payload.listId] ?? []), newListItem],
+          };
+        }
+
+        if (s.openTask?.id === taskId) {
+          return { ...newState, openTask: updated } as Partial<TaskState>;
+        }
+        return newState as Partial<TaskState>;
+      });
+      // Patch search cache with confirmed server data (no full refetch)
+      useTaskSearchStore.getState().applyLocalUpdate(taskId, {
+        title: updated.title,
+        priority: updated.priority,
+        startDate: updated.startDate,
+        dueDate: updated.dueDate,
+        status: updated.status,
+        assignees: updated.assignees,
+        tags: updated.tags,
+        isCompleted: updated.isCompleted,
+        completedAt: updated.completedAt,
+        updatedAt: updated.updatedAt,
+      });
+    } catch (err) {
+      // Rollback optimistic updates
+      if (prev) useTaskSearchStore.getState().applyLocalUpdate(taskId, prev);
+      set((s) => ({
+        tasksByList: {
+          ...s.tasksByList,
+          [listId]: (s.tasksByList[listId] ?? []).map((t) => (t.id === taskId && prev ? prev : t)),
+        },
+        openTask: prevOpenTask && s.openTask?.id === taskId ? prevOpenTask : s.openTask,
+      }));
+      throw err;
+    }
   },
 
   updateSubtask: async (subtaskId, parentId, listId, payload) => {
-    const updated = await taskService.update(subtaskId, payload);
+    // Optimistic update
+    const prev = get().subtasksByParent[parentId]?.find((t) => t.id === subtaskId);
+    const prevOpenTask = get().openTask?.id === subtaskId ? get().openTask : null;
     set((s) => {
       const updatedSubs = (s.subtasksByParent[parentId] ?? []).map((t) =>
-        t.id === subtaskId
-          ? {
-              ...t,
-              title: updated.title,
-              priority: updated.priority,
-              startDate: updated.startDate,
-              dueDate: updated.dueDate,
-              status: updated.status,
-              assignees: updated.assignees,
-              tags: updated.tags,
-              isCompleted: updated.isCompleted,
-              completedAt: updated.completedAt,
-              updatedAt: updated.updatedAt,
-            }
-          : t
-      );
-      // Also update parent task _count if needed
-      const updatedList = (s.tasksByList[listId] ?? []).map((t) =>
-        t.id === parentId ? { ...t, _count: { children: updatedSubs.length } } : t
+        t.id === subtaskId ? { ...t, ...payload } : t
       );
       const newState: Partial<TaskState> = {
         subtasksByParent: { ...s.subtasksByParent, [parentId]: updatedSubs },
-        tasksByList: { ...s.tasksByList, [listId]: updatedList },
       };
       if (s.openTask?.id === subtaskId) {
-        return { ...newState, openTask: updated } as Partial<TaskState>;
+        return { ...newState, openTask: { ...s.openTask, ...payload } } as Partial<TaskState>;
       }
       return newState as Partial<TaskState>;
     });
-    await useTaskSearchStore.getState().refreshMatchingCaches({
-      projectId: updated.list.project.id,
-      listId: updated.list.id,
-    });
+
+    try {
+      const updated = await taskService.update(subtaskId, payload);
+      set((s) => {
+        const updatedSubs = (s.subtasksByParent[parentId] ?? []).map((t) =>
+          t.id === subtaskId
+            ? {
+                ...t,
+                title: updated.title,
+                priority: updated.priority,
+                startDate: updated.startDate,
+                dueDate: updated.dueDate,
+                status: updated.status,
+                assignees: updated.assignees,
+                tags: updated.tags,
+                isCompleted: updated.isCompleted,
+                completedAt: updated.completedAt,
+                updatedAt: updated.updatedAt,
+              }
+            : t
+        );
+        const updatedList = (s.tasksByList[listId] ?? []).map((t) =>
+          t.id === parentId ? { ...t, _count: { children: updatedSubs.length } } : t
+        );
+        const newState: Partial<TaskState> = {
+          subtasksByParent: { ...s.subtasksByParent, [parentId]: updatedSubs },
+          tasksByList: { ...s.tasksByList, [listId]: updatedList },
+        };
+        if (s.openTask?.id === subtaskId) {
+          return { ...newState, openTask: updated } as Partial<TaskState>;
+        }
+        return newState as Partial<TaskState>;
+      });
+    } catch (err) {
+      // Rollback on error
+      set((s) => ({
+        subtasksByParent: {
+          ...s.subtasksByParent,
+          [parentId]: (s.subtasksByParent[parentId] ?? []).map((t) =>
+            t.id === subtaskId && prev ? prev : t
+          ),
+        },
+        openTask: prevOpenTask && s.openTask?.id === subtaskId ? prevOpenTask : s.openTask,
+      }));
+      throw err;
+    }
   },
 
   deleteTask: async (taskId, listId) => {
@@ -312,7 +376,11 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       return {
         subtasksByParent: { ...s.subtasksByParent, [parentId]: updatedSubs },
         tasksByList: { ...s.tasksByList, [listId]: updatedList },
-        openTask: s.openTask?.id === subtaskId ? null : s.openTask,
+        openTask: s.openTask?.id === subtaskId
+          ? null
+          : s.openTask?.id === parentId
+            ? { ...s.openTask, children: s.openTask.children.filter(c => c.id !== subtaskId) }
+            : s.openTask,
         openTaskId: s.openTaskId === subtaskId ? null : s.openTaskId,
       };
     });
@@ -421,63 +489,172 @@ export const useTaskStore = create<TaskState>((set, get) => ({
           t.id === taskId ? { ...t, assignees: updated.assignees } : t
         ),
       },
+      subtasksByParent: Object.fromEntries(
+        Object.entries(s.subtasksByParent).map(([pid, subs]) => [
+          pid,
+          subs.map((t) => t.id === taskId ? { ...t, assignees: updated.assignees } : t),
+        ])
+      ),
       openTask: s.openTask?.id === taskId ? updated : s.openTask,
     }));
-    await useTaskSearchStore.getState().refreshMatchingCaches({
-      projectId: updated.list.project.id,
-      listId: updated.list.id,
-    });
+    useTaskSearchStore.getState().applyLocalUpdate(taskId, { assignees: updated.assignees });
   },
 
   removeAssignee: async (taskId, listId, userId) => {
-    const updated = await taskService.removeAssignee(taskId, userId);
+    const optimisticRemove = (assignees: TaskListItem["assignees"]) =>
+      assignees.filter((a) => a.user.id !== userId);
+    // Optimistic update across all stores
     set((s) => ({
       tasksByList: {
         ...s.tasksByList,
         [listId]: (s.tasksByList[listId] ?? []).map((t) =>
-          t.id === taskId ? { ...t, assignees: updated.assignees } : t
+          t.id === taskId ? { ...t, assignees: optimisticRemove(t.assignees) } : t
         ),
       },
-      openTask: s.openTask?.id === taskId ? updated : s.openTask,
+      subtasksByParent: Object.fromEntries(
+        Object.entries(s.subtasksByParent).map(([pid, subs]) => [
+          pid,
+          subs.map((t) => t.id === taskId ? { ...t, assignees: optimisticRemove(t.assignees) } : t),
+        ])
+      ),
+      openTask: s.openTask?.id === taskId
+        ? { ...s.openTask, assignees: optimisticRemove(s.openTask.assignees) }
+        : s.openTask,
     }));
-    await useTaskSearchStore.getState().refreshMatchingCaches({
-      projectId: updated.list.project.id,
-      listId: updated.list.id,
-    });
+    const patchedAssignees = get().tasksByList[listId]?.find(t => t.id === taskId)?.assignees
+      ?? Object.values(get().subtasksByParent).flat().find(t => t.id === taskId)?.assignees
+      ?? [];
+    useTaskSearchStore.getState().applyLocalUpdate(taskId, { assignees: patchedAssignees });
+    try {
+      const updated = await taskService.removeAssignee(taskId, userId);
+      set((s) => ({
+        tasksByList: {
+          ...s.tasksByList,
+          [listId]: (s.tasksByList[listId] ?? []).map((t) =>
+            t.id === taskId ? { ...t, assignees: updated.assignees } : t
+          ),
+        },
+        subtasksByParent: Object.fromEntries(
+          Object.entries(s.subtasksByParent).map(([pid, subs]) => [
+            pid,
+            subs.map((t) => t.id === taskId ? { ...t, assignees: updated.assignees } : t),
+          ])
+        ),
+        openTask: s.openTask?.id === taskId ? updated : s.openTask,
+      }));
+      useTaskSearchStore.getState().applyLocalUpdate(taskId, { assignees: updated.assignees });
+    } catch (err) { throw err; }
   },
 
-  addTag: async (taskId, listId, tagId) => {
+  addTag: async (taskId, listId, tagId, tagInfo) => {
+    // Optimistic update if we have tag info
+    if (tagInfo) {
+      const optimisticTag = { tag: { id: tagId, name: tagInfo.name, color: tagInfo.color } };
+      const addOptimistic = (tags: TaskListItem["tags"] | undefined) =>
+        (tags ?? []).some(t => t.tag.id === tagId) ? (tags ?? []) : [...(tags ?? []), optimisticTag];
+      set((s) => {
+        const patchOpenTask = s.openTask?.id === taskId
+          ? { ...s.openTask, tags: addOptimistic(s.openTask.tags) }
+          : s.openTask && s.openTask.children?.some(c => c.id === taskId)
+            ? { ...s.openTask, children: s.openTask.children.map(c => c.id === taskId ? { ...c, tags: addOptimistic(c.tags) } : c) }
+            : s.openTask;
+        return {
+          tasksByList: {
+            ...s.tasksByList,
+            [listId]: (s.tasksByList[listId] ?? []).map((t) =>
+              t.id === taskId ? { ...t, tags: addOptimistic(t.tags) } : t
+            ),
+          },
+          subtasksByParent: Object.fromEntries(
+            Object.entries(s.subtasksByParent).map(([pid, subs]) => [
+              pid,
+              subs.map((t) => t.id === taskId ? { ...t, tags: addOptimistic(t.tags) } : t),
+            ])
+          ),
+          openTask: patchOpenTask,
+        };
+      });
+      const optimisticTags = get().tasksByList[listId]?.find(t => t.id === taskId)?.tags
+        ?? Object.values(get().subtasksByParent).flat().find(t => t.id === taskId)?.tags
+        ?? [];
+      useTaskSearchStore.getState().applyLocalUpdate(taskId, { tags: optimisticTags });
+    }
     const updated = await taskService.addTag(taskId, tagId);
-    set((s) => ({
-      tasksByList: {
-        ...s.tasksByList,
-        [listId]: (s.tasksByList[listId] ?? []).map((t) =>
-          t.id === taskId ? { ...t, tags: updated.tags } : t
+    set((s) => {
+      const patchOpenTask = s.openTask?.id === taskId
+        ? updated
+        : s.openTask && s.openTask.children?.some(c => c.id === taskId)
+          ? { ...s.openTask, children: s.openTask.children.map(c => c.id === taskId ? { ...c, tags: updated.tags } : c) }
+          : s.openTask;
+      return {
+        tasksByList: {
+          ...s.tasksByList,
+          [listId]: (s.tasksByList[listId] ?? []).map((t) =>
+            t.id === taskId ? { ...t, tags: updated.tags } : t
+          ),
+        },
+        subtasksByParent: Object.fromEntries(
+          Object.entries(s.subtasksByParent).map(([pid, subs]) => [
+            pid,
+            subs.map((t) => t.id === taskId ? { ...t, tags: updated.tags } : t),
+          ])
         ),
-      },
-      openTask: s.openTask?.id === taskId ? updated : s.openTask,
-    }));
-    await useTaskSearchStore.getState().refreshMatchingCaches({
-      projectId: updated.list.project.id,
-      listId: updated.list.id,
+        openTask: patchOpenTask,
+      };
     });
+    useTaskSearchStore.getState().applyLocalUpdate(taskId, { tags: updated.tags });
   },
 
   removeTag: async (taskId, listId, tagId) => {
-    const updated = await taskService.removeTag(taskId, tagId);
+    const optimisticFilter = (tags: TaskListItem["tags"]) =>
+      tags.filter((tg) => tg.tag.id !== tagId);
+    // Optimistic update across all stores
     set((s) => ({
       tasksByList: {
         ...s.tasksByList,
         [listId]: (s.tasksByList[listId] ?? []).map((t) =>
-          t.id === taskId ? { ...t, tags: updated.tags } : t
+          t.id === taskId ? { ...t, tags: optimisticFilter(t.tags) } : t
         ),
       },
-      openTask: s.openTask?.id === taskId ? updated : s.openTask,
+      subtasksByParent: Object.fromEntries(
+        Object.entries(s.subtasksByParent).map(([pid, subs]) => [
+          pid,
+          subs.map((t) => t.id === taskId ? { ...t, tags: optimisticFilter(t.tags) } : t),
+        ])
+      ),
+      openTask: s.openTask?.id === taskId
+        ? { ...s.openTask, tags: optimisticFilter(s.openTask.tags) }
+        : s.openTask && s.openTask.children?.some(c => c.id === taskId)
+          ? { ...s.openTask, children: s.openTask.children.map(c => c.id === taskId ? { ...c, tags: optimisticFilter(c.tags) } : c) }
+          : s.openTask,
     }));
-    await useTaskSearchStore.getState().refreshMatchingCaches({
-      projectId: updated.list.project.id,
-      listId: updated.list.id,
-    });
+    const patchedTags = get().tasksByList[listId]?.find(t => t.id === taskId)?.tags
+      ?? Object.values(get().subtasksByParent).flat().find(t => t.id === taskId)?.tags
+      ?? [];
+    useTaskSearchStore.getState().applyLocalUpdate(taskId, { tags: patchedTags });
+    try {
+      const updated = await taskService.removeTag(taskId, tagId);
+      set((s) => ({
+        tasksByList: {
+          ...s.tasksByList,
+          [listId]: (s.tasksByList[listId] ?? []).map((t) =>
+            t.id === taskId ? { ...t, tags: updated.tags } : t
+          ),
+        },
+        subtasksByParent: Object.fromEntries(
+          Object.entries(s.subtasksByParent).map(([pid, subs]) => [
+            pid,
+            subs.map((t) => t.id === taskId ? { ...t, tags: updated.tags } : t),
+          ])
+        ),
+        openTask: s.openTask?.id === taskId
+          ? updated
+          : s.openTask && s.openTask.children?.some(c => c.id === taskId)
+            ? { ...s.openTask, children: s.openTask.children.map(c => c.id === taskId ? { ...c, tags: updated.tags } : c) }
+            : s.openTask,
+      }));
+      useTaskSearchStore.getState().applyLocalUpdate(taskId, { tags: updated.tags });
+    } catch (err) { throw err; }
   },
 
   purgeTag: (tagId) => {

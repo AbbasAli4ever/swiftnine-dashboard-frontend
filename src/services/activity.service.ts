@@ -48,9 +48,26 @@ export interface TaskActivityParams {
   to?: string;
 }
 
+export interface ProjectActivityParams {
+  cursor?: string;
+  limit?: number;
+  q?: string;
+  categories?: string;
+  actions?: string;
+  actorIds?: string;
+  me?: boolean;
+  from?: string;
+  to?: string;
+}
+
 export const activityService = {
   getTaskActivity: (taskId: string, params?: TaskActivityParams) =>
     api
       .get<ApiWrapper<ActivityPage>>(`/tasks/${taskId}/activity`, { params })
+      .then((r) => r.data.data),
+
+  getProjectActivity: (projectId: string, params?: ProjectActivityParams) =>
+    api
+      .get<ApiWrapper<ActivityPage>>(`/activity`, { params: { projectId, ...params } })
       .then((r) => r.data.data),
 };

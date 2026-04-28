@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useMemo, useRef, useState } from "react";
+import { ChangeEvent, useCallback, useMemo, useRef, useState } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
@@ -21,30 +21,11 @@ interface TaskCalendarViewProps {
 
 type EventTone = "red" | "amber" | "blue" | "purple" | "slate";
 
-type CalendarTaskEvent = EventInput & {
-  id: string;
-  title: string;
-  start: string;
-  allDay: true;
-  extendedProps: {
-    taskId: string;
-    tone: EventTone;
-  };
-};
+type CalendarTaskEvent = EventInput;
 
 const MONTH_NAMES = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
 ];
 
 function getMonthStart(date: Date) {
@@ -57,24 +38,40 @@ function resolveEventTone(task: TaskListItem, index: number): EventTone {
   if (task.status.group === "ACTIVE") return "blue";
   if (task.status.group === "DONE") return "purple";
   if (task.status.group === "CLOSED") return "slate";
-
   const fallbackTones: EventTone[] = ["red", "amber", "blue", "purple", "slate"];
   return fallbackTones[index % fallbackTones.length];
 }
 
+// Extract YYYY-MM-DD without timezone conversion — safe for both date-only and ISO strings
+function toDateOnly(dateStr: string): string {
+  return dateStr.slice(0, 10);
+}
+
+// FullCalendar end is exclusive — add 1 day so Apr 10 shows through Apr 10
+function toExclusiveEnd(dateOnly: string): string {
+  const [y, m, d] = dateOnly.split("-").map(Number);
+  const next = new Date(Date.UTC(y, m - 1, d + 1));
+  return next.toISOString().slice(0, 10);
+}
+
 function renderEventContent(eventInfo: EventContentArg) {
-  const tone = String(eventInfo.event.extendedProps.tone || "slate");
+  const { tone, isMultiDay } = eventInfo.event.extendedProps as {
+    tone: EventTone;
+    isMultiDay: boolean;
+  };
   return (
-    <div className={`taskEvent taskEvent-${tone}`}>
-      <span className="taskEventDot" />
-      <span className="taskEventTitle">{eventInfo.event.title}</span>
-    </div>
+    <>
+      {!isMultiDay && <span className={`taskEventDot taskEventDot-${tone}`} />}
+      <span className={`taskEventTitle taskEventTitle-${tone}`}>{eventInfo.event.title}</span>
+    </>
   );
 }
 
 export default function TaskCalendarView({ tasks, onView }: TaskCalendarViewProps) {
   const calendarRef = useRef<FullCalendar | null>(null);
   const [visibleMonth, setVisibleMonth] = useState(() => getMonthStart(new Date()));
+  // Set of week ISO strings (Monday date) where the user expanded "more"
+  const [expandedWeeks, setExpandedWeeks] = useState<Set<string>>(new Set());
 
   const taskById = useMemo(() => {
     const map = new Map<string, TaskListItem>();
@@ -82,18 +79,26 @@ export default function TaskCalendarView({ tasks, onView }: TaskCalendarViewProp
     return map;
   }, [tasks]);
 
-  const events = useMemo<CalendarTaskEvent[]>(
-    () =>
-      tasks.map((task, index) => ({
+  const events = useMemo<CalendarTaskEvent[]>(() =>
+    tasks.map((task, index) => {
+      const start = toDateOnly(task.startDate ?? task.dueDate ?? task.createdAt);
+      const dueDate = task.dueDate ? toDateOnly(task.dueDate) : null;
+      const end = dueDate && start !== dueDate ? toExclusiveEnd(dueDate) : undefined;
+      const isMultiDay = !!end;
+
+      return {
         id: `task-${task.id}`,
         title: task.title,
-        start: task.dueDate ?? task.createdAt,
+        start,
+        end,
         allDay: true,
         extendedProps: {
           taskId: task.id,
           tone: resolveEventTone(task, index),
+          isMultiDay,
         },
-      })),
+      };
+    }),
     [tasks]
   );
 
@@ -101,20 +106,17 @@ export default function TaskCalendarView({ tasks, onView }: TaskCalendarViewProp
     const currentYear = new Date().getFullYear();
     let minYear = currentYear - 2;
     let maxYear = currentYear + 3;
-
     tasks.forEach((task) => {
-      const sourceDate = task.dueDate ?? task.createdAt;
+      const sourceDate = task.startDate ?? task.dueDate ?? task.createdAt;
       const taskYear = Number.parseInt(sourceDate.slice(0, 4), 10);
       if (Number.isNaN(taskYear)) return;
       if (taskYear < minYear) minYear = taskYear;
       if (taskYear > maxYear) maxYear = taskYear;
     });
-
     const visibleYear = visibleMonth.getFullYear();
     if (visibleYear < minYear) minYear = visibleYear;
     if (visibleYear > maxYear) maxYear = visibleYear;
-
-    return Array.from({ length: maxYear - minYear + 1 }, (_, index) => minYear + index);
+    return Array.from({ length: maxYear - minYear + 1 }, (_, i) => minYear + i);
   }, [tasks, visibleMonth]);
 
   const syncVisibleMonth = (date: Date) => {
@@ -124,11 +126,10 @@ export default function TaskCalendarView({ tasks, onView }: TaskCalendarViewProp
   const moveMonth = (direction: "prev" | "next") => {
     const api = calendarRef.current?.getApi();
     if (!api) return;
-
     if (direction === "prev") api.prev();
     if (direction === "next") api.next();
-
     syncVisibleMonth(api.getDate());
+    setExpandedWeeks(new Set());
   };
 
   const goToToday = () => {
@@ -136,30 +137,29 @@ export default function TaskCalendarView({ tasks, onView }: TaskCalendarViewProp
     if (!api) return;
     api.today();
     syncVisibleMonth(api.getDate());
+    setExpandedWeeks(new Set());
   };
 
   const handleMonthChange = (event: ChangeEvent<HTMLSelectElement>) => {
     const api = calendarRef.current?.getApi();
     if (!api) return;
-
     const month = Number.parseInt(event.target.value, 10);
     if (Number.isNaN(month)) return;
-
     const nextDate = new Date(visibleMonth.getFullYear(), month, 1);
     api.gotoDate(nextDate);
     syncVisibleMonth(nextDate);
+    setExpandedWeeks(new Set());
   };
 
   const handleYearChange = (event: ChangeEvent<HTMLSelectElement>) => {
     const api = calendarRef.current?.getApi();
     if (!api) return;
-
     const year = Number.parseInt(event.target.value, 10);
     if (Number.isNaN(year)) return;
-
     const nextDate = new Date(year, visibleMonth.getMonth(), 1);
     api.gotoDate(nextDate);
     syncVisibleMonth(nextDate);
+    setExpandedWeeks(new Set());
   };
 
   const handleDatesSet = (arg: DatesSetArg) => {
@@ -170,6 +170,23 @@ export default function TaskCalendarView({ tasks, onView }: TaskCalendarViewProp
     const taskId = String(clickInfo.event.extendedProps.taskId || "");
     if (taskById.has(taskId)) onView(taskId);
   };
+
+  // When user clicks "+ N more", expand that week to show all events inline
+  const handleMoreLinkClick = useCallback((arg: { date: Date }) => {
+    // arg.date is the day cell date — compute the Monday (week start) as the key
+    const d = new Date(arg.date);
+    d.setDate(d.getDate() - d.getDay()); // Sunday-based
+    const weekKey = d.toISOString().slice(0, 10);
+    setExpandedWeeks((prev) => {
+      const next = new Set(prev);
+      next.add(weekKey);
+      return next;
+    });
+  }, []);
+
+  // Compute dayMaxEventRows: if any expanded week contains this date, show all
+  // FullCalendar doesn't support per-row limits, so we use a high number when any week is expanded
+  const dayMaxEventRows = expandedWeeks.size > 0 ? false : 3;
 
   return (
     <div className={styles.root}>
@@ -204,9 +221,7 @@ export default function TaskCalendarView({ tasks, onView }: TaskCalendarViewProp
             aria-label="Select month"
           >
             {MONTH_NAMES.map((month, index) => (
-              <option key={month} value={index}>
-                {month}
-              </option>
+              <option key={month} value={index}>{month}</option>
             ))}
           </select>
           <select
@@ -216,9 +231,7 @@ export default function TaskCalendarView({ tasks, onView }: TaskCalendarViewProp
             aria-label="Select year"
           >
             {yearOptions.map((year) => (
-              <option key={year} value={year}>
-                {year}
-              </option>
+              <option key={year} value={year}>{year}</option>
             ))}
           </select>
         </div>
@@ -229,17 +242,27 @@ export default function TaskCalendarView({ tasks, onView }: TaskCalendarViewProp
           ref={calendarRef}
           plugins={[dayGridPlugin, interactionPlugin]}
           initialView="dayGridMonth"
+          initialDate={visibleMonth}
           headerToolbar={false}
           events={events}
           datesSet={handleDatesSet}
           eventClick={handleEventClick}
           eventContent={renderEventContent}
-          dayMaxEventRows={2}
+          eventClassNames={(arg) => {
+            const tone = String(arg.event.extendedProps.tone ?? "slate");
+            const isMultiDay = Boolean(arg.event.extendedProps.isMultiDay);
+            return [`fc-task-tone-${tone}`, isMultiDay ? "fc-task-multi" : "fc-task-single"];
+          }}
+          dayMaxEventRows={dayMaxEventRows}
           fixedWeekCount={false}
-          moreLinkClick="popover"
+          moreLinkClick={handleMoreLinkClick}
+          moreLinkContent={(arg) => `+ ${arg.num} MORE`}
           showNonCurrentDates
           height="auto"
           displayEventTime={false}
+          eventOrder="start,-duration,allDay,title"
+          forceEventDuration
+          defaultAllDayEventDuration={{ days: 1 }}
         />
       </div>
     </div>

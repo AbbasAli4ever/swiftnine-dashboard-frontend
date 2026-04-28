@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { GrFlagFill } from "react-icons/gr";
 import {
   LuX,
   LuChevronLeft,
@@ -12,7 +13,6 @@ import {
   LuEllipsis,
   LuTag,
   LuCalendarDays,
-  LuFlag,
   LuUserRound,
   LuTimer,
   LuTrash2,
@@ -24,7 +24,7 @@ import {
 import { activityService, ActivityItem } from "@/services/activity.service";
 import { MdOutlineDonutSmall } from "react-icons/md";
 import { RiAiGenerate } from "react-icons/ri";
-import { TaskDetail, TaskPriority, TaskAssignee, UpdateTaskPayload } from "@/services/task.service";
+import { taskService, TaskDetail, TaskPriority, TaskAssignee, UpdateTaskPayload } from "@/services/task.service";
 import { StatusItem } from "@/services/status.service";
 import { WorkspaceMember } from "@/services/workspace.service";
 import { useTaskStore } from "@/stores/task.store";
@@ -69,7 +69,7 @@ function avatarBg(id: string): string {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 
-const SUBTASK_COL = "minmax(0,1fr) 110px 110px 80px 100px 32px";
+const SUBTASK_COL = "minmax(0,1fr) 8px 50px 50px 70px 70px 20px";
 
 function SubtaskRow({
   subtask,
@@ -87,6 +87,33 @@ function SubtaskRow({
   onOpen: (id: string) => void;
 }) {
   const { updateSubtask, deleteSubtask, addAssignee, removeAssignee } = useTaskStore();
+  const storeTags = useTaskStore(s => s.openTask?.children?.find(c => c.id === subtask.id)?.tags);
+  const [optimisticTags, setOptimisticTags] = useState<typeof subtask.tags | null>(null);
+  const displayTags = optimisticTags ?? storeTags ?? subtask.tags ?? [];
+
+  const handleAddTag = async (tagId: string, tagInfo?: { name: string; color: string }) => {
+    const base = storeTags ?? subtask.tags ?? [];
+    if (tagInfo) setOptimisticTags(base.some(t => t.tag.id === tagId) ? base : [...base, { tag: { id: tagId, name: tagInfo.name, color: tagInfo.color } }]);
+    try {
+      const updated = await taskService.addTag(subtask.id, tagId);
+      setOptimisticTags(updated.tags);
+    } catch (err) {
+      setOptimisticTags(null);
+      throw err;
+    }
+  };
+
+  const handleRemoveTag = async (tagId: string) => {
+    const base = storeTags ?? subtask.tags ?? [];
+    setOptimisticTags(base.filter(t => t.tag.id !== tagId));
+    try {
+      const updated = await taskService.removeTag(subtask.id, tagId);
+      setOptimisticTags(updated.tags);
+    } catch (err) {
+      setOptimisticTags(null);
+      throw err;
+    }
+  };
   const [hovered, setHovered] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(subtask.title);
@@ -94,6 +121,19 @@ function SubtaskRow({
   const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const rowRef = useRef<HTMLDivElement>(null);
+  const suppressNextClick = useRef(false);
+
+  useEffect(() => {
+    const onMouseDown = (e: MouseEvent) => {
+      if (rowRef.current && !rowRef.current.contains(e.target as Node)) {
+        suppressNextClick.current = true;
+        setTimeout(() => { suppressNextClick.current = false; }, 300);
+      }
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, []);
 
   const commit = async () => {
     setEditingTitle(false);
@@ -104,6 +144,7 @@ function SubtaskRow({
   };
 
   const handleMenuOpen = (e: React.MouseEvent) => {
+    e.stopPropagation();
     const rect = e.currentTarget.getBoundingClientRect();
     setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
     setMenuOpen(true);
@@ -111,6 +152,7 @@ function SubtaskRow({
 
   return (
     <div
+      ref={rowRef}
       className="group relative"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -118,7 +160,7 @@ function SubtaskRow({
       <div
         className="grid cursor-pointer items-center gap-2 py-1 pr-4 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800/40"
         style={{ gridTemplateColumns: SUBTASK_COL }}
-        onClick={() => { if (!editingTitle) onOpen(subtask.id); }}
+        onClick={() => { if (!editingTitle && !suppressNextClick.current) onOpen(subtask.id); }}
       >
         {/* Name cell */}
         <div className="flex min-w-0 items-center gap-2 pl-2">
@@ -149,28 +191,46 @@ function SubtaskRow({
               {subtask.title}
             </span>
           )}
-          {(subtask.tags?.length ?? 0) > 0 && (
-            <div className="flex shrink-0 gap-1">
-              {subtask.tags.slice(0, 2).map((t) => (
-                <span key={t.tag.id} className="rounded px-1 py-0.5 text-[9px]" style={{ backgroundColor: `${t.tag.color}22`, color: t.tag.color }}>
-                  {t.tag.name}
+          {/* Tags: first tag + +N badge */}
+          {displayTags.length > 0 && (
+            <div className="flex shrink-0 items-center gap-1">
+              <span className="rounded px-1 py-0.5 text-[9px]" style={{ backgroundColor: `${displayTags[0].tag.color}22`, color: displayTags[0].tag.color }}>
+                {displayTags[0].tag.name}
+              </span>
+              {displayTags.length > 1 && (
+                <span className="rounded bg-gray-100 px-1 py-0.5 text-[9px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                  +{displayTags.length - 1}
                 </span>
-              ))}
+              )}
             </div>
           )}
-          {/* Hover open button */}
-          <button
-            type="button"
-            title="Open task"
-            onClick={(e) => { e.stopPropagation(); onOpen(subtask.id); }}
-            className={`ml-1 flex h-5 w-7 shrink-0 items-center justify-center rounded border border-gray-200 bg-white text-gray-400 shadow-sm transition-opacity hover:border-brand-400 hover:text-brand-500 dark:border-gray-700 dark:bg-gray-900 ${hovered ? "opacity-100" : "opacity-0 pointer-events-none"}`}
-          >
-            <LuPencil className="h-3 w-3" />
-          </button>
+          {/* Tag picker + hover open button */}
+          <div className={`ml-1 flex shrink-0 items-center gap-1 transition-opacity ${hovered ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
+            <TagPicker
+              taskId={subtask.id}
+              listId={listId}
+              currentTags={displayTags}
+              onAdd={handleAddTag}
+              onRemove={handleRemoveTag}
+              variant="compact"
+              disableFlip
+            />
+            <button
+              type="button"
+              title="Open task"
+              onClick={(e) => { e.stopPropagation(); onOpen(subtask.id); }}
+              className="flex h-5 w-7 shrink-0 items-center justify-center rounded border border-gray-200 bg-white text-gray-400 shadow-sm hover:border-brand-400 hover:text-brand-500 dark:border-gray-700 dark:bg-gray-900"
+            >
+              <LuPencil className="h-3 w-3" />
+            </button>
+          </div>
         </div>
 
+        {/* Spacer */}
+        <div />
+
         {/* Assignee */}
-        <div onClick={(e) => e.stopPropagation()}>
+        <div>
           <AssigneePicker
             assignees={subtask.assignees}
             members={members}
@@ -180,7 +240,7 @@ function SubtaskRow({
         </div>
 
         {/* Due date */}
-        <div onClick={(e) => e.stopPropagation()}>
+        <div>
           <DatePicker
             startDate={subtask.startDate}
             dueDate={subtask.dueDate}
@@ -189,7 +249,7 @@ function SubtaskRow({
         </div>
 
         {/* Priority */}
-        <div onClick={(e) => e.stopPropagation()}>
+        <div>
           <PriorityPicker
             value={subtask.priority}
             onChange={async (priority) => { try { await updateSubtask(subtask.id, parentId, listId, { priority }); } catch (err) { toast.error(parseApiError(err).message); } }}
@@ -198,7 +258,7 @@ function SubtaskRow({
         </div>
 
         {/* Status */}
-        <div onClick={(e) => e.stopPropagation()}>
+        <div>
           <StatusPicker
             statuses={statuses}
             value={subtask.status.id}
@@ -208,10 +268,10 @@ function SubtaskRow({
         </div>
 
         {/* Three dots */}
-        <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+        <div className="flex justify-center">
           <button
             type="button"
-            onClick={handleMenuOpen}
+            onClick={(e) => { e.stopPropagation(); handleMenuOpen(e); }}
             className={`rounded p-1 text-gray-400 transition-opacity hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 ${hovered || menuOpen ? "opacity-100" : "opacity-0"}`}
           >
             <LuEllipsis className="h-3.5 w-3.5" />
@@ -227,14 +287,6 @@ function SubtaskRow({
             className="fixed z-[70] w-44 rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
             style={{ top: menuPos.top, right: menuPos.right }}
           >
-            <button
-              type="button"
-              onClick={() => { onOpen(subtask.id); setMenuOpen(false); }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
-            >
-              <LuPencil className="h-3.5 w-3.5" />
-              Open task
-            </button>
             <button
               type="button"
               onClick={async () => {
@@ -425,6 +477,7 @@ function ActivityRow({ item }: { item: ActivityItem }) {
 
 export default function TaskDetailModal({ task, statuses, members, listId, onClose }: TaskDetailModalProps) {
   const { updateTask, addAssignee, removeAssignee, addTag, removeTag, openTaskDetail, refreshOpenTask } = useTaskStore();
+  const liveChildren = useTaskStore(s => s.openTask?.id === task.id ? s.openTask.children : task.children);
   const currentUser = useAuthStore(s => s.user);
 
   const [title, setTitle] = useState(task.title);
@@ -615,7 +668,7 @@ export default function TaskDetailModal({ task, statuses, members, listId, onClo
                 {/* Priority */}
                 <div className="flex items-center border-b border-gray-100 py-2 dark:border-gray-800">
                   <div className="flex w-28 shrink-0 items-center gap-2 text-sm text-gray-500">
-                    <LuFlag className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                    <GrFlagFill className="h-3 w-3 shrink-0 text-gray-400" />
                     Priority
                   </div>
                   <PriorityPicker value={task.priority} onChange={handlePriorityChange} onClear={() => handlePriorityChange("NONE")} showLabel />
@@ -631,7 +684,7 @@ export default function TaskDetailModal({ task, statuses, members, listId, onClo
                     taskId={task.id}
                     listId={listId}
                     currentTags={task.tags}
-                    onAdd={(tagId) => addTag(task.id, listId, tagId)}
+                    onAdd={(tagId, tagInfo) => addTag(task.id, listId, tagId, tagInfo)}
                     onRemove={(tagId) => removeTag(task.id, listId, tagId)}
                     variant="expanded"
                   />
@@ -662,14 +715,6 @@ export default function TaskDetailModal({ task, statuses, members, listId, onClo
                 />
               </div>
 
-              {/* Add fields */}
-              <div className="mb-6">
-                <button type="button" className="text-sm text-gray-400 hover:text-brand-500">
-                  <LuPlus className="mr-1 inline h-3.5 w-3.5" />
-                  Create a field in this List
-                </button>
-              </div>
-
               {/* Subtasks */}
               <div className="mb-6">
                 <div className="mb-2 flex items-center justify-between">
@@ -685,7 +730,7 @@ export default function TaskDetailModal({ task, statuses, members, listId, onClo
                 </div>
 
                 <div className="overflow-hidden rounded-xl border border-gray-100 dark:border-gray-800">
-                  {task.children.map((child) => (
+                  {liveChildren.map((child) => (
                     <SubtaskRow
                       key={child.id}
                       subtask={child}
@@ -705,7 +750,7 @@ export default function TaskDetailModal({ task, statuses, members, listId, onClo
                       onClose={() => setAddingSubtask(false)}
                     />
                   )}
-                  {task.children.length === 0 && !addingSubtask && (
+                  {liveChildren.length === 0 && !addingSubtask && (
                     <div className="px-3 py-4 text-center text-sm text-gray-400">No subtasks yet</div>
                   )}
                 </div>

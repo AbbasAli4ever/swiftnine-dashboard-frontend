@@ -43,14 +43,18 @@ export default function StatusPicker({ statuses, value, onChange, className = ""
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  const handleOpen = () => {
+  const handleOpen = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
     if (btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect();
-      setPos(
-        align === "right"
-          ? { top: rect.bottom + 4, left: rect.right - 208 }
-          : { top: rect.bottom + 4, left: rect.left }
-      );
+      const dropW = 208;
+      const dropH = 240;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceRight = window.innerWidth - rect.left;
+      const top = spaceBelow < dropH && rect.top > dropH ? rect.top - dropH - 4 : rect.bottom + 4;
+      let left = align === "right" || spaceRight < dropW ? rect.right - dropW : rect.left;
+      left = Math.max(8, Math.min(left, window.innerWidth - dropW - 8));
+      setPos({ top, left });
     }
     setOpen((v) => !v);
   };
@@ -71,7 +75,7 @@ export default function StatusPicker({ statuses, value, onChange, className = ""
       <button
         ref={btnRef}
         type="button"
-        onClick={handleOpen}
+        onClick={(e) => handleOpen(e)}
         className="flex items-center gap-1.5 rounded px-1.5 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-800"
       >
         {current ? (

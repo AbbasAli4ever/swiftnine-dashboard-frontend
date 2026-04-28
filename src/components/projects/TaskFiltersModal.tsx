@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { GrFlagFill } from "react-icons/gr";
 import {
   LuX, LuPlus, LuTrash2, LuChevronDown, LuChevronUp,
-  LuCircleDot, LuTag, LuCalendar, LuFlag, LuUser, LuSearch, LuFilter,
+  LuCircleDot, LuTag, LuCalendar, LuUser, LuSearch, LuFilter,
 } from "react-icons/lu";
 import { StatusItem } from "@/services/status.service";
 import { WorkspaceTag } from "@/services/tag.service";
@@ -34,7 +35,7 @@ const FIELD_OPTIONS: Array<{ value: FilterField; label: string; icon: React.Reac
   { value: "status",   label: "Status",   icon: <LuCircleDot className="h-4 w-4" /> },
   { value: "tags",     label: "Tags",     icon: <LuTag className="h-4 w-4" /> },
   { value: "due_date", label: "Due date", icon: <LuCalendar className="h-4 w-4" /> },
-  { value: "priority", label: "Priority", icon: <LuFlag className="h-4 w-4" /> },
+  { value: "priority", label: "Priority", icon: <GrFlagFill className="h-3 w-3" /> },
   { value: "assignee", label: "Assignee", icon: <LuUser className="h-4 w-4" /> },
 ];
 

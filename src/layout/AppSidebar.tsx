@@ -18,7 +18,6 @@ import EditSpaceModal from "@/components/projects/EditSpaceModal";
 import SpaceContextMenu from "@/components/projects/SpaceContextMenu";
 import ConfirmActionModal from "@/components/common/ConfirmActionModal";
 import CreateListModal from "@/components/projects/CreateListModal";
-import RenameListModal from "@/components/projects/RenameListModal";
 import ListContextMenu from "@/components/projects/ListContextMenu";
 import { toast } from "sonner";
 import { RiHomeSmileFill } from "react-icons/ri";
@@ -44,8 +43,8 @@ import {
   LuChevronDown,
   LuSlidersHorizontal,
   LuEllipsis as LuMoreHorizontal,
-  LuList,
 } from "react-icons/lu";
+import { MdChecklist } from "react-icons/md";
 
 // ── Icon Rail items ──────────────────────────────────────────────────────────
 type RailItem = {
@@ -58,10 +57,10 @@ type RailItem = {
 const railItems: RailItem[] = [
   { id: "home",    label: "Home",    icon: <RiHomeSmileFill className="w-5 h-5" />,   panel: "home" },
   { id: "planner", label: "Planner", icon: <BsCalendar2Date className="w-5 h-5" />,   panel: "planner" },
-  { id: "ai",      label: "AI",      icon: <BsStars className="w-5 h-5" />,           panel: "ai" },
-  { id: "teams",   label: "Teams",   icon: <LuUsers className="w-5 h-5" />,           panel: "teams" },
-  { id: "clips",   label: "Clips",   icon: <IoVideocamOutline className="w-5 h-5" />, panel: "clips" },
-  { id: "more",    label: "More",    icon: <MdGridOn className="w-5 h-5" />,          panel: "more" },
+  // { id: "ai",      label: "AI",      icon: <BsStars className="w-5 h-5" />,           panel: "ai" },
+  // { id: "teams",   label: "Teams",   icon: <LuUsers className="w-5 h-5" />,           panel: "teams" },
+  // { id: "clips",   label: "Clips",   icon: <IoVideocamOutline className="w-5 h-5" />, panel: "clips" },
+  // { id: "more",    label: "More",    icon: <MdGridOn className="w-5 h-5" />,          panel: "more" },
 ];
 
 // ── Nav link definitions ─────────────────────────────────────────────────────
@@ -69,9 +68,9 @@ type NavLink = { label: string; path: string; icon: React.ReactNode; badge?: num
 
 const inboxLinks: NavLink[] = [
   { label: "Inbox",             path: "/",      icon: <LuInbox className="w-4 h-4" /> },
-  { label: "Replies",           path: "/tasks", icon: <LuCornerUpLeft className="w-4 h-4" /> },
-  { label: "Assigned Comments", path: "/tasks", icon: <LuMessageSquare className="w-4 h-4" /> },
-  { label: "My Tasks",          path: "/tasks", icon: <LuCircleCheck className="w-4 h-4" />, badge: 1 },
+  { label: "Replies",           path: "/replies",           icon: <LuCornerUpLeft className="w-4 h-4" /> },
+  { label: "Assigned Comments", path: "/assigned-comments", icon: <LuMessageSquare className="w-4 h-4" /> },
+  { label: "My Tasks",          path: "/my-tasks", icon: <LuCircleCheck className="w-4 h-4" />, badge: 1 },
 ];
 
 const dmUsers = [
@@ -131,22 +130,32 @@ function SidebarListRow({
   const router = useRouter();
   const { renameList, archiveList, deleteList } = useTaskLists();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [renameOpen, setRenameOpen] = useState(false);
+  const [renamingInline, setRenamingInline] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [isMutating, setIsMutating] = useState(false);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  const renameInputRef = useRef<HTMLInputElement>(null);
 
   const navigateToList = () => {
     router.push(`/projects?projectId=${project.id}&listId=${list.id}&view=list`);
   };
 
-  const handleRename = async (name: string) => {
+  const startInlineRename = () => {
+    setRenameValue(list.name);
+    setRenamingInline(true);
+    setTimeout(() => renameInputRef.current?.focus(), 30);
+  };
+
+  const commitInlineRename = async () => {
+    const trimmed = renameValue.trim();
+    setRenamingInline(false);
+    if (!trimmed || trimmed === list.name) return;
     setIsMutating(true);
     try {
-      await renameList(project.id, list.id, { name });
-      toast.success(`List "${name}" renamed`);
-      setRenameOpen(false);
+      await renameList(project.id, list.id, { name: trimmed });
+      toast.success(`List renamed to "${trimmed}"`);
     } catch (error) {
       const { message } = parseApiError(error);
       toast.error(message);
@@ -202,14 +211,31 @@ function SidebarListRow({
             : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
         }`}
       >
-        <button
-          type="button"
-          onClick={navigateToList}
-          className="flex min-w-0 flex-1 items-center gap-2 text-left"
-        >
-          <LuList className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-          <span className="truncate font-normal">{list.name}</span>
-        </button>
+        <MdChecklist className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+
+        {renamingInline ? (
+          <input
+            ref={renameInputRef}
+            type="text"
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onBlur={commitInlineRename}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitInlineRename();
+              if (e.key === "Escape") setRenamingInline(false);
+            }}
+            className="min-w-0 flex-1 rounded px-1 py-0 text-[13px] bg-white dark:bg-gray-800 border border-brand-500 text-gray-900 dark:text-white outline-none"
+            onClick={(e) => e.stopPropagation()}
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={navigateToList}
+            className="flex min-w-0 flex-1 items-center text-left"
+          >
+            <span className="truncate font-normal">{list.name}</span>
+          </button>
+        )}
 
         <button
           ref={menuTriggerRef}
@@ -229,17 +255,9 @@ function SidebarListRow({
         triggerRef={menuTriggerRef}
         isOpen={menuOpen}
         onClose={() => setMenuOpen(false)}
-        onRename={() => setRenameOpen(true)}
+        onRename={() => { setMenuOpen(false); startInlineRename(); }}
         onArchive={() => setArchiveOpen(true)}
         onDelete={() => setDeleteOpen(true)}
-      />
-
-      <RenameListModal
-        isOpen={renameOpen}
-        initialName={list.name}
-        onClose={() => setRenameOpen(false)}
-        onSubmit={handleRename}
-        isLoading={isMutating}
       />
 
       <ConfirmActionModal
@@ -280,7 +298,7 @@ function SpaceRow({
   activeListId: string | null;
 }) {
   const router = useRouter();
-  const { deleteProject } = useProjects();
+  const { deleteProject, updateProject } = useProjects();
   const { getProjectLists, reorderLists } = useTaskLists();
   const [menuOpen, setMenuOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -289,6 +307,9 @@ function SpaceRow({
   const [expanded, setExpanded] = useState(true);
   const [createListOpen, setCreateListOpen] = useState(false);
   const [draggedListId, setDraggedListId] = useState<string | null>(null);
+  const [renamingProject, setRenamingProject] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+  const renameInputRef = useRef<HTMLInputElement>(null);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const lists = getProjectLists(project.id, { includeArchived: false });
   const isProjectActive = activeProjectId === project.id && !activeListId;
@@ -298,8 +319,32 @@ function SpaceRow({
     if (isWithinProject) setExpanded(true);
   }, [isWithinProject]);
 
+  useEffect(() => {
+    if (renamingProject) {
+      setTimeout(() => renameInputRef.current?.focus(), 30);
+    }
+  }, [renamingProject]);
+
   const openProject = () => {
     router.push(`/projects?projectId=${project.id}`);
+  };
+
+  const startRename = () => {
+    setRenameValue(project.name);
+    setRenamingProject(true);
+  };
+
+  const commitProjectRename = async () => {
+    const trimmed = renameValue.trim();
+    setRenamingProject(false);
+    if (!trimmed || trimmed === project.name) return;
+    try {
+      await updateProject(project.id, { name: trimmed });
+      toast.success(`Space renamed to "${trimmed}"`);
+    } catch (error) {
+      const { message } = parseApiError(error);
+      toast.error(message);
+    }
   };
 
   const handleDelete = async () => {
@@ -365,19 +410,35 @@ function SpaceRow({
             )}
           </button>
 
-          <button
-            type="button"
-            onClick={openProject}
-            className="flex min-w-0 flex-1 items-center gap-2 text-left"
-          >
-            <span
-              className="flex h-4 w-4 shrink-0 items-center justify-center rounded-sm text-[10px] font-normal text-white"
-              style={{ backgroundColor: project.color }}
+          {renamingProject ? (
+            <input
+              ref={renameInputRef}
+              type="text"
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onBlur={commitProjectRename}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitProjectRename();
+                if (e.key === "Escape") setRenamingProject(false);
+              }}
+              className="min-w-0 flex-1 rounded px-1 py-0 text-[13px] bg-white dark:bg-gray-800 border border-brand-500 text-gray-900 dark:text-white outline-none"
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={openProject}
+              className="flex min-w-0 flex-1 items-center gap-2 text-left"
             >
-              {project.name.charAt(0).toUpperCase()}
-            </span>
-            <span className="truncate font-normal text-[13px]">{project.name}</span>
-          </button>
+              <span
+                className="flex h-4 w-4 shrink-0 items-center justify-center rounded-sm text-[10px] font-normal text-white"
+                style={{ backgroundColor: project.color }}
+              >
+                {project.name.charAt(0).toUpperCase()}
+              </span>
+              <span className="truncate font-normal text-[13px]">{project.name}</span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -427,6 +488,7 @@ function SpaceRow({
         isOpen={menuOpen}
         onClose={() => setMenuOpen(false)}
         onEdit={() => { setMenuOpen(false); setEditOpen(true); }}
+        onRename={() => startRename()}
         onDelete={() => {
           setMenuOpen(false);
           setDeleteOpen(true);
@@ -613,12 +675,12 @@ function HomePanelContent() {
       </div>
 
       {/* Bottom: Customize Sidebar */}
-      <div className="border-t border-gray-100 dark:border-gray-800 px-3 py-2.5">
+      {/* <div className="border-t border-gray-100 dark:border-gray-800 px-3 py-2.5">
         <button className="flex items-center gap-2 w-full rounded-lg px-2 py-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-[13px]">
           <LuSlidersHorizontal className="w-3.5 h-3.5" />
           <span>Customize Sidebar</span>
         </button>
-      </div>
+      </div> */}
 
       {/* Create Space Modal */}
       <CreateSpaceModal isOpen={createOpen} onClose={() => setCreateOpen(false)} />
@@ -828,13 +890,13 @@ const AppSidebar: React.FC = () => {
             <GoPersonAdd className="w-5 h-5" />
             <span className="text-[9px] mt-0.5 leading-none">Invite</span>
           </button>
-          <button
+          {/* <button
             title="Upgrade"
             className="flex flex-col items-center justify-center w-10 h-10 rounded-xl text-gray-400 hover:bg-white/10 hover:text-white transition-all"
           >
             <FaRegArrowAltCircleUp className="w-5 h-5" />
             <span className="text-[9px] mt-0.5 leading-none">Upgrade</span>
-          </button>
+          </button> */}
         </div>
       </div>
 

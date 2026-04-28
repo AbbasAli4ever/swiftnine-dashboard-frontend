@@ -191,37 +191,29 @@ export default function SignUpForm() {
 
             {/* Password */}
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <Label htmlFor="password" className="mb-0">Choose Password</Label>
+              <Label htmlFor="password">Choose Password</Label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Create a password"
+                  error={!!errors.password}
+                  hint={errors.password?.message}
+                  className="pr-16"
+                  {...register("password")}
+                />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="text-sm font-normal text-gray-500 hover:text-gray-700"
+                  className="absolute right-3 top-3 text-sm font-normal text-gray-500 hover:text-gray-700"
                 >
                   {showPassword ? "Hide" : "Show"}
                 </button>
               </div>
-              <Input
-                id="password"
-                type={showPassword ? "text" : "password"}
-                placeholder="Create a password"
-                error={!!errors.password}
-                hint={errors.password?.message}
-                {...register("password")}
-              />
             </div>
 
             {/* Checkboxes */}
             <div className="space-y-3">
-              {/* Marketing checkbox — optional, not in schema */}
-              <div className="flex items-start gap-3">
-                <Checkbox checked={false} onChange={() => {}} />
-                <p className="text-sm text-gray-500">
-                  By checking this box, you agree to receive emails for marketing
-                  from SwiftNine
-                </p>
-              </div>
-
               {/* Terms checkbox — required */}
               <div className="flex items-start gap-3">
                 <Checkbox

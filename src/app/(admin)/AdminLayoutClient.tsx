@@ -2,9 +2,11 @@
 
 import { useAuth } from "@/context/AuthContext";
 import { useWorkspace } from "@/context/WorkspaceContext";
+import { NotificationProvider } from "@/context/NotificationContext";
 import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
 import CreateWorkspaceModal from "@/components/workspace/CreateWorkspaceModal";
+import GlobalTaskDetailModal from "@/components/projects/GlobalTaskDetailModal";
 import UserProfilePanel from "@/components/user-profile/UserProfilePanel";
 import ViewUserProfilePanel from "@/components/user-profile/ViewUserProfilePanel";
 import { useUiStore } from "@/stores/ui.store";
@@ -38,6 +40,7 @@ export default function AdminLayoutClient({
   const forcedModal = !workspacesLoading && isAuthenticated && workspaces.length === 0;
 
   return (
+    <NotificationProvider>
     <div className="flex h-screen overflow-hidden bg-white dark:bg-gray-900">
       <AppSidebar />
 
@@ -55,7 +58,9 @@ export default function AdminLayoutClient({
       {/* Other user's profile panel */}
       <ViewUserProfilePanel userId={viewingUserId} onClose={closeUserPanel} />
 
+      <GlobalTaskDetailModal />
       <CreateWorkspaceModal isOpen={forcedModal} />
     </div>
+    </NotificationProvider>
   );
 }

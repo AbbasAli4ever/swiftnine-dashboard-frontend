@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { LuX } from "react-icons/lu";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 
 interface ConfirmActionModalProps {
   isOpen: boolean;
@@ -28,6 +29,8 @@ export default function ConfirmActionModal({
   requireTextLabel,
 }: ConfirmActionModalProps) {
   const [value, setValue] = useState("");
+  const panelRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(panelRef, isOpen);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -54,7 +57,7 @@ export default function ConfirmActionModal({
         }}
       />
 
-      <div className="relative z-10 mx-4 w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-gray-800 dark:bg-gray-950">
+      <div ref={panelRef} className="relative z-10 mx-4 w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-gray-800 dark:bg-gray-950">
         <button
           type="button"
           onClick={onClose}

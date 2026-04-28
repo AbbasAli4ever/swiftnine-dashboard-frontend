@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   LuChevronRight,
@@ -173,6 +173,19 @@ export default function TaskRow({
   const [titleDraft, setTitleDraft] = useState(task.title);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const rowRef = useRef<HTMLDivElement>(null);
+  const suppressNextClick = useRef(false);
+
+  useEffect(() => {
+    const onMouseDown = (e: MouseEvent) => {
+      if (rowRef.current && !rowRef.current.contains(e.target as Node)) {
+        suppressNextClick.current = true;
+        setTimeout(() => { suppressNextClick.current = false; }, 300);
+      }
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, []);
 
   const {
     expandedTasks,
@@ -207,6 +220,7 @@ export default function TaskRow({
   const hasChildren = task._count.children > 0;
 
   const handleMenuOpen = (e: React.MouseEvent) => {
+    e.stopPropagation();
     const rect = e.currentTarget.getBoundingClientRect();
     setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
     setMenuOpen(true);
@@ -217,6 +231,7 @@ export default function TaskRow({
   return (
     <>
       <div
+        ref={rowRef}
         className="group relative"
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
@@ -224,7 +239,7 @@ export default function TaskRow({
         <div
           className="grid cursor-pointer items-center gap-2 py-1 pr-4 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800/40"
           style={{ gridTemplateColumns: COL }}
-          onClick={() => { if (!editingTitle) onView(task.id); }}
+          onClick={() => { if (!editingTitle && !suppressNextClick.current) onView(task.id); }}
         >
           {/* Name cell */}
           <div className="flex min-w-0 items-center gap-1 pl-2" style={{ paddingLeft: `${8 + indentPx}px` }}>
@@ -293,7 +308,7 @@ export default function TaskRow({
 
             {/* Tags */}
             {task.tags.length > 0 && (
-              <div className="flex shrink-0 gap-1">
+              <div className="flex shrink-0 items-center gap-1">
                 {task.tags.slice(0, 2).map((t) => (
                   <span
                     key={t.tag.id}
@@ -303,17 +318,22 @@ export default function TaskRow({
                     {t.tag.name}
                   </span>
                 ))}
+                {task.tags.length > 2 && (
+                  <span className="rounded bg-gray-100 px-1 py-0.5 text-[9px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                    +{task.tags.length - 2}
+                  </span>
+                )}
               </div>
             )}
           </div>
 
           {/* Hover actions */}
-          <div className={`flex shrink-0 items-center gap-1 transition-opacity ${hovered ? "opacity-100" : "opacity-0 pointer-events-none"}`} onClick={(e) => e.stopPropagation()}>
+          <div className={`flex shrink-0 items-center gap-1 transition-opacity ${hovered ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
             {indent < 2 && (
               <button
                 type="button"
                 title="Add subtask"
-                onClick={() => { setAddingSubtask(true); if (!isExpanded) toggleExpand(task.id); }}
+                onClick={(e) => { e.stopPropagation(); setAddingSubtask(true); if (!isExpanded) toggleExpand(task.id); }}
                 className="flex h-5.5 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 shadow-sm hover:border-brand-400 hover:text-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-brand-500"
               >
                 <LuPlus className="h-3 w-3" />
@@ -323,14 +343,14 @@ export default function TaskRow({
               taskId={task.id}
               listId={listId}
               currentTags={task.tags}
-              onAdd={(tagId) => addTag(task.id, listId, tagId)}
+              onAdd={(tagId, tagInfo) => addTag(task.id, listId, tagId, tagInfo)}
               onRemove={(tagId) => removeTag(task.id, listId, tagId)}
               variant="compact"
             />
             <button
               type="button"
               title="Open task"
-              onClick={() => onView(task.id)}
+              onClick={(e) => { e.stopPropagation(); onView(task.id); }}
               className="flex h-5.5 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 shadow-sm hover:border-brand-400 hover:text-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-brand-500"
             >
               <LuPencil className="h-3 w-3" />
@@ -338,12 +358,12 @@ export default function TaskRow({
           </div>
 
           {/* Assignee */}
-          <div onClick={(e) => e.stopPropagation()}>
+          <div>
             <AssigneePicker assignees={task.assignees} members={members} onAdd={onAddAssignee} onRemove={onRemoveAssignee} />
           </div>
 
           {/* Due date */}
-          <div onClick={(e) => e.stopPropagation()}>
+          <div>
             <DatePicker
               startDate={task.startDate}
               dueDate={task.dueDate}
@@ -352,20 +372,20 @@ export default function TaskRow({
           </div>
 
           {/* Priority */}
-          <div onClick={(e) => e.stopPropagation()}>
+          <div>
             <PriorityPicker value={task.priority} onChange={onUpdatePriority} onClear={() => onUpdatePriority("NONE")} />
           </div>
 
           {/* Status */}
-          <div onClick={(e) => e.stopPropagation()}>
+          <div>
             <StatusPicker statuses={statuses} value={task.status.id} onChange={onUpdateStatus} align="right" />
           </div>
 
           {/* Three dots */}
-          <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+          <div className="flex justify-center">
             <button
               type="button"
-              onClick={handleMenuOpen}
+              onClick={(e) => { e.stopPropagation(); handleMenuOpen(e); }}
               className={`rounded p-1 text-gray-400 transition-opacity hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 ${hovered || menuOpen ? "opacity-100" : "opacity-0"}`}
             >
               <LuEllipsis className="h-3.5 w-3.5" />
