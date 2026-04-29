@@ -19,6 +19,7 @@ import SpaceContextMenu from "@/components/projects/SpaceContextMenu";
 import ConfirmActionModal from "@/components/common/ConfirmActionModal";
 import CreateListModal from "@/components/projects/CreateListModal";
 import ListContextMenu from "@/components/projects/ListContextMenu";
+import DocsListSidebarSection from "@/components/docs/DocsListSidebarSection";
 import { toast } from "sonner";
 import { RiHomeSmileFill } from "react-icons/ri";
 import { BsCalendar2Date, BsStars } from "react-icons/bs";
@@ -649,6 +650,9 @@ function HomePanelContent() {
             <span>New Space</span>
           </button>
         </div>
+
+        {/* Docs */}
+        <DocsListSidebarSection />
 
         {/* Direct Messages */}
         <div className="pt-3">

@@ -6,6 +6,7 @@ import { AuthProvider } from "@/context/AuthContext";
 import { WorkspaceProvider } from "@/context/WorkspaceContext";
 import { ProjectProvider } from "@/context/ProjectContext";
 import { TaskListProvider } from "@/context/TaskListContext";
+import { DocsProvider } from "@/context/DocsContext";
 import "./globals.css";
 import "flatpickr/dist/flatpickr.css";
 
@@ -22,9 +23,11 @@ export default function RootLayout({
             <WorkspaceProvider>
               <ProjectProvider>
                 <TaskListProvider>
-                  <SidebarProvider>
-                    <TaskProvider>{children}</TaskProvider>
-                  </SidebarProvider>
+                  <DocsProvider>
+                    <SidebarProvider>
+                      <TaskProvider>{children}</TaskProvider>
+                    </SidebarProvider>
+                  </DocsProvider>
                 </TaskListProvider>
               </ProjectProvider>
             </WorkspaceProvider>

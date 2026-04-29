@@ -694,7 +694,7 @@ export default function TaskBoard({
 
     return (
       <div
-        className="overflow-x-auto pb-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+        className="overflow-x-scroll pb-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
         style={{ userSelect: activeDrag ? "none" : undefined }}
       >
         {boardLoading && boardColumns.length === 0 && (

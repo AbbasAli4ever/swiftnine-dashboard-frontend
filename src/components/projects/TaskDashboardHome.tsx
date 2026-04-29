@@ -20,6 +20,7 @@ import { dashboardService, DashboardData, DashboardList, DashboardPriority } fro
 import { activityService, ActivityItem } from "@/services/activity.service";
 import { WorkspaceMember } from "@/services/workspace.service";
 import { parseApiError } from "@/lib/api";
+import ProjectDocsBox from "@/components/docs/ProjectDocsBox";
 import DatePicker from "./DatePicker";
 
 const ReactApexChart = dynamic(() => import("react-apexcharts"), { ssr: false });
@@ -404,22 +405,8 @@ export default function TaskDashboardHome({
           )}
         </div>
 
-        {/* Docs — placeholder */}
-        <div className="flex h-72 flex-col rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-          <h3 className="mb-3 shrink-0 text-base font-normal text-gray-800 dark:text-white">Docs</h3>
-          <div className="flex flex-1 flex-col items-center justify-center text-center">
-            <span className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500">
-              <LuFileText className="h-5 w-5" />
-            </span>
-            <p className="mb-3 text-sm text-gray-400">There are no Docs in this location yet.</p>
-            <button
-              type="button"
-              className="rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-normal text-white dark:bg-white dark:text-gray-900"
-            >
-              Add a Doc
-            </button>
-          </div>
-        </div>
+        {/* Docs — project-scoped list */}
+        <ProjectDocsBox projectId={projectId} />
       </div>
 
       {/* ── Row 2: Lists table ── */}
