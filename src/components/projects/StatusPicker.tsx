@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { LuSearch } from "react-icons/lu";
 import { StatusItem } from "@/services/status.service";
 import StatusIcon from "./StatusIcon";
+import { useDropdownPosition } from "@/hooks/useDropdownPosition";
 
 interface StatusPickerProps {
   statuses: StatusItem[];
@@ -26,9 +27,9 @@ const GROUP_ORDER: GroupKey[] = ["NOT_STARTED", "ACTIVE", "DONE", "CLOSED"];
 export default function StatusPicker({ statuses, value, onChange, className = "", align = "left" }: StatusPickerProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const btnRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const pos = useDropdownPosition(btnRef, dropdownRef, open, { align });
 
   useEffect(() => {
     if (!open) return;
@@ -45,17 +46,6 @@ export default function StatusPicker({ statuses, value, onChange, className = ""
 
   const handleOpen = (e?: React.MouseEvent) => {
     e?.stopPropagation();
-    if (btnRef.current) {
-      const rect = btnRef.current.getBoundingClientRect();
-      const dropW = 208;
-      const dropH = 240;
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const spaceRight = window.innerWidth - rect.left;
-      const top = spaceBelow < dropH && rect.top > dropH ? rect.top - dropH - 4 : rect.bottom + 4;
-      let left = align === "right" || spaceRight < dropW ? rect.right - dropW : rect.left;
-      left = Math.max(8, Math.min(left, window.innerWidth - dropW - 8));
-      setPos({ top, left });
-    }
     setOpen((v) => !v);
   };
 
@@ -91,8 +81,8 @@ export default function StatusPicker({ statuses, value, onChange, className = ""
       {open && createPortal(
         <div
           ref={dropdownRef}
-          style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 9999 }}
-          className="w-52 rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900"
+          style={{ position: "fixed", top: pos.top, left: pos.left, maxHeight: pos.maxHeight, zIndex: 9999 }}
+          className="w-52 flex flex-col rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900 overflow-hidden"
         >
           <div className="border-b border-gray-100 px-3 py-2 dark:border-gray-800">
             <div className="flex items-center gap-2 rounded-lg bg-gray-50 px-2 py-1 dark:bg-gray-800">
@@ -107,7 +97,7 @@ export default function StatusPicker({ statuses, value, onChange, className = ""
               />
             </div>
           </div>
-          <div className="max-h-64 overflow-y-auto py-1">
+          <div className="flex-1 overflow-y-auto py-1">
             {grouped.map(({ group, items }) => (
               <div key={group}>
                 <p className="px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-gray-400">

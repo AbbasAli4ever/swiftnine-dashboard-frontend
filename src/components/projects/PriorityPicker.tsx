@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { LuX } from "react-icons/lu";
 import { GrFlagFill } from "react-icons/gr";
 import { TaskPriority } from "@/services/task.service";
+import { useDropdownPosition } from "@/hooks/useDropdownPosition";
 
 interface PriorityOption {
   value: TaskPriority;
@@ -39,10 +40,10 @@ interface PriorityPickerProps {
 
 export default function PriorityPicker({ value, onChange, onClear, iconSize = "md", showLabel = false }: PriorityPickerProps) {
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const ref = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const pos = useDropdownPosition(btnRef, dropdownRef, open);
 
   useEffect(() => {
     if (!open) return;
@@ -58,17 +59,6 @@ export default function PriorityPicker({ value, onChange, onClear, iconSize = "m
 
   const handleOpen = (e?: React.MouseEvent) => {
     e?.stopPropagation();
-    if (btnRef.current) {
-      const rect = btnRef.current.getBoundingClientRect();
-      const dropW = 144;
-      const dropH = 180;
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const spaceRight = window.innerWidth - rect.left;
-      const top = spaceBelow < dropH && rect.top > dropH ? rect.top - dropH - 4 : rect.bottom + 4;
-      let left = spaceRight < dropW ? rect.right - dropW : rect.left;
-      left = Math.max(8, Math.min(left, window.innerWidth - dropW - 8));
-      setPos({ top, left });
-    }
     setOpen((v) => !v);
   };
 
@@ -97,8 +87,8 @@ export default function PriorityPicker({ value, onChange, onClear, iconSize = "m
       {open && createPortal(
         <div
           ref={dropdownRef}
-          style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 9999 }}
-          className="w-36 rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900"
+          style={{ position: "fixed", top: pos.top, left: pos.left, maxHeight: pos.maxHeight, zIndex: 9999 }}
+          className="w-36 rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900 overflow-y-auto"
         >
           <div className="py-1">
             {OPTIONS.map((opt) => (

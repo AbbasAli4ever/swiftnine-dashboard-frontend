@@ -8,6 +8,7 @@ import { TaskTagInfo } from "@/services/task.service";
 import { useTaskStore } from "@/stores/task.store";
 import { toast } from "sonner";
 import { parseApiError } from "@/lib/api";
+import { useDropdownPosition } from "@/hooks/useDropdownPosition";
 
 const TAG_COLORS = [
   "#6366f1", "#8b5cf6", "#ec4899", "#ef4444",
@@ -111,11 +112,8 @@ export default function TagPicker({
   onRemove,
   onTagCreated,
   variant = "compact",
-  disableFlip = false,
 }: TagPickerProps) {
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState({ top: 0, left: 0 });
-  const [positioned, setPositioned] = useState(false);
   const [tags, setTags] = useState<WorkspaceTag[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
@@ -130,6 +128,7 @@ export default function TagPicker({
   const dropRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
+  const pos = useDropdownPosition(triggerRef, dropRef, open);
 
   useEffect(() => {
     if (!open) return;
@@ -161,67 +160,8 @@ export default function TagPicker({
     setEditTarget(null);
   };
 
-  const reposition = () => {
-    if (!triggerRef.current) return;
-    const btn = triggerRef.current.getBoundingClientRect();
-    const dropW = dropRef.current ? dropRef.current.offsetWidth : 264;
-    const dropH = dropRef.current ? dropRef.current.offsetHeight : 300;
-
-    // Vertical: prefer below, flip above only if not enough space below but enough above
-    const spaceBelow = window.innerHeight - btn.bottom;
-    const spaceAbove = btn.top;
-    let top: number;
-    if (!disableFlip && spaceBelow < dropH && spaceAbove >= dropH) {
-      top = btn.top - dropH - 4;
-    } else {
-      top = btn.bottom + 4;
-    }
-    // Clamp vertically within viewport
-    top = Math.max(8, Math.min(top, window.innerHeight - dropH - 8));
-
-    // Horizontal: align left of button, flip left if overflows right edge
-    let left = btn.left;
-    if (left + dropW > window.innerWidth - 8) {
-      left = btn.right - dropW;
-    }
-    left = Math.max(8, left);
-
-    setPos({ top, left });
-  };
-
-  // After dropdown renders, reposition using actual measured height then show
-  useEffect(() => {
-    if (open) {
-      setPositioned(false);
-      requestAnimationFrame(() => {
-        reposition();
-        setPositioned(true);
-      });
-    } else {
-      setPositioned(false);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
-  // Reposition on scroll/resize while open
-  useEffect(() => {
-    if (!open) return;
-    window.addEventListener("scroll", reposition, true);
-    window.addEventListener("resize", reposition);
-    return () => {
-      window.removeEventListener("scroll", reposition, true);
-      window.removeEventListener("resize", reposition);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
   const handleOpen = (e?: React.MouseEvent) => {
     e?.stopPropagation();
-    // Set an initial position off-screen so the dropdown renders invisibly first
-    if (triggerRef.current) {
-      const btn = triggerRef.current.getBoundingClientRect();
-      setPos({ top: btn.bottom + 4, left: btn.left });
-    }
     setOpen((v) => !v);
   };
 
@@ -428,8 +368,8 @@ export default function TagPicker({
       {open && createPortal(
         <div
           ref={dropRef}
-          style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 9999, width: 264, visibility: positioned ? "visible" : "hidden" }}
-          className="rounded-xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900"
+          style={{ position: "fixed", top: pos.top, left: pos.left, maxHeight: pos.maxHeight, zIndex: 9999, width: 264 }}
+          className="flex flex-col rounded-xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900 overflow-hidden"
         >
           {/* Header */}
           <div className="flex items-center border-b border-gray-100 px-3 py-2 dark:border-gray-800">
@@ -456,7 +396,7 @@ export default function TagPicker({
 
           {/* Body */}
           {mode === "list" ? (
-            <div className="max-h-60 overflow-y-auto py-1">
+            <div className="flex-1 overflow-y-auto py-1">
               {loading ? (
                 <div className="flex items-center justify-center py-6">
                   <LuLoader className="h-4 w-4 animate-spin text-gray-400" />

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { LuCalendarPlus, LuChevronLeft, LuChevronRight, LuX } from "react-icons/lu";
+import { useDropdownPosition } from "@/hooks/useDropdownPosition";
 
 interface DateRange {
   startDate: string | null;
@@ -45,10 +46,10 @@ function buildCalendar(year: number, month: number): (number | null)[][] {
 
 export default function DatePicker({ startDate, dueDate, onChange, align = "left", iconSize = "md", showLabel = false }: DatePickerProps) {
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const ref = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const pos = useDropdownPosition(btnRef, dropdownRef, open, { align });
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
@@ -75,17 +76,6 @@ export default function DatePicker({ startDate, dueDate, onChange, align = "left
 
   const handleOpen = (e?: React.MouseEvent) => {
     e?.stopPropagation();
-    if (btnRef.current) {
-      const rect = btnRef.current.getBoundingClientRect();
-      const dropW = 288;
-      const dropH = 380;
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const spaceRight = window.innerWidth - rect.left;
-      const top = spaceBelow < dropH && rect.top > dropH ? rect.top - dropH - 4 : rect.bottom + 4;
-      let left = align === "right" || spaceRight < dropW ? rect.right - dropW : rect.left;
-      left = Math.max(8, Math.min(left, window.innerWidth - dropW - 8));
-      setPos({ top, left });
-    }
     setOpen((v) => !v);
   };
 
@@ -155,8 +145,8 @@ export default function DatePicker({ startDate, dueDate, onChange, align = "left
       {open && createPortal(
         <div
           ref={dropdownRef}
-          style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 9999 }}
-          className="w-72 rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900"
+          style={{ position: "fixed", top: pos.top, left: pos.left, maxHeight: pos.maxHeight, zIndex: 9999 }}
+          className="w-72 rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900 overflow-y-auto"
         >
           {/* Quick shortcuts */}
           <div className="flex flex-wrap gap-1.5 border-b border-gray-100 p-3 dark:border-gray-800">
