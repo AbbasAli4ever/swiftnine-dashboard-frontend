@@ -100,14 +100,6 @@ export default function DatePicker({ startDate, dueDate, onChange, align = "left
     setSelecting(selecting === "start" ? "due" : "start");
   };
 
-  const quickSet = (offsetDays: number) => {
-    const d = new Date();
-    d.setDate(d.getDate() + offsetDays);
-    const iso = d.toISOString().slice(0, 10);
-    setLocalDue(iso);
-    onChange({ startDate: localStart ? `${localStart}T00:00:00.000Z` : null, dueDate: `${iso}T00:00:00.000Z` });
-  };
-
   const isInRange = (day: number): boolean => {
     if (!localStart || !localDue) return false;
     const iso = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -148,25 +140,6 @@ export default function DatePicker({ startDate, dueDate, onChange, align = "left
           style={{ position: "fixed", top: pos.top, left: pos.left, maxHeight: pos.maxHeight, zIndex: 9999 }}
           className="w-72 rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900 overflow-y-auto"
         >
-          {/* Quick shortcuts */}
-          <div className="flex flex-wrap gap-1.5 border-b border-gray-100 p-3 dark:border-gray-800">
-            {[
-              { label: "Today", offset: 0 },
-              { label: "Tomorrow", offset: 1 },
-              { label: "This week", offset: 6 },
-              { label: "Next week", offset: 13 },
-            ].map((q) => (
-              <button
-                key={q.label}
-                type="button"
-                onClick={() => quickSet(q.offset)}
-                className="rounded-lg border border-gray-200 px-2 py-1 text-[11px] text-gray-600 hover:border-brand-400 hover:text-brand-500 dark:border-gray-700 dark:text-gray-300"
-              >
-                {q.label}
-              </button>
-            ))}
-          </div>
-
           {/* Selecting toggle */}
           <div className="flex gap-2 border-b border-gray-100 p-3 dark:border-gray-800">
             <button
