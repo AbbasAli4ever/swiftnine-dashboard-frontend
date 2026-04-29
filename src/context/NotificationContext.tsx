@@ -29,6 +29,10 @@ interface NotificationContextValue {
 
 const NotificationContext = createContext<NotificationContextValue | null>(null);
 
+function isPrimaryNotification(item: Notification): boolean {
+  return !item.isCleared && !item.isSnoozed;
+}
+
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated } = useAuth();
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
@@ -55,19 +59,27 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       {
         onInit: (items) => {
           clearTimeout(loadingTimeout);
-          setNotifications(items);
+          setNotifications(items.filter(isPrimaryNotification));
           setIsLoading(false);
         },
         onCreated: (item) => {
+          if (!isPrimaryNotification(item)) return;
           setNotifications((prev) => [item, ...prev]);
         },
         onUpdated: (item) => {
-          if (item.isCleared || item.isSnoozed) {
+          if (!isPrimaryNotification(item)) {
+            // Cleared or snoozed — remove from primary list
             setNotifications((prev) => prev.filter((n) => n.id !== item.id));
           } else {
-            setNotifications((prev) =>
-              prev.map((n) => (n.id === item.id ? { ...n, ...item } : n))
-            );
+            setNotifications((prev) => {
+              const exists = prev.some((n) => n.id === item.id);
+              if (exists) {
+                // Already in list — update in place
+                return prev.map((n) => (n.id === item.id ? { ...n, ...item } : n));
+              }
+              // Was cleared/snoozed before — prepend back to primary
+              return [item, ...prev];
+            });
           }
         },
       },

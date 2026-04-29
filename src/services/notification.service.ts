@@ -9,34 +9,51 @@ interface ApiWrapper<T> {
   message: string | null;
 }
 
-export const notificationService = {
-  getCleared: (): Promise<Notification[]> =>
-    api
-      .get<ApiWrapper<Notification[]>>("/notifications/cleared")
-      .then((r) => r.data.data),
+type NotificationApiResponse<T> = ApiWrapper<T> | T;
 
-  getSnoozed: (): Promise<Notification[]> =>
-    api
-      .get<ApiWrapper<Notification[]>>("/notifications/snoozed")
-      .then((r) => r.data.data),
+function unwrapNotificationResponse<T>(payload: NotificationApiResponse<T>): T {
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "success" in payload &&
+    "data" in payload
+  ) {
+    return (payload as ApiWrapper<T>).data;
+  }
+
+  return payload as T;
+}
+
+function getNotificationList(path: "/notifications/cleared" | "/notifications/snoozed"): Promise<Notification[]> {
+  return api
+    .get<NotificationApiResponse<Notification[]>>(path, {
+      params: { _ts: Date.now() },
+    })
+    .then((r) => unwrapNotificationResponse(r.data));
+}
+
+export const notificationService = {
+  getCleared: (): Promise<Notification[]> => getNotificationList("/notifications/cleared"),
+
+  getSnoozed: (): Promise<Notification[]> => getNotificationList("/notifications/snoozed"),
 
   patchRead: (id: string, isRead: boolean): Promise<Notification> =>
     api
-      .patch<ApiWrapper<Notification>>(`/notifications/${id}/read`, { isRead })
-      .then((r) => r.data.data),
+      .patch<NotificationApiResponse<Notification>>(`/notifications/${id}/read`, { isRead })
+      .then((r) => unwrapNotificationResponse(r.data)),
 
   patchClear: (id: string, isCleared: boolean): Promise<Notification> =>
     api
-      .patch<ApiWrapper<Notification>>(`/notifications/${id}/clear`, { isCleared })
-      .then((r) => r.data.data),
+      .patch<NotificationApiResponse<Notification>>(`/notifications/${id}/clear`, { isCleared })
+      .then((r) => unwrapNotificationResponse(r.data)),
 
   patchSnooze: (id: string, isSnoozed: boolean, snoozeUntil?: string): Promise<Notification> =>
     api
-      .patch<ApiWrapper<Notification>>(`/notifications/${id}/snooze`, {
+      .patch<NotificationApiResponse<Notification>>(`/notifications/${id}/snooze`, {
         isSnoozed,
         ...(snoozeUntil ? { snoozeUntil } : {}),
       })
-      .then((r) => r.data.data),
+      .then((r) => unwrapNotificationResponse(r.data)),
 
   openStream: (memberId: string, handlers: NotificationSSEHandlers, signal: AbortSignal): void => {
     const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api/v1";

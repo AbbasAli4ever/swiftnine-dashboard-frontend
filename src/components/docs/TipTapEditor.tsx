@@ -8,6 +8,22 @@ import TextAlign from "@tiptap/extension-text-align";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Link } from "@tiptap/extension-link";
 import { Image } from "@tiptap/extension-image";
+
+// Custom image extension that persists s3Key as a stable attribute.
+// src (presigned URL) expires — s3Key never does.
+const DocImage = Image.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      s3Key: {
+        default: null,
+        parseHTML: (el) => el.getAttribute("data-s3-key"),
+        renderHTML: (attrs) =>
+          attrs.s3Key ? { "data-s3-key": attrs.s3Key } : {},
+      },
+    };
+  },
+}).configure({ inline: false, allowBase64: false });
 import { Highlight } from "@tiptap/extension-highlight";
 import { Color } from "@tiptap/extension-color";
 import { TextStyle } from "@tiptap/extension-text-style";
@@ -90,7 +106,7 @@ const TipTapEditor = forwardRef<TipTapEditorHandle, Props>(function TipTapEditor
       }),
       Underline,
       Link.configure({ openOnClick: false, autolink: true }),
-      Image.configure({ inline: false, allowBase64: true }),
+      DocImage,
       Highlight.configure({ multicolor: true }),
       TextStyle,
       Color,

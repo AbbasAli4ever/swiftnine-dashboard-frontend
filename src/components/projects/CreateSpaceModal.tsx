@@ -15,6 +15,7 @@ import {
   ProjectStatusGroupEditor,
   PROJECT_STATUS_COLOR_OPTIONS,
 } from "@/components/projects/ProjectStatusEditor";
+import IconColorPicker, { ICON_MAP } from "@/components/projects/IconColorPicker";
 import { toast } from "sonner";
 import {
   LuX,
@@ -46,6 +47,8 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [color, setColor] = useState(PROJECT_STATUS_COLOR_OPTIONS[0]);
+  const [icon, setIcon] = useState<string | null>(null);
+  const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [prefix, setPrefix] = useState("");
   const [prefixTouched, setPrefixTouched] = useState(false);
   const [isPrivate, setIsPrivate] = useState(false);
@@ -90,6 +93,8 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
       setName("");
       setDescription("");
       setColor(PROJECT_STATUS_COLOR_OPTIONS[0]);
+      setIcon(null);
+      setIconPickerOpen(false);
       setPrefix("");
       setPrefixTouched(false);
       setIsPrivate(false);
@@ -290,6 +295,7 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
         taskIdPrefix: prefix,
         description: description.trim() || undefined,
         color,
+        icon: icon ?? undefined,
       });
       createdProjectId = project.id;
 
@@ -328,7 +334,7 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
     <div
       ref={modalContainerRef}
       className="fixed inset-0 z-9999 flex items-center justify-center"
-      onClick={() => { setMenuOpen(null); setColorPickerOpen(null); }}
+      onClick={() => { setMenuOpen(null); setColorPickerOpen(null); setIconPickerOpen(false); }}
     >
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
@@ -356,18 +362,28 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
               <div>
                 <label className="block text-sm font-normal text-gray-700 dark:text-gray-300 mb-2">Icon &amp; name</label>
                 <div className="flex items-center gap-3">
-                  <div className="relative group">
-                    <div
+                  <div className="relative" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      onClick={() => setIconPickerOpen((v) => !v)}
                       className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-lg font-normal cursor-pointer shrink-0 transition-opacity hover:opacity-80"
                       style={{ backgroundColor: color }}
+                      title="Pick icon & color"
                     >
-                      {initial}
-                    </div>
-                    <div className="absolute left-0 top-full mt-1 hidden group-hover:flex flex-wrap gap-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-2 w-36 z-10 shadow-xl">
-                      {PROJECT_STATUS_COLOR_OPTIONS.map((c) => (
-                        <button key={c} type="button" onClick={() => setColor(c)} className="w-6 h-6 rounded-lg transition-transform hover:scale-110" style={{ backgroundColor: c }} />
-                      ))}
-                    </div>
+                      {icon && ICON_MAP.has(icon)
+                        ? (() => { const I = ICON_MAP.get(icon)!; return <I className="w-5 h-5" />; })()
+                        : initial}
+                    </button>
+                    {iconPickerOpen && (
+                      <div className="absolute left-0 top-full mt-2 z-20">
+                        <IconColorPicker
+                          selectedIcon={icon}
+                          selectedColor={color}
+                          onIconChange={(v) => { setIcon(v); }}
+                          onColorChange={(v) => { setColor(v); }}
+                        />
+                      </div>
+                    )}
                   </div>
                   <input
                     ref={nameRef}

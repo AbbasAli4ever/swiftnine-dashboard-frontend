@@ -16,7 +16,6 @@ import {
   LuX,
 } from "react-icons/lu";
 import { attachmentService, Attachment } from "@/services/attachment.service";
-import { getActiveWorkspaceId } from "@/stores/workspace.store";
 import { toast } from "sonner";
 import { parseApiError } from "@/lib/api";
 
@@ -101,12 +100,6 @@ export default function TaskAttachments({ taskId, userId }: TaskAttachmentsProps
       return;
     }
 
-    const workspaceId = getActiveWorkspaceId();
-    if (!workspaceId) {
-      toast.error("No active workspace");
-      return;
-    }
-
     const uploadId = `${Date.now()}-${Math.random()}`;
     const uploadEntry: UploadingFile = {
       id: uploadId,
@@ -123,7 +116,6 @@ export default function TaskAttachments({ taskId, userId }: TaskAttachmentsProps
         mimeType: file.type || "application/octet-stream",
         fileName: file.name,
         taskId,
-        workspaceId,
       });
 
       setUploading((prev) =>

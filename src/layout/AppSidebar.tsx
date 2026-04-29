@@ -20,6 +20,7 @@ import ConfirmActionModal from "@/components/common/ConfirmActionModal";
 import CreateListModal from "@/components/projects/CreateListModal";
 import ListContextMenu from "@/components/projects/ListContextMenu";
 import DocsListSidebarSection from "@/components/docs/DocsListSidebarSection";
+import { ICON_MAP } from "@/components/projects/IconColorPicker";
 import { toast } from "sonner";
 import { RiHomeSmileFill } from "react-icons/ri";
 import { BsCalendar2Date, BsStars } from "react-icons/bs";
@@ -432,10 +433,13 @@ function SpaceRow({
               className="flex min-w-0 flex-1 items-center gap-2 text-left"
             >
               <span
-                className="flex h-4 w-4 shrink-0 items-center justify-center rounded-sm text-[10px] font-normal text-white"
+                className="flex h-4 w-4 shrink-0 items-center justify-center rounded-sm text-white"
                 style={{ backgroundColor: project.color }}
               >
-                {project.name.charAt(0).toUpperCase()}
+                {project.icon && ICON_MAP.has(project.icon)
+                  ? (() => { const I = ICON_MAP.get(project.icon!)!; return <I className="h-2.5 w-2.5" />; })()
+                  : <span className="text-[10px] font-normal">{project.name.charAt(0).toUpperCase()}</span>
+                }
               </span>
               <span className="truncate font-normal text-[13px]">{project.name}</span>
             </button>
@@ -493,6 +497,13 @@ function SpaceRow({
         onDelete={() => {
           setMenuOpen(false);
           setDeleteOpen(true);
+        }}
+        onIconColorChange={async (icon, color) => {
+          try {
+            await updateProject(project.id, { icon, color });
+          } catch {
+            toast.error("Failed to update icon & color");
+          }
         }}
       />
 

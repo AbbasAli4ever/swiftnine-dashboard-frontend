@@ -17,7 +17,7 @@ export interface Attachment {
 }
 
 export const attachmentService = {
-  presign: (payload: { mimeType: string; fileName: string; taskId: string; workspaceId: string }) =>
+  presign: (payload: { mimeType: string; fileName: string; taskId: string }) =>
     api
       .post<ApiWrapper<{ uploadUrl: string; s3Key: string; expiresAt: string }>>(
         "/attachments/presign",

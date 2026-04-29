@@ -36,6 +36,7 @@ import {
 import { toast } from "sonner";
 import type { ReactElement } from "react";
 import { LuCalendarDays, LuLayoutDashboard, LuList, LuSquareKanban, LuStar } from "react-icons/lu";
+import { ICON_MAP } from "@/components/projects/IconColorPicker";
 
 type ProjectView = "overview" | "list" | "board" | "calendar";
 
@@ -354,10 +355,13 @@ export default function TasksPage() {
       <div className="mb-4 border-b border-gray-100 dark:border-gray-800">
         <div className="mb-1 flex items-center gap-2 pt-1">
           <span
-            className="flex h-5 w-5 items-center justify-center rounded text-[11px] font-normal text-white"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white"
             style={{ backgroundColor: project.color }}
           >
-            {projectInitial}
+            {project.icon && ICON_MAP.has(project.icon)
+              ? (() => { const I = ICON_MAP.get(project.icon!)!; return <I className="h-4 w-4" />; })()
+              : <span className="text-[11px] font-semibold">{projectInitial}</span>
+            }
           </span>
           <div className="flex items-center gap-2">
             {selectedList ? (

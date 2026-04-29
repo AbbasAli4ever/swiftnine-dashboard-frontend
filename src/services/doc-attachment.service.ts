@@ -11,8 +11,10 @@ export interface DocAttachment {
   fileName: string;
   mimeType: string;
   fileSize: number;
-  s3Key?: string;
-  viewUrl: string;
+  s3Key: string;
+  url: string;        // presigned 15-min GET URL (from /attachments/docs/view)
+  viewUrl?: string;   // alias some backends return
+  expiresAt?: string;
   createdAt: string;
 }
 
@@ -60,28 +62,20 @@ export const docAttachmentService = {
   /**
    * One-shot helper: presign → upload → record. Returns the recorded attachment.
    */
-  upload: async (docId: string, file: File): Promise<DocAttachment & { viewUrl: string }> => {
+  /** Convenience: presign → S3 upload → record → return the recorded attachment. */
+  upload: async (docId: string, file: File): Promise<DocAttachment> => {
     const presigned = await docAttachmentService.presign({
       docId,
       fileName: file.name,
       mimeType: file.type,
     });
     await docAttachmentService.uploadToS3(presigned.uploadUrl, file);
-    const recorded = await docAttachmentService.record({
+    return docAttachmentService.record({
       docId,
       s3Key: presigned.s3Key,
       fileName: file.name,
       mimeType: file.type,
       fileSize: file.size,
     });
-
-    // record response may not include viewUrl — fetch the list to get presigned GET URLs
-    if (recorded.viewUrl) return recorded as DocAttachment & { viewUrl: string };
-    const attachments = await docAttachmentService.list(docId);
-    const match = attachments.find((a) => a.fileName === file.name);
-    return {
-      ...recorded,
-      viewUrl: match?.viewUrl ?? presigned.uploadUrl.split("?")[0],
-    };
   },
 };

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { LuLock, LuChevronRight, LuEllipsis } from "react-icons/lu";
 import { docsService, type Doc } from "@/services/docs.service";
+import { docAttachmentService } from "@/services/doc-attachment.service";
 import { useDocs } from "@/context/DocsContext";
 import {
   useDocSocket,
@@ -29,6 +30,7 @@ export default function DocEditorPage({ docId }: { docId: string }) {
 
   const [doc, setDoc] = useState<Doc | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [patchedContent, setPatchedContent] = useState<Record<string, unknown> | null>(null);
   const [presence, setPresence] = useState<PresenceUser[]>([]);
   const [locks, setLocks] = useState<BlockLock[]>([]);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
@@ -98,6 +100,38 @@ export default function DocEditorPage({ docId }: { docId: string }) {
     },
   });
 
+  /** Walk the TipTap JSON tree and replace stale image src with fresh presigned URLs. */
+  const patchImageUrls = useCallback(
+    async (contentJson: Record<string, unknown>) => {
+      try {
+        const attachments = await docAttachmentService.list(docId);
+        if (!attachments.length) return contentJson;
+        const urlMap = new Map(attachments.map((a) => [a.s3Key, a.url ?? a.viewUrl ?? ""]));
+
+        const walk = (node: Record<string, unknown>) => {
+          if (node.type === "image") {
+            const attrs = (node.attrs ?? {}) as Record<string, unknown>;
+            const key = attrs.s3Key as string | undefined;
+            if (key && urlMap.has(key)) {
+              attrs.src = urlMap.get(key);
+              node.attrs = attrs;
+            }
+          }
+          const children = node.content as Record<string, unknown>[] | undefined;
+          children?.forEach(walk);
+        };
+
+        // deep clone so we don't mutate the stored doc
+        const patched = JSON.parse(JSON.stringify(contentJson)) as Record<string, unknown>;
+        walk(patched);
+        return patched;
+      } catch {
+        return contentJson;
+      }
+    },
+    [docId]
+  );
+
   const reloadDoc = useCallback(async () => {
     try {
       const d = await docsService.get(docId);
@@ -105,30 +139,44 @@ export default function DocEditorPage({ docId }: { docId: string }) {
       setDoc(d);
       setTitleDraft(d.title);
       upsertLocal(d);
-      editorRef.current?.setContent(d.contentJson as Record<string, unknown>);
+      const patched = await patchImageUrls(d.contentJson as Record<string, unknown>);
+      editorRef.current?.setContent(patched);
     } catch (e) {
       setLoadError(parseApiError(e).message);
     }
-  }, [docId, upsertLocal]);
+  }, [docId, upsertLocal, patchImageUrls]);
 
   useEffect(() => {
     let alive = true;
-    docsService
-      .get(docId)
-      .then((d) => {
+    Promise.all([
+      docsService.get(docId),
+      docAttachmentService.list(docId).catch(() => []),
+    ]).then(async ([d, attachments]) => {
         if (!alive) return;
         setDoc(d);
         setTitleDraft(d.title);
         baseVersionRef.current = d.version;
         upsertLocal(d);
+
+        // Patch stale image src values before setting editor content
+        const urlMap = new Map(attachments.map((a) => [a.s3Key, a.url ?? a.viewUrl ?? ""]));
+        const patched = JSON.parse(JSON.stringify(d.contentJson)) as Record<string, unknown>;
+        const walk = (node: Record<string, unknown>) => {
+          if (node.type === "image") {
+            const attrs = (node.attrs ?? {}) as Record<string, unknown>;
+            const key = attrs.s3Key as string | undefined;
+            if (key && urlMap.has(key)) { attrs.src = urlMap.get(key); node.attrs = attrs; }
+          }
+          (node.content as Record<string, unknown>[] | undefined)?.forEach(walk);
+        };
+        walk(patched);
+        setPatchedContent(patched);
       })
       .catch((e) => {
         if (!alive) return;
         setLoadError(parseApiError(e).message);
       });
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, [docId, upsertLocal]);
 
   const triggerSave = useCallback(async () => {
@@ -174,6 +222,13 @@ export default function DocEditorPage({ docId }: { docId: string }) {
     },
     [socket]
   );
+
+  // Push patched content (with fresh image URLs) into the editor once available
+  useEffect(() => {
+    if (patchedContent) {
+      editorRef.current?.setContent(patchedContent);
+    }
+  }, [patchedContent]);
 
   useEffect(() => {
     return () => {
@@ -302,7 +357,7 @@ export default function DocEditorPage({ docId }: { docId: string }) {
 
           <TipTapEditor
             ref={editorRef}
-            initialContent={doc.contentJson as Record<string, unknown>}
+            initialContent={patchedContent ?? doc.contentJson as Record<string, unknown>}
             editable
             onUpdate={handleEditorUpdate}
             onBlockFocus={handleBlockFocus}

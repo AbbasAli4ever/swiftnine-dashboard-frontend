@@ -445,17 +445,22 @@ export default function InboxPage() {
   const [clearedLoaded, setClearedLoaded] = useState(false);
   const [laterLoading, setLaterLoading] = useState(false);
   const [clearedLoading, setClearedLoading] = useState(false);
+  const primaryNotifications = notifications.filter((item) => !item.isCleared && !item.isSnoozed);
 
   // taskId → TaskMeta cache
   const [taskMetaMap, setTaskMetaMap] = useState<Record<string, TaskMeta>>({});
   const fetchingRef = useRef<Set<string>>(new Set());
+  const taskMetaMapRef = useRef(taskMetaMap);
+  useEffect(() => { taskMetaMapRef.current = taskMetaMap; }, [taskMetaMap]);
 
-  // Fetch task metadata for notifications that have a taskId
+  // Fetch task metadata for notifications that have a taskId.
+  // taskMetaMap is read via ref to avoid adding it to deps (which would cause
+  // an infinite loop: fetch → update map → re-run effect → fetch again).
   useEffect(() => {
     const allItems = [...notifications, ...snoozed, ...cleared];
     const needed = allItems
       .map((n) => n.taskId)
-      .filter((id): id is string => !!id && !taskMetaMap[id] && !fetchingRef.current.has(id));
+      .filter((id): id is string => !!id && !taskMetaMapRef.current[id] && !fetchingRef.current.has(id));
 
     const unique = [...new Set(needed)];
     if (!unique.length) return;
@@ -478,45 +483,49 @@ export default function InboxPage() {
         setTaskMetaMap((prev) => ({ ...prev, ...updates }));
       }
     });
-  }, [notifications, snoozed, cleared, taskMetaMap]);
+  }, [notifications, snoozed, cleared]);
 
   // Reset secondary tabs on workspace switch
   useEffect(() => {
     setLaterLoaded(false);
     setClearedLoaded(false);
+    setLaterLoading(false);
+    setClearedLoading(false);
     setSnoozed([]);
     setCleared([]);
     setTaskMetaMap({});
     fetchingRef.current.clear();
   }, [activeWorkspaceId]);
 
-  const handleTabChange = useCallback(async (tab: Tab) => {
+  // Re-fetch "later" tab whenever laterLoaded is reset while the tab is active
+  useEffect(() => {
+    if (activeTab !== "later" || laterLoaded) return;
+    let cancelled = false;
+    setLaterLoading(true);
+    notificationService.getSnoozed()
+      .then((data) => { if (!cancelled) { setSnoozed(Array.isArray(data) ? data : []); setLaterLoaded(true); } })
+      .catch(() => { if (!cancelled) toast.error("Failed to load snoozed notifications"); })
+      .finally(() => { if (!cancelled) setLaterLoading(false); });
+    return () => { cancelled = true; };
+  }, [activeTab, laterLoaded]);
+
+  // Re-fetch "cleared" tab whenever clearedLoaded is reset while the tab is active
+  useEffect(() => {
+    if (activeTab !== "cleared" || clearedLoaded) return;
+    let cancelled = false;
+    setClearedLoading(true);
+    notificationService.getCleared()
+      .then((data) => { if (!cancelled) { setCleared(Array.isArray(data) ? data : []); setClearedLoaded(true); } })
+      .catch(() => { if (!cancelled) toast.error("Failed to load cleared notifications"); })
+      .finally(() => { if (!cancelled) setClearedLoading(false); });
+    return () => { cancelled = true; };
+  }, [activeTab, clearedLoaded]);
+
+  const handleTabChange = useCallback((tab: Tab) => {
     setActiveTab(tab);
-    if (tab === "later" && !laterLoaded) {
-      setLaterLoading(true);
-      try {
-        const data = await notificationService.getSnoozed();
-        setSnoozed(Array.isArray(data) ? data : []);
-        setLaterLoaded(true);
-      } catch {
-        toast.error("Failed to load snoozed notifications");
-      } finally {
-        setLaterLoading(false);
-      }
-    }
-    if (tab === "cleared" && !clearedLoaded) {
-      setClearedLoading(true);
-      try {
-        const data = await notificationService.getCleared();
-        setCleared(Array.isArray(data) ? data : []);
-        setClearedLoaded(true);
-      } catch {
-        toast.error("Failed to load cleared notifications");
-      } finally {
-        setClearedLoading(false);
-      }
-    }
-  }, [laterLoaded, clearedLoaded]);
+    // Fetching is now handled by the useEffects above — switching to a tab
+    // with !loaded triggers them automatically.
+  }, []);
 
   const handleRowClick = useCallback((item: Notification) => {
     if (!item.isRead) markRead(item.id);
@@ -607,11 +616,11 @@ export default function InboxPage() {
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
         {activeTab === "primary" && (
-          notifications.length === 0
+          primaryNotifications.length === 0
             ? <EmptyState />
             : (
               <GroupedList
-                items={notifications}
+                items={primaryNotifications}
                 headerExtra={primaryHeader}
                 renderRow={(item, isLast) => (
                   <PrimaryRow
@@ -633,13 +642,13 @@ export default function InboxPage() {
         {activeTab === "other" && <EmptyState message="No other notifications" />}
 
         {activeTab === "later" && (
-          laterLoading
+          (!laterLoaded || laterLoading)
             ? <div className="flex justify-center py-16"><div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" /></div>
-            : (snoozed ?? []).length === 0
+            : snoozed.length === 0
               ? <EmptyState message="No snoozed notifications" />
               : (
                 <GroupedList
-                  items={snoozed ?? []}
+                  items={snoozed}
                   renderRow={(item, isLast) => (
                     <LaterRow
                       key={item.id}
@@ -654,13 +663,13 @@ export default function InboxPage() {
         )}
 
         {activeTab === "cleared" && (
-          clearedLoading
+          (!clearedLoaded || clearedLoading)
             ? <div className="flex justify-center py-16"><div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" /></div>
-            : (cleared ?? []).length === 0
+            : cleared.length === 0
               ? <EmptyState message="No cleared notifications" />
               : (
                 <GroupedList
-                  items={cleared ?? []}
+                  items={cleared}
                   renderRow={(item, isLast) => (
                     <ClearedRow
                       key={item.id}

@@ -130,8 +130,36 @@ export default function DocEditorToolbar({ editor, docId, disabled }: Props) {
     const toastId = "img-upload";
     toast.loading("Uploading image…", { id: toastId });
     try {
-      const att = await docAttachmentService.upload(docId, file);
-      editor.chain().focus().setImage({ src: att.viewUrl, alt: file.name }).run();
+      // Step 1+2: presign → upload to S3
+      const presigned = await docAttachmentService.presign({
+        docId,
+        fileName: file.name,
+        mimeType: file.type || "image/jpeg",
+      });
+      await docAttachmentService.uploadToS3(presigned.uploadUrl, file);
+
+      // Step 3: record attachment in DB
+      await docAttachmentService.record({
+        docId,
+        s3Key: presigned.s3Key,
+        fileName: file.name,
+        mimeType: file.type || "image/jpeg",
+        fileSize: file.size,
+      });
+
+      // Step 4: fetch fresh view URL
+      const attachments = await docAttachmentService.list(docId);
+      const match = attachments.find((a) => a.s3Key === presigned.s3Key || a.fileName === file.name);
+      const viewUrl = match?.viewUrl ?? match?.url ?? "";
+
+      // Step 5: insert with s3Key stored as custom attr
+      editor.chain().focus().setImage({
+        src: viewUrl,
+        alt: file.name,
+        // @ts-expect-error custom attr defined on DocImage extension
+        s3Key: presigned.s3Key,
+      }).run();
+
       toast.success("Image inserted", { id: toastId });
     } catch (e) {
       toast.error("Image upload failed", { id: toastId });
