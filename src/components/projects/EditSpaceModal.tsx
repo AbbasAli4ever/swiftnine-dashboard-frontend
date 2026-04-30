@@ -493,7 +493,7 @@ export default function EditSpaceModal({ isOpen, onClose, project }: Props) {
                 />
               </div>
 
-              <div className="flex items-center justify-between py-1">
+              {/* <div className="flex items-center justify-between py-1">
                 <div className="flex items-center gap-2.5">
                   {isPrivate ? (
                     <LuLock className="w-4 h-4 text-gray-400" />
@@ -522,7 +522,7 @@ export default function EditSpaceModal({ isOpen, onClose, project }: Props) {
                     }`}
                   />
                 </button>
-              </div>
+              </div> */}
             </div>
 
             <div className="flex items-center justify-end px-6 py-4 mt-4 border-t border-gray-100 dark:border-gray-800">

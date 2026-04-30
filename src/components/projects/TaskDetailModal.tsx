@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { GrFlagFill } from "react-icons/gr";
 import {
   LuX,
+  LuMinus,
   LuChevronLeft,
   LuChevronRight,
   LuPlus,
@@ -24,6 +25,7 @@ import {
 import { activityService, ActivityItem } from "@/services/activity.service";
 import { MdOutlineDonutSmall } from "react-icons/md";
 import { RiAiGenerate } from "react-icons/ri";
+import { FaArrowTurnUp } from "react-icons/fa6";
 import { taskService, TaskDetail, TaskPriority, TaskAssignee, UpdateTaskPayload } from "@/services/task.service";
 import { StatusItem } from "@/services/status.service";
 import { WorkspaceMember } from "@/services/workspace.service";
@@ -48,6 +50,7 @@ interface TaskDetailModalProps {
   members: WorkspaceMember[];
   listId: string;
   onClose: () => void;
+  onMinimize?: () => void;
 }
 
 function getInitials(name: string): string {
@@ -468,14 +471,18 @@ function ActivityRow({ item }: { item: ActivityItem }) {
         {getInitials(item.actor.fullName)}
       </span>
       <div className="flex-1 min-w-0">
-        <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">{item.displayText}</p>
+        <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">
+          {item.category === "description"
+            ? `${item.actor.fullName} updated description`
+            : item.displayText}
+        </p>
         <p className="mt-0.5 text-[11px] text-gray-400">{formatDate(item.createdAt)}</p>
       </div>
     </div>
   );
 }
 
-export default function TaskDetailModal({ task, statuses, members, listId, onClose }: TaskDetailModalProps) {
+export default function TaskDetailModal({ task, statuses, members, listId, onClose, onMinimize }: TaskDetailModalProps) {
   const { updateTask, addAssignee, removeAssignee, addTag, removeTag, openTaskDetail, refreshOpenTask } = useTaskStore();
   const liveChildren = useTaskStore(s => s.openTask?.id === task.id ? s.openTask.children : task.children);
   const currentUser = useAuthStore(s => s.user);
@@ -484,8 +491,20 @@ export default function TaskDetailModal({ task, statuses, members, listId, onClo
   const [description, setDescription] = useState(task.description ?? "");
   const [addingSubtask, setAddingSubtask] = useState(false);
   const [rightTab, setRightTab] = useState<"comments" | "activity">("comments");
+  const [parentTask, setParentTask] = useState<{ id: string; title: string; taskId: string } | null>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const titleSaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetch = task.parentId
+      ? taskService.get(task.parentId)
+          .then((p) => { if (!cancelled) setParentTask({ id: p.id, title: p.title, taskId: p.taskId }); })
+          .catch(() => { if (!cancelled) setParentTask(null); })
+      : Promise.resolve().then(() => { if (!cancelled) setParentTask(null); });
+    void fetch;
+    return () => { cancelled = true; };
+  }, [task.parentId]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -537,12 +556,12 @@ export default function TaskDetailModal({ task, statuses, members, listId, onClo
   const projectName = task.list.project.name;
 
   return (
-    <div data-modal className="fixed inset-0 z-50 flex items-center justify-center p-6">
+    <div data-modal className="fixed inset-0 z-50 flex items-center justify-center" style={{ padding: "15px" }}>
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative z-10 flex h-full w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-950" style={{ maxHeight: "calc(100vh - 48px)" }}>
+      <div className="relative z-10 flex h-full w-full flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-950" style={{ maxHeight: "calc(100vh - 20px)" }}>
 
         {/* ── Top bar ── */}
         <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-4 py-2.5 dark:border-gray-800">
@@ -558,6 +577,19 @@ export default function TaskDetailModal({ task, statuses, members, listId, onClo
               <span>{projectName}</span>
               <span className="text-gray-300">/</span>
               <span>{listName}</span>
+              {parentTask && (
+                <>
+                  <span className="text-gray-300">/</span>
+                  <button
+                    type="button"
+                    onClick={() => void openTaskDetail(parentTask.id)}
+                    className="max-w-[160px] truncate hover:text-brand-500 hover:underline"
+                    title={parentTask.title}
+                  >
+                    {parentTask.title}
+                  </button>
+                </>
+              )}
             </div>
             <button type="button" className="rounded border border-gray-200 p-0.5 text-gray-400 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800">
               <LuPlus className="h-3.5 w-3.5" />
@@ -584,6 +616,16 @@ export default function TaskDetailModal({ task, statuses, members, listId, onClo
             <button type="button" className="rounded-lg border border-gray-200 p-1.5 text-gray-400 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800">
               <LuArrowUpRight className="h-3.5 w-3.5" />
             </button>
+            {onMinimize && (
+              <button
+                type="button"
+                onClick={onMinimize}
+                title="Minimize"
+                className="rounded-lg border border-gray-200 p-1.5 text-gray-400 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+              >
+                <LuMinus className="h-3.5 w-3.5" />
+              </button>
+            )}
             <button
               type="button"
               onClick={onClose}
@@ -599,7 +641,20 @@ export default function TaskDetailModal({ task, statuses, members, listId, onClo
 
           {/* ── Left: main content ── */}
           <div className="flex flex-1 flex-col overflow-y-auto">
-            <div className="mx-auto w-full max-w-3xl px-8 py-6">
+            <div className="mx-auto w-full max-w-4xl px-8 py-6">
+
+              {/* Parent task pill */}
+              {parentTask && (
+                <button
+                  type="button"
+                  onClick={() => void openTaskDetail(parentTask.id)}
+                  className="mb-3 inline-flex items-center gap-1.5 border-gray-200 px-2 py-0.5 text-sm font-semibold text-gray-500 hover:border-brand-400 hover:text-brand-500 dark:border-gray-700 dark:text-gray-400 dark:hover:border-brand-500 dark:hover:text-brand-400"
+                  title={`Open parent: ${parentTask.title}`}
+                >
+                  <FaArrowTurnUp className="h-3 w-3 shrink-0 -scale-x-100" />
+                  <span className="max-w-[200px] truncate">{parentTask.title}</span>
+                </button>
+              )}
 
               {/* Task type + ID */}
               <div className="mb-4 flex items-center gap-2 text-xs text-gray-400">

@@ -435,7 +435,7 @@ function FilterRowUI({
           ? <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Where</span>
           : (
             <div className="inline-flex items-center gap-1 rounded border border-gray-200 bg-white px-1.5 py-0.5 text-xs font-medium text-gray-500 dark:border-gray-700 dark:bg-gray-900">
-              AND <LuChevronDown className="h-3 w-3" />
+              AND 
             </div>
           )
         }
@@ -449,7 +449,7 @@ function FilterRowUI({
 
           {/* Operator (always "Is" for now) */}
           <div className="flex h-9 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
-            Is <LuChevronDown className="h-3.5 w-3.5 text-gray-400" />
+            is
           </div>
 
           {/* Value */}
@@ -461,9 +461,9 @@ function FilterRowUI({
         </div>
 
         {/* Nested filter hint */}
-        <button type="button" className="mt-2 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+        {/* <button type="button" className="mt-2 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
           Add nested filter
-        </button>
+        </button> */}
       </div>
 
       {/* Delete */}
@@ -639,9 +639,9 @@ export default function TaskFiltersModal({
             <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Filters</h2>
           </div>
           <div className="flex items-center gap-2">
-            <button type="button" className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-gray-400 hover:bg-gray-50 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300">
+            {/* <button type="button" className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-gray-400 hover:bg-gray-50 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300">
               Saved <LuChevronDown className="h-3 w-3" />
-            </button>
+            </button> */}
             <button type="button" onClick={onClose} className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300">
               <LuX className="h-3.5 w-3.5" />
             </button>

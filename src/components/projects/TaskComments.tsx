@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from "react";
 import { LuArrowLeft, LuX, LuSend, LuUsers, LuSmilePlus, LuEllipsis, LuPencil, LuTrash2 } from "react-icons/lu";
 import { commentService, Comment, CommentReaction } from "@/services/comment.service";
 import { AuthUser } from "@/stores/auth.store";
+import { useWorkspaceStore } from "@/stores/workspace.store";
+import { useTaskStore } from "@/stores/task.store";
 import { WorkspaceMember } from "@/services/workspace.service";
 import { toast } from "sonner";
 import { parseApiError } from "@/lib/api";
@@ -343,7 +345,7 @@ function ThreadCard({
   const canEdit = (new Date().getTime() - createdMs) < 5 * 60 * 1000;
 
   return (
-    <div className="mb-2 rounded-xl border border-gray-100 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
+    <div data-comment-id={comment.id} className="mb-2 rounded-xl border border-gray-100 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
       {/* Header */}
       <div className="mb-1.5 flex items-center gap-2">
         <Avatar id={comment.author.id} name={comment.author.fullName} size={30} />
@@ -442,7 +444,7 @@ function ReplyMessage({
   const canEdit = (new Date().getTime() - createdMs) < 5 * 60 * 1000;
 
   return (
-    <div className="mb-3 rounded-xl border border-gray-100 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
+    <div data-comment-id={comment.id} className="mb-3 rounded-xl border border-gray-100 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
       {/* WhatsApp-style quoted bubble */}
       {showQuote && (
         <div className="mb-2 rounded-lg border-l-2 border-brand-400 bg-gray-50 px-2.5 py-1.5 dark:border-brand-600 dark:bg-gray-800">
@@ -661,23 +663,79 @@ interface TaskCommentsProps {
 }
 
 export default function TaskComments({ taskId, currentUser, members }: TaskCommentsProps) {
-  const [comments, setComments] = useState<Comment[]>([]);
+  const [commentState, setCommentState] = useState<{ streamKey: string; items: Comment[] }>({
+    streamKey: "",
+    items: [],
+  });
   const [view, setView] = useState<"threads" | "thread">("threads");
   const [activeThread, setActiveThread] = useState<Comment | null>(null);
   const [replyTo, setReplyTo] = useState<Comment | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const activeStreamKeyRef = useRef<string>("");
+  const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
+  const focusCommentId = useTaskStore((s) => s.focusCommentId);
+  const clearFocusComment = useTaskStore((s) => s.clearFocusComment);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const currentStreamKey = activeWorkspaceId ? `${activeWorkspaceId}:${taskId}` : "";
+  const comments = useMemo(
+    () => commentState.streamKey === currentStreamKey ? commentState.items : [],
+    [commentState, currentStreamKey]
+  );
+
+  const setCurrentComments = useCallback((updater: SetStateAction<Comment[]>) => {
+    if (!currentStreamKey) return;
+    setCommentState((prev) => {
+      const base = prev.streamKey === currentStreamKey ? prev.items : [];
+      const items = typeof updater === "function"
+        ? (updater as (previous: Comment[]) => Comment[])(base)
+        : updater;
+      return { streamKey: currentStreamKey, items };
+    });
+  }, [currentStreamKey]);
 
   // ── SSE setup via fetch (EventSource can't send auth headers) ──────────────
   useEffect(() => {
-    abortRef.current = new AbortController();
+    if (!activeWorkspaceId) {
+      abortRef.current?.abort();
+      abortRef.current = null;
+      activeStreamKeyRef.current = "";
+      return;
+    }
 
-    commentService.openStream(taskId, {
-      onInit: (data) => setComments(data),
-      onCreated: (c) => setComments((prev) => prev.find((x) => x.id === c.id) ? prev : [...prev, c]),
-      onUpdated: (c) => setComments((prev) => prev.map((x) => x.id === c.id ? c : x)),
-      onDeleted: (ids) => setComments((prev) => prev.filter((x) => !ids.includes(x.id))),
+    const streamKey = `${activeWorkspaceId}:${taskId}`;
+
+    // If already streaming for this workspace/task (Strict Mode second mount or parent re-render),
+    // don't abort and restart — the existing connection is still good.
+    if (activeStreamKeyRef.current === streamKey && abortRef.current && !abortRef.current.signal.aborted) {
+      return;
+    }
+
+    // Different workspace/task (or first mount) — abort any previous stream.
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    activeStreamKeyRef.current = streamKey;
+
+    const setIfCurrent = (updater: SetStateAction<Comment[]>) => {
+      if (activeStreamKeyRef.current !== streamKey || ctrl.signal.aborted) return;
+      setCommentState((prev) => {
+        const base = prev.streamKey === streamKey ? prev.items : [];
+        const items = typeof updater === "function"
+          ? (updater as (previous: Comment[]) => Comment[])(base)
+          : updater;
+        return { streamKey, items };
+      });
+    };
+
+    commentService.openStream(taskId, activeWorkspaceId, {
+      onInit: (data) => {
+        setIfCurrent(data);
+      },
+      onCreated: (c) => setIfCurrent((prev) => prev.find((x) => x.id === c.id) ? prev : [...prev, c]),
+      onUpdated: (c) => setIfCurrent((prev) => prev.map((x) => x.id === c.id ? c : x)),
+      onDeleted: (ids) => setIfCurrent((prev) => prev.filter((x) => !ids.includes(x.id))),
       onReactionCreated: (commentId, reaction) =>
-        setComments((prev) =>
+        setIfCurrent((prev) =>
           prev.map((c) =>
             c.id === commentId
               ? { ...c, reactions: c.reactions.find((r) => r.id === reaction.id) ? c.reactions : [...c.reactions, reaction] }
@@ -685,7 +743,7 @@ export default function TaskComments({ taskId, currentUser, members }: TaskComme
           )
         ),
       onReactionUpdated: (commentId, reaction) =>
-        setComments((prev) =>
+        setIfCurrent((prev) =>
           prev.map((c) =>
             c.id === commentId
               ? { ...c, reactions: c.reactions.map((r) => r.id === reaction.id ? reaction : r) }
@@ -693,20 +751,60 @@ export default function TaskComments({ taskId, currentUser, members }: TaskComme
           )
         ),
       onReactionDeleted: (commentId, reactionId) =>
-        setComments((prev) =>
+        setIfCurrent((prev) =>
           prev.map((c) =>
             c.id === commentId
               ? { ...c, reactions: c.reactions.filter((r) => r.id !== reactionId) }
               : c
           )
         ),
-    }, abortRef.current.signal);
+    }, ctrl.signal);
 
+    return () => {
+      // No-op: don't abort on every re-render. True cleanup is in the unmount effect below.
+    };
+  }, [taskId, activeWorkspaceId]);
+
+  // True unmount cleanup — runs only when the component is removed from the tree.
+  useEffect(() => {
     return () => {
       abortRef.current?.abort();
       abortRef.current = null;
+      activeStreamKeyRef.current = "";
     };
-  }, [taskId]);
+  }, []);
+
+  // ── Scroll to focused comment after comments render ───────────────────────
+  useEffect(() => {
+    if (!focusCommentId || comments.length === 0) return;
+
+    const target = comments.find((c) => c.id === focusCommentId);
+    if (!target) return;
+
+    // If this is a reply, we need to open its root thread first
+    if (target.parentId !== null) {
+      // Walk up to the root-level comment (parentId === null)
+      let root = comments.find((c) => c.id === target.parentId);
+      while (root && root.parentId !== null) {
+        root = comments.find((c) => c.id === root!.parentId);
+      }
+      if (root && (view !== "thread" || activeThread?.id !== root.id)) {
+        setActiveThread(root);
+        setView("thread");
+        // Don't clear focusCommentId yet — let the effect re-run once the thread view renders
+        return;
+      }
+    }
+
+    // DOM should now contain the target card — scroll to it
+    const el = scrollAreaRef.current?.querySelector(`[data-comment-id="${focusCommentId}"]`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("comment-highlight");
+    const t = setTimeout(() => el.classList.remove("comment-highlight"), 2000);
+    clearFocusComment();
+    return () => clearTimeout(t);
+  }, [focusCommentId, comments, view, activeThread, clearFocusComment]);
 
   // ── Single reaction handler: POST / PATCH / DELETE ─────────────────────────
   // • No existing reaction → POST (add)
@@ -737,29 +835,29 @@ export default function TaskComments({ taskId, currentUser, members }: TaskComme
         parentId = replyTo ? replyTo.id : activeThread.id;
       }
       const created = await commentService.createComment(taskId, text, parentId, mentionedUserIds);
-      setComments((prev) => prev.find((c) => c.id === created.id) ? prev : [...prev, created]);
+      setCurrentComments((prev) => prev.find((c) => c.id === created.id) ? prev : [...prev, created]);
       setReplyTo(null);
     } catch (err) {
       toast.error(parseApiError(err).message);
     }
-  }, [taskId, view, activeThread, replyTo]);
+  }, [taskId, view, activeThread, replyTo, setCurrentComments]);
 
   // ── Edit handler ───────────────────────────────────────────────────────────
   const handleEdit = useCallback(async (commentId: string, text: string, mentionedUserIds: string[]) => {
     try {
       const updated = await commentService.updateComment(commentId, text, mentionedUserIds);
-      setComments((prev) => prev.map((c) => c.id === commentId ? updated : c));
+      setCurrentComments((prev) => prev.map((c) => c.id === commentId ? updated : c));
     } catch (err) {
       toast.error(parseApiError(err).message);
     }
-  }, []);
+  }, [setCurrentComments]);
 
   // ── Delete handler ─────────────────────────────────────────────────────────
   const handleDelete = useCallback(async (commentId: string) => {
     try {
       await commentService.deleteComment(commentId);
       // SSE comment:deleted will remove it; optimistically remove now too
-      setComments((prev) => prev.filter((c) => c.id !== commentId));
+      setCurrentComments((prev) => prev.filter((c) => c.id !== commentId));
       // If the active thread was deleted, go back to threads list
       if (activeThread?.id === commentId) {
         setView("threads");
@@ -768,7 +866,7 @@ export default function TaskComments({ taskId, currentUser, members }: TaskComme
     } catch (err) {
       toast.error(parseApiError(err).message);
     }
-  }, [activeThread]);
+  }, [activeThread, setCurrentComments]);
 
   // ── Derived data ───────────────────────────────────────────────────────────
   const threads = comments
@@ -797,7 +895,7 @@ export default function TaskComments({ taskId, currentUser, members }: TaskComme
     return (
       <>
         {/* Threads list */}
-        <div className="flex-1 overflow-y-auto p-3">
+        <div ref={scrollAreaRef} className="flex-1 overflow-y-auto p-3">
           {threads.length === 0 && (
             <p className="py-6 text-center text-[12px] text-gray-400">No comments yet. Start the conversation.</p>
           )}
@@ -858,7 +956,7 @@ export default function TaskComments({ taskId, currentUser, members }: TaskComme
       </div>
 
       {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto p-3">
+      <div ref={scrollAreaRef} className="flex-1 overflow-y-auto p-3">
         {/* Parent thread card */}
         <ThreadCard
           comment={activeThread}

@@ -9,6 +9,13 @@ import {
 } from "@/services/task.service";
 import { useTaskSearchStore } from "@/stores/task-search.store";
 
+export interface MinimizedTaskDraft {
+  taskId: string;
+  listId: string;
+  title: string;
+  taskIdentifier: string;
+}
+
 interface TaskState {
   tasksByList: Record<string, TaskListItem[]>;
   subtasksByParent: Record<string, TaskListItem[]>;
@@ -18,14 +25,21 @@ interface TaskState {
   openTaskId: string | null;
   openTask: TaskDetail | null;
   openTaskLoading: boolean;
+  focusCommentId: string | null;
+  minimizedTasks: MinimizedTaskDraft[];
   setTasksForLists: (tasksByList: Record<string, TaskListItem[]>) => void;
 
   fetchTasks: (projectId: string, listId: string) => Promise<void>;
   fetchSubtasks: (taskId: string) => Promise<void>;
   toggleExpand: (taskId: string) => void;
   openTaskDetail: (taskId: string) => Promise<void>;
+  openTaskDetailAtComment: (taskId: string, commentId: string) => Promise<void>;
+  clearFocusComment: () => void;
   refreshOpenTask: () => Promise<void>;
   closeTaskDetail: () => void;
+  minimizeTask: () => void;
+  restoreMinimizedTask: (taskId: string) => void;
+  closeMinimizedTask: (taskId: string) => void;
   createTask: (projectId: string, listId: string, payload: CreateTaskPayload) => Promise<TaskDetail>;
   updateTask: (taskId: string, listId: string, payload: UpdateTaskPayload) => Promise<void>;
   updateSubtask: (subtaskId: string, parentId: string, listId: string, payload: UpdateTaskPayload) => Promise<void>;
@@ -44,6 +58,7 @@ interface TaskState {
 }
 
 export const useTaskStore = create<TaskState>((set, get) => ({
+  minimizedTasks: [],
   tasksByList: {},
   subtasksByParent: {},
   loadingLists: new Set(),
@@ -52,6 +67,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   openTaskId: null,
   openTask: null,
   openTaskLoading: false,
+  focusCommentId: null,
   setTasksForLists: (incoming) => {
     set((s) => {
       const listsChanged = Object.keys(incoming).some((k) => {
@@ -126,7 +142,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   },
 
   openTaskDetail: async (taskId) => {
-    set({ openTaskId: taskId, openTaskLoading: true, openTask: null });
+    set({ openTaskId: taskId, openTaskLoading: true, openTask: null, focusCommentId: null });
     try {
       const task = await taskService.get(taskId);
       set({ openTask: task, openTaskLoading: false });
@@ -134,6 +150,18 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       set({ openTaskLoading: false });
     }
   },
+
+  openTaskDetailAtComment: async (taskId, commentId) => {
+    set({ openTaskId: taskId, openTaskLoading: true, openTask: null, focusCommentId: commentId });
+    try {
+      const task = await taskService.get(taskId);
+      set({ openTask: task, openTaskLoading: false });
+    } catch {
+      set({ openTaskLoading: false });
+    }
+  },
+
+  clearFocusComment: () => set({ focusCommentId: null }),
 
   refreshOpenTask: async () => {
     const { openTaskId } = get();
@@ -145,7 +173,37 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   },
 
   closeTaskDetail: () => {
-    set({ openTaskId: null, openTask: null, openTaskLoading: false });
+    set({ openTaskId: null, openTask: null, openTaskLoading: false, focusCommentId: null });
+  },
+
+  minimizeTask: () => {
+    const { openTask } = get();
+    if (!openTask) return;
+    const draft: MinimizedTaskDraft = {
+      taskId: openTask.id,
+      listId: openTask.list.id,
+      title: openTask.title,
+      taskIdentifier: openTask.taskId,
+    };
+    set((s) => ({
+      openTaskId: null,
+      openTask: null,
+      openTaskLoading: false,
+      focusCommentId: null,
+      minimizedTasks: s.minimizedTasks.some((t) => t.taskId === draft.taskId)
+        ? s.minimizedTasks
+        : [...s.minimizedTasks, draft],
+    }));
+  },
+
+  restoreMinimizedTask: async (taskId) => {
+    const { minimizedTasks, openTaskDetail } = get();
+    set({ minimizedTasks: minimizedTasks.filter((t) => t.taskId !== taskId) });
+    await openTaskDetail(taskId);
+  },
+
+  closeMinimizedTask: (taskId) => {
+    set((s) => ({ minimizedTasks: s.minimizedTasks.filter((t) => t.taskId !== taskId) }));
   },
 
   createTask: async (projectId, listId, payload) => {

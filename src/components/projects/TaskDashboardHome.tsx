@@ -386,7 +386,9 @@ export default function TaskDashboardHome({
                     {getInitials(item.actor.fullName)}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm text-gray-700 dark:text-gray-200">{item.displayText}</p>
+                    <p className="truncate text-sm text-gray-700 dark:text-gray-200">
+                      {item.category === "description" ? `${item.actor.fullName} updated description` : item.displayText}
+                    </p>
                     <p className="text-xs text-gray-400">{timeAgo(item.createdAt)}</p>
                   </div>
                 </div>

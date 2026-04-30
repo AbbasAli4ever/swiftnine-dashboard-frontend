@@ -13,12 +13,16 @@ import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { useWorkspaceStore } from "@/stores/workspace.store";
 import { notificationService } from "@/services/notification.service";
+import { workspaceService } from "@/services/workspace.service";
 import { Notification } from "@/types/notification";
 
 interface NotificationContextValue {
   notifications: Notification[];
+  replies: Notification[];
+  assignedComments: Notification[];
   unreadCount: number;
   isLoading: boolean;
+  memberName: (userId: string) => string;
   clearNotification: (id: string) => Promise<void>;
   clearAll: () => Promise<void>;
   snoozeNotification: (id: string, until?: string) => Promise<void>;
@@ -38,8 +42,16 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [memberMap, setMemberMap] = useState<Map<string, string>>(new Map());
   const notificationsRef = useRef(notifications);
   useEffect(() => { notificationsRef.current = notifications; }, [notifications]);
+
+  useEffect(() => {
+    if (!activeWorkspaceId) return;
+    workspaceService.getMembers(activeWorkspaceId)
+      .then((members) => setMemberMap(new Map(members.map((m) => [m.id, m.fullName]))))
+      .catch(() => {});
+  }, [activeWorkspaceId]);
 
   useEffect(() => {
     const userId = user?.id;
@@ -94,6 +106,20 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     [notifications]
   );
 
+  const replies = useMemo(
+    () => notifications.filter((n) => n.type === "comment:reply"),
+    [notifications]
+  );
+
+  const assignedComments = useMemo(
+    () => notifications.filter((n) => n.type === "mentioned"),
+    [notifications]
+  );
+
+  const memberName = useCallback((userId: string): string => {
+    return memberMap.get(userId) ?? userId;
+  }, [memberMap]);
+
   const markRead = useCallback(async (id: string) => {
     try {
       await notificationService.patchRead(id, true);
@@ -147,8 +173,11 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const value = useMemo<NotificationContextValue>(
     () => ({
       notifications,
+      replies,
+      assignedComments,
       unreadCount,
       isLoading,
+      memberName,
       clearNotification,
       clearAll,
       snoozeNotification,
@@ -158,8 +187,11 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }),
     [
       notifications,
+      replies,
+      assignedComments,
       unreadCount,
       isLoading,
+      memberName,
       clearNotification,
       clearAll,
       snoozeNotification,

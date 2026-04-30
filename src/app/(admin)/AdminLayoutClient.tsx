@@ -10,6 +10,7 @@ import GlobalTaskDetailModal from "@/components/projects/GlobalTaskDetailModal";
 import UserProfilePanel from "@/components/user-profile/UserProfilePanel";
 import ViewUserProfilePanel from "@/components/user-profile/ViewUserProfilePanel";
 import { useUiStore } from "@/stores/ui.store";
+import { usePathname } from "next/navigation";
 import React, { useEffect } from "react";
 
 export default function AdminLayoutClient({
@@ -20,6 +21,8 @@ export default function AdminLayoutClient({
   const { isAuthenticated, isLoading } = useAuth();
   const { workspaces, isLoading: workspacesLoading } = useWorkspace();
   const { profilePanelOpen, closeProfilePanel, viewingUserId, closeUserPanel } = useUiStore();
+  const pathname = usePathname();
+  const isMessageQueuePage = pathname === "/replies" || pathname === "/assigned-comments";
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -45,8 +48,8 @@ export default function AdminLayoutClient({
       <AppSidebar />
 
       {/* Main area — shrinks when profile panel is open */}
-      <div className={`flex flex-col min-w-0 ml-72 transition-all duration-200 ease-in-out ${profilePanelOpen ? "flex-1" : "flex-1"}`}>
-        <AppHeader />
+      <div className={`flex flex-col min-w-0 ml-[320px] transition-all duration-200 ease-in-out ${profilePanelOpen ? "flex-1" : "flex-1"}`}>
+        {!isMessageQueuePage && <AppHeader />}
         <main className="flex-1 overflow-hidden">
           {children}
         </main>

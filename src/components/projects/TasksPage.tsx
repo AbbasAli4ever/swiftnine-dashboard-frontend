@@ -20,6 +20,7 @@ import TaskDashboardHome from "./TaskDashboardHome";
 import TaskCalendarView from "./TaskCalendarView";
 import TaskForm from "./TaskForm";
 import TaskDetailModal from "./TaskDetailModal";
+import MinimizedTaskBar from "./MinimizedTaskBar";
 import CreateListModal from "./CreateListModal";
 import RenameListModal from "./RenameListModal";
 import ConfirmActionModal from "@/components/common/ConfirmActionModal";
@@ -66,6 +67,7 @@ export default function TasksPage() {
   const {
     openTaskDetail,
     closeTaskDetail,
+    minimizeTask,
     openTask,
     openTaskLoading,
     setTasksForLists,
@@ -382,12 +384,12 @@ export default function TasksPage() {
         </div>
 
         <div className="flex flex-wrap items-end gap-5">
-          <button
+          {/* <button
             type="button"
             className="pb-2 text-sm text-gray-400 transition-colors hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
           >
             Add Channel
-          </button>
+          </button> */}
           {visibleTabs.map((tab) => (
             <button
               key={tab.id}
@@ -405,7 +407,7 @@ export default function TasksPage() {
         </div>
       </div>
 
-      {scopeHeader}
+      {currentView !== "overview" && scopeHeader}
 
       <div className="min-h-0 flex-1 overflow-auto">
         {isLoadingTasks ? (
@@ -489,6 +491,7 @@ export default function TasksPage() {
           members={members}
           listId={openTask.list.id}
           onClose={closeTaskDetail}
+          onMinimize={minimizeTask}
         />
       )}
 
@@ -546,6 +549,8 @@ export default function TasksPage() {
           setFiltersOpen(false);
         }}
       />
+
+      <MinimizedTaskBar />
     </div>
   );
 }

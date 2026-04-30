@@ -7,9 +7,10 @@ import { useWorkspaceStore } from "@/stores/workspace.store";
 import { workspaceService, WorkspaceMember } from "@/services/workspace.service";
 import { statusService, StatusItem, flattenGroupedStatuses } from "@/services/status.service";
 import TaskDetailModal from "./TaskDetailModal";
+import MinimizedTaskBar from "./MinimizedTaskBar";
 
 export default function GlobalTaskDetailModal() {
-  const { openTask, openTaskLoading, closeTaskDetail } = useTaskStore();
+  const { openTask, openTaskLoading, closeTaskDetail, minimizeTask } = useTaskStore();
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const pathname = usePathname();
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
@@ -31,16 +32,21 @@ export default function GlobalTaskDetailModal() {
 
   // TasksPage renders its own modal — skip here to avoid duplicating it
   if (pathname?.startsWith("/projects")) return null;
-  if (!openTask || openTaskLoading) return null;
 
   return (
-    <TaskDetailModal
-      key={openTask.id}
-      task={openTask}
-      statuses={statuses}
-      members={members}
-      listId={openTask.list.id}
-      onClose={closeTaskDetail}
-    />
+    <>
+      {openTask && !openTaskLoading && (
+        <TaskDetailModal
+          key={openTask.id}
+          task={openTask}
+          statuses={statuses}
+          members={members}
+          listId={openTask.list.id}
+          onClose={closeTaskDetail}
+          onMinimize={minimizeTask}
+        />
+      )}
+      <MinimizedTaskBar />
+    </>
   );
 }

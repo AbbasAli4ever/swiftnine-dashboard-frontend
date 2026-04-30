@@ -7,7 +7,13 @@ export interface Notification {
   referenceType: string;
   referenceId: string;
   taskId: string | null;
+  taskName: string | null;
+  commentId: string | null;
+  commentName: string | null;
   actorId: string | null;
+  isCommented: boolean;
+  replyCommentId: string | null;
+  repliedToCommentId: string | null;
   isRead: boolean;
   readAt?: string | null;
   isCleared: boolean;

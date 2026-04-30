@@ -137,7 +137,6 @@ export function clearTaskSearchPatch() {
 
 export function countActiveTaskSearchFilters(params: TaskSearchParams) {
   let total = 0;
-  if (params.q?.trim()) total += 1;
   if (params.status_ids?.length) total += 1;
   if (params.status_groups?.length) total += 1;
   if (params.priority?.length) total += 1;

@@ -1,6 +1,5 @@
 import { api } from "@/lib/api";
 import { getAccessToken } from "@/stores/auth.store";
-import { getActiveWorkspaceId } from "@/stores/workspace.store";
 
 interface ApiWrapper<T> {
   success: boolean;
@@ -54,6 +53,17 @@ export type SSEHandlers = {
   onReactionDeleted: (commentId: string, reactionId: string) => void;
 };
 
+function unwrapSsePayload<T>(payload: unknown): T {
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "data" in payload
+  ) {
+    return (payload as { data: T }).data;
+  }
+  return payload as T;
+}
+
 export const commentService = {
   createComment: (taskId: string, content: string, parentId?: string, mentionedUserIds?: string[]) =>
     api
@@ -81,17 +91,15 @@ export const commentService = {
   deleteReaction: (reactionId: string) =>
     api.delete(`/reactions/${reactionId}`),
 
-  openStream: (taskId: string, handlers: SSEHandlers, signal: AbortSignal): void => {
-    const workspaceId = getActiveWorkspaceId() ?? "";
-    const token = getAccessToken() ?? "";
+  openStream: (taskId: string, workspaceId: string, handlers: SSEHandlers, signal: AbortSignal): void => {
     const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api/v1";
     const url = `${baseUrl}/tasks/${taskId}/comments/stream`;
 
     const dispatch = (eventName: string, raw: string) => {
       try {
-        const payload = JSON.parse(raw);
+        const payload = unwrapSsePayload<unknown>(JSON.parse(raw));
         if (eventName === "comments:init") {
-          handlers.onInit(Array.isArray(payload) ? payload : []);
+          if (Array.isArray(payload)) handlers.onInit(payload as Comment[]);
         } else if (eventName === "comment:created") {
           handlers.onCreated(payload as Comment);
         } else if (eventName === "comment:updated") {
@@ -109,10 +117,24 @@ export const commentService = {
           const r = payload as { id: string; commentId: string };
           handlers.onReactionDeleted(r.commentId, r.id);
         }
-      } catch { /* ignore malformed frames */ }
+      } catch (e) {
+        console.warn("[CommentSSE] dispatch error:", e, "event:", eventName, "raw:", raw);
+      }
     };
 
-    const connect = async () => {
+    const sleep = (ms: number) =>
+      new Promise<void>((resolve) => {
+        const t = setTimeout(resolve, ms);
+        signal.addEventListener("abort", () => { clearTimeout(t); resolve(); }, { once: true });
+      });
+
+    const connect = async (): Promise<"done" | "reconnect"> => {
+      if (signal.aborted) return "done";
+
+      // Read credentials fresh on every attempt so token refreshes are picked up.
+      const token = getAccessToken() ?? "";
+      if (!token || !workspaceId) return "reconnect";
+
       try {
         const res = await fetch(url, {
           headers: {
@@ -123,37 +145,58 @@ export const commentService = {
           signal,
         });
 
-        if (!res.ok || !res.body) return;
+        if (!res.ok || !res.body) {
+          return "reconnect";
+        }
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buf = "";
+        // Accumulate per-event fields; reset on blank-line boundary
         let currentEvent = "message";
+        let currentData = "";
 
         while (true) {
           const { done, value } = await reader.read();
-          if (done || signal.aborted) break;
+          if (done) return "reconnect";
+          if (signal.aborted) return "done";
 
           buf += decoder.decode(value, { stream: true });
-          const lines = buf.split("\n");
+          const lines = buf.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
           buf = lines.pop() ?? "";
 
           for (const line of lines) {
             if (line.startsWith("event:")) {
               currentEvent = line.slice(6).trim();
             } else if (line.startsWith("data:")) {
-              dispatch(currentEvent, line.slice(5).trim());
-              currentEvent = "message";
+              currentData += (currentData ? "\n" : "") + line.slice(5).trim();
             } else if (line === "") {
+              // Blank line = end of event block
+              if (currentData) {
+                dispatch(currentEvent, currentData);
+              }
               currentEvent = "message";
+              currentData = "";
             }
           }
         }
-      } catch {
-        /* fetch aborted or network error */
+      } catch (err) {
+        if (signal.aborted || (err instanceof DOMException && err.name === "AbortError")) return "done";
+        console.warn("[CommentSSE] fetch error, will reconnect:", err);
+        return "reconnect";
       }
     };
 
-    void connect();
+    const run = async () => {
+      let delay = 1000;
+      while (!signal.aborted) {
+        const result = await connect();
+        if (result === "done" || signal.aborted) break;
+        await sleep(delay);
+        delay = Math.min(delay * 2, 30_000);
+      }
+    };
+
+    void run();
   },
 };
