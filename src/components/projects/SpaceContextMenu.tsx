@@ -124,7 +124,7 @@ export default function SpaceContextMenu({
   }, [isOpen, onClose]);
 
   const handleCopyLink = () => {
-    navigator.clipboard.writeText(`${window.location.origin}/projects/${project.id}`);
+    navigator.clipboard.writeText(`${window.location.origin}/projects?projectId=${project.id}`);
     toast.success("Link copied");
     onClose();
   };

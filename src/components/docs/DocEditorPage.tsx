@@ -289,7 +289,7 @@ export default function DocEditorPage({ docId }: { docId: string }) {
           </Link>
           <LuChevronRight className="h-3 w-3" />
           <Link
-            href={`/projects/${project.id}`}
+            href={`/projects?projectId=${project.id}`}
             className="hover:text-gray-700 dark:hover:text-gray-200"
           >
             {project.name}

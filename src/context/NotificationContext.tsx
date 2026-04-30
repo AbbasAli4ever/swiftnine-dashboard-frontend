@@ -57,7 +57,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     const userId = user?.id;
     if (!isAuthenticated || !userId || !activeWorkspaceId) return;
 
-    console.log("[NotificationContext] opening stream for", userId, "workspace", activeWorkspaceId);
     setIsLoading(true);
     const ctrl = new AbortController();
 

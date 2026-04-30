@@ -21,6 +21,8 @@ import {
   LuSearch,
   LuBell,
   LuFilter,
+  LuLink,
+  LuCopy,
 } from "react-icons/lu";
 import { activityService, ActivityItem } from "@/services/activity.service";
 import { MdOutlineDonutSmall } from "react-icons/md";
@@ -483,7 +485,7 @@ function ActivityRow({ item }: { item: ActivityItem }) {
 }
 
 export default function TaskDetailModal({ task, statuses, members, listId, onClose, onMinimize }: TaskDetailModalProps) {
-  const { updateTask, addAssignee, removeAssignee, addTag, removeTag, openTaskDetail, refreshOpenTask } = useTaskStore();
+  const { updateTask, addAssignee, removeAssignee, addTag, removeTag, openTaskDetail, refreshOpenTask, deleteTask } = useTaskStore();
   const liveChildren = useTaskStore(s => s.openTask?.id === task.id ? s.openTask.children : task.children);
   const currentUser = useAuthStore(s => s.user);
 
@@ -492,6 +494,9 @@ export default function TaskDetailModal({ task, statuses, members, listId, onClo
   const [addingSubtask, setAddingSubtask] = useState(false);
   const [rightTab, setRightTab] = useState<"comments" | "activity">("comments");
   const [parentTask, setParentTask] = useState<{ id: string; title: string; taskId: string } | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const ellipsisBtnRef = useRef<HTMLButtonElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const titleSaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -511,6 +516,41 @@ export default function TaskDetailModal({ task, statuses, members, listId, onClo
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [onClose]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node) &&
+          ellipsisBtnRef.current && !ellipsisBtnRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [menuOpen]);
+
+  const handleCopyLink = () => {
+    const url = `${window.location.origin}/projects?projectId=${task.list.project.id}&taskId=${task.id}`;
+    void navigator.clipboard.writeText(url);
+    toast.success("Link copied");
+    setMenuOpen(false);
+  };
+
+  const handleCopyId = () => {
+    void navigator.clipboard.writeText(task.taskId);
+    toast.success("Task ID copied");
+    setMenuOpen(false);
+  };
+
+  const handleDelete = async () => {
+    setMenuOpen(false);
+    try {
+      await deleteTask(task.id, listId);
+      onClose();
+    } catch (err) {
+      toast.error(parseApiError(err).message);
+    }
+  };
 
   const saveTitle = useCallback((val: string) => {
     if (titleSaveTimeout.current) clearTimeout(titleSaveTimeout.current);
@@ -607,9 +647,71 @@ export default function TaskDetailModal({ task, statuses, members, listId, onClo
             <button type="button" className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800">
               Share
             </button>
-            <button type="button" className="rounded-lg border border-gray-200 p-1.5 text-gray-400 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800">
-              <LuEllipsis className="h-3.5 w-3.5" />
-            </button>
+            <div className="relative">
+              <button
+                ref={ellipsisBtnRef}
+                type="button"
+                onClick={() => setMenuOpen((v) => !v)}
+                className="rounded-lg border border-gray-200 p-1.5 text-gray-400 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+              >
+                <LuEllipsis className="h-3.5 w-3.5" />
+              </button>
+
+              {menuOpen && (
+                <div
+                  ref={menuRef}
+                  className="absolute right-0 top-full z-50 mt-1.5 w-52 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900"
+                >
+                  {/* Copy actions */}
+                  <div className="p-1">
+                    <button
+                      type="button"
+                      onClick={handleCopyLink}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                    >
+                      <LuLink className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                      Copy link
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCopyId}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                    >
+                      <LuCopy className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                      Copy ID
+                      <span className="ml-auto font-mono text-xs text-gray-400">{task.taskId}</span>
+                    </button>
+                  </div>
+
+                  <div className="border-t border-gray-100 dark:border-gray-800" />
+
+                  {/* Favorite */}
+                  <div className="p-1">
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                    >
+                      <LuStar className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                      Favorite
+                    </button>
+                  </div>
+
+                  <div className="border-t border-gray-100 dark:border-gray-800" />
+
+                  {/* Delete */}
+                  <div className="p-1">
+                    <button
+                      type="button"
+                      onClick={() => void handleDelete()}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
+                    >
+                      <LuTrash2 className="h-3.5 w-3.5 shrink-0" />
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
             <button type="button" className="rounded-lg border border-gray-200 p-1.5 text-gray-400 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800">
               <LuStar className="h-3.5 w-3.5" />
             </button>

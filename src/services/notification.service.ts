@@ -62,7 +62,6 @@ export const notificationService = {
     const dispatch = (eventName: string, raw: string) => {
       try {
         const payload = JSON.parse(raw);
-        console.log("[SSE] event:", eventName, "payload:", payload);
         if (eventName === "notifications:init") {
           handlers.onInit(Array.isArray(payload) ? payload : []);
         } else if (eventName === "notification:created") {
@@ -92,8 +91,8 @@ export const notificationService = {
       const token = getAccessToken() ?? "";
       const workspaceId = getActiveWorkspaceId() ?? "";
 
-      // If no token yet (auth still restoring), signal a short reconnect wait.
-      if (!token) return "reconnect";
+      // If no token or workspace yet (auth still restoring), wait then retry.
+      if (!token || !workspaceId) return "reconnect";
 
       try {
         const res = await fetch(url, {
@@ -105,8 +104,9 @@ export const notificationService = {
           signal,
         });
 
-        // 401 = token expired/invalid → reconnect so the refreshed token is picked up.
-        // Other non-ok = reconnect to recover.
+        // 401/403 = auth failure — stop retrying, nothing will change without a page reload.
+        if (res.status === 401 || res.status === 403) return "done";
+        // Other non-ok (5xx, network hiccup) → reconnect with backoff.
         if (!res.ok || !res.body) return "reconnect";
 
         const reader = res.body.getReader();

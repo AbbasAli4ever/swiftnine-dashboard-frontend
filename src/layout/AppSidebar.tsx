@@ -561,13 +561,13 @@ function WorkspacePanelHeader() {
         <LuChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />
       </button>
 
-      <button
+      {/* <button
         type="button"
         className="flex h-7 w-7 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800"
         aria-label="Open calendar"
       >
         <LuCalendarDays className="h-4 w-4" />
-      </button>
+      </button> */}
 
       <WorkspaceSwitcher
         isOpen={switcherOpen}
