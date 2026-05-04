@@ -20,8 +20,10 @@ interface ProjectContextValue {
   isLoading: boolean;
   createProject: (payload: CreateProjectPayload) => Promise<Project>;
   updateProject: (id: string, payload: UpdateProjectPayload) => Promise<void>;
+  patchLocalProject: (id: string, patch: Partial<Project>) => void;
   deleteProject: (id: string) => Promise<void>;
   refetch: () => Promise<void>;
+  fetchArchivedProjects: () => Promise<void>;
 }
 
 const ProjectContext = createContext<ProjectContextValue | null>(null);
@@ -70,10 +72,31 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
+  const patchLocalProject = useCallback((id: string, patch: Partial<Project>) => {
+    setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+  }, []);
+
   const deleteProject = useCallback(async (id: string) => {
     await projectService.delete(id);
     setProjects((prev) => prev.filter((p) => p.id !== id));
   }, []);
+
+  const fetchArchivedProjects = useCallback(async () => {
+    if (!activeWorkspace) return;
+    try {
+      const archived = await projectService.listArchived();
+      setProjects((prev) => {
+        const activeIds = new Set(prev.filter((p) => !p.isArchived).map((p) => p.id));
+        const merged = [...prev.filter((p) => !p.isArchived)];
+        for (const p of archived) {
+          if (!activeIds.has(p.id)) merged.push(p);
+        }
+        return merged;
+      });
+    } catch {
+      // silently fail — archived projects are optional display
+    }
+  }, [activeWorkspace]);
 
   return (
     <ProjectContext.Provider
@@ -82,8 +105,10 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         createProject,
         updateProject,
+        patchLocalProject,
         deleteProject,
         refetch: fetchProjects,
+        fetchArchivedProjects,
       }}
     >
       {children}

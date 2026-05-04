@@ -67,6 +67,7 @@ export interface TaskListItem {
   assignees: TaskAssignee[];
   tags: TaskTagInfo[];
   list: TaskListRef;
+  isFavorite?: boolean;
   _count: { children: number };
 }
 
@@ -93,6 +94,7 @@ export interface TaskDetail {
   assignees: TaskAssignee[];
   tags: TaskTagInfo[];
   list: TaskListRef;
+  isFavorite?: boolean;
   children: Omit<TaskListItem, "_count">[];
   timeEntries: TaskTimeEntry[];
 }
@@ -311,6 +313,10 @@ export const taskService = {
     api
       .put<ApiWrapper<BoardResponse>>(`/projects/${projectId}/board/tasks/reorder`, payload)
       .then((r) => r.data.data),
+
+  favorite: (taskId: string) => api.put(`/tasks/${taskId}/favorite`),
+
+  unfavorite: (taskId: string) => api.delete(`/tasks/${taskId}/favorite`),
 };
 
 export interface BoardStatusInfo {

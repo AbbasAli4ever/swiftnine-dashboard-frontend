@@ -14,6 +14,7 @@ import StatusIcon from "./StatusIcon";
 import TaskRow from "./TaskRow";
 import TaskQuickCreate from "./TaskQuickCreate";
 import {
+  LuArchive,
   LuChevronDown,
   LuEllipsis,
   LuPlus,
@@ -41,7 +42,6 @@ interface TaskListViewProps {
   projectId: string;
   sections: TaskListSectionData[];
   statuses: StatusItem[];
-  archivedLists?: TaskList[];
   onAdd: (options?: { statusId?: string; listId?: string }) => void;
   onCreateList?: () => void;
   onRenameList?: (list: TaskList) => void;
@@ -534,7 +534,6 @@ export default function TaskListView({
   projectId,
   sections,
   statuses,
-  archivedLists = [],
   onCreateList,
   onRenameList,
   onArchiveList,
@@ -544,7 +543,6 @@ export default function TaskListView({
   disableAutoFetch = false,
   disableSameStatusReorder = false,
 }: TaskListViewProps) {
-  const [archivedOpen, setArchivedOpen] = useState(false);
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const { activeWorkspaceId } = useWorkspaceStore();
   const resolvedStatuses = statuses.length > 0 ? statuses : FALLBACK_STATUSES;
@@ -573,17 +571,31 @@ export default function TaskListView({
       )}
 
       {sections.map((section) => (
-        <ListSection
-          key={section.list.id}
-          list={section.list}
-          projectId={projectId}
-          statuses={resolvedStatuses}
-          members={members}
-          onOpenTaskDetail={(taskId) => onOpenTaskDetail?.(taskId)}
-          showListHeader={mode === "project" && sections.length > 1}
-          disableAutoFetch={disableAutoFetch}
-          disableSameStatusReorder={disableSameStatusReorder}
-        />
+        <div key={section.list.id}>
+          {section.list.isArchived && (
+            <div className="mb-2 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
+              <LuArchive className="h-4 w-4 shrink-0" />
+              <span className="flex-1">This List is archived.</span>
+              <button
+                type="button"
+                onClick={() => onRestoreList?.(section.list)}
+                className="font-medium underline hover:no-underline"
+              >
+                Unarchive
+              </button>
+            </div>
+          )}
+          <ListSection
+            list={section.list}
+            projectId={projectId}
+            statuses={resolvedStatuses}
+            members={members}
+            onOpenTaskDetail={(taskId) => onOpenTaskDetail?.(taskId)}
+            showListHeader={mode === "project" && sections.length > 1}
+            disableAutoFetch={disableAutoFetch}
+            disableSameStatusReorder={disableSameStatusReorder}
+          />
+        </div>
       ))}
 
       {mode === "project" && (
@@ -595,53 +607,6 @@ export default function TaskListView({
           <LuPlus className="h-4 w-4" />
           Create List
         </button>
-      )}
-
-      {mode === "project" && archivedLists.length > 0 && (
-        <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
-          <button
-            type="button"
-            onClick={() => setArchivedOpen((v) => !v)}
-            className="flex w-full items-center justify-between px-5 py-4 text-left"
-          >
-            <div>
-              <p className="text-sm font-normal text-gray-900 dark:text-white">Archived Lists</p>
-              <p className="text-xs text-gray-400">{archivedLists.length} archived</p>
-            </div>
-            <LuChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${archivedOpen ? "rotate-180" : ""}`} />
-          </button>
-
-          {archivedOpen && (
-            <div className="space-y-2 border-t border-gray-100 px-5 py-4 dark:border-gray-800">
-              {archivedLists.map((list) => (
-                <div key={list.id} className="flex items-center justify-between rounded-xl border border-gray-200 px-4 py-3 dark:border-gray-800">
-                  <div>
-                    <p className="font-normal text-gray-800 dark:text-white">{list.name}</p>
-                    <p className="text-xs text-gray-400">Archived list</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => onRestoreList?.(list)}
-                      className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-normal text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                    >
-                      <LuRotateCcw className="h-3.5 w-3.5" />
-                      Restore
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onDeleteList?.(list)}
-                      className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-normal text-red-500 transition-colors hover:bg-red-50 dark:border-red-500/20 dark:text-red-400 dark:hover:bg-red-500/10"
-                    >
-                      <LuTrash2 className="h-3.5 w-3.5" />
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
       )}
     </div>
   );

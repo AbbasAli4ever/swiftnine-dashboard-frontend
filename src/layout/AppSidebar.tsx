@@ -7,7 +7,9 @@ import { useAuth } from "@/context/AuthContext";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { useProjects } from "@/context/ProjectContext";
 import { useTaskLists } from "@/context/TaskListContext";
-import { Project } from "@/services/project.service";
+import { Project, projectService } from "@/services/project.service";
+import { taskService } from "@/services/task.service";
+import { useUiStore } from "@/stores/ui.store";
 import { TaskList } from "@/services/task-list.service";
 import { parseApiError } from "@/lib/api";
 import WorkspaceSwitcher from "@/components/workspace/WorkspaceSwitcher";
@@ -46,6 +48,8 @@ import {
   LuSlidersHorizontal,
   LuCalendarDays,
   LuEllipsis as LuMoreHorizontal,
+  LuStar,
+  LuArchive,
 } from "react-icons/lu";
 import { MdChecklist } from "react-icons/md";
 
@@ -73,7 +77,7 @@ const inboxLinks: NavLink[] = [
   { label: "Inbox",             path: "/",      icon: <LuInbox className="w-4 h-4" /> },
   { label: "Replies",           path: "/replies",           icon: <LuCornerUpLeft className="w-4 h-4" /> },
   { label: "Assigned Comments", path: "/assigned-comments", icon: <LuMessageSquare className="w-4 h-4" /> },
-  { label: "My Tasks",          path: "/my-tasks", icon: <LuCircleCheck className="w-4 h-4" />, badge: 1 },
+  { label: "My Tasks",          path: "/my-tasks", icon: <LuCircleCheck className="w-4 h-4" /> },
 ];
 
 const dmUsers = [
@@ -131,7 +135,7 @@ function SidebarListRow({
   onDrop: (targetListId: string) => void;
 }) {
   const router = useRouter();
-  const { renameList, archiveList, deleteList } = useTaskLists();
+  const { renameList, archiveList, restoreList, deleteList } = useTaskLists();
   const [menuOpen, setMenuOpen] = useState(false);
   const [renamingInline, setRenamingInline] = useState(false);
   const [renameValue, setRenameValue] = useState("");
@@ -176,6 +180,19 @@ function SidebarListRow({
       }
       toast.success(`List "${list.name}" archived`);
       setArchiveOpen(false);
+    } catch (error) {
+      const { message } = parseApiError(error);
+      toast.error(message);
+    } finally {
+      setIsMutating(false);
+    }
+  };
+
+  const handleRestore = async () => {
+    setIsMutating(true);
+    try {
+      await restoreList(project.id, list.id);
+      toast.success(`List "${list.name}" restored`);
     } catch (error) {
       const { message } = parseApiError(error);
       toast.error(message);
@@ -237,6 +254,7 @@ function SidebarListRow({
             className="flex min-w-0 flex-1 items-center text-left"
           >
             <span className="truncate font-normal">{list.name}</span>
+            {list.isArchived && <LuArchive className="h-3 w-3 shrink-0 ml-1 text-gray-400" />}
           </button>
         )}
 
@@ -260,6 +278,7 @@ function SidebarListRow({
         onClose={() => setMenuOpen(false)}
         onRename={() => { setMenuOpen(false); startInlineRename(); }}
         onArchive={() => setArchiveOpen(true)}
+        onRestore={handleRestore}
         onDelete={() => setDeleteOpen(true)}
       />
 
@@ -295,13 +314,15 @@ function SpaceRow({
   project,
   activeProjectId,
   activeListId,
+  showArchivedLists = false,
 }: {
   project: Project;
   activeProjectId: string | null;
   activeListId: string | null;
+  showArchivedLists?: boolean;
 }) {
   const router = useRouter();
-  const { deleteProject, updateProject } = useProjects();
+  const { deleteProject, updateProject, patchLocalProject } = useProjects();
   const { getProjectLists, reorderLists } = useTaskLists();
   const [menuOpen, setMenuOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -314,7 +335,7 @@ function SpaceRow({
   const [renameValue, setRenameValue] = useState("");
   const renameInputRef = useRef<HTMLInputElement>(null);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
-  const lists = getProjectLists(project.id, { includeArchived: false });
+  const lists = getProjectLists(project.id, { includeArchived: showArchivedLists });
   const isProjectActive = activeProjectId === project.id && !activeListId;
   const isWithinProject = activeProjectId === project.id;
 
@@ -361,6 +382,44 @@ function SpaceRow({
       toast.error(message);
     } finally {
       setDeleteLoading(false);
+    }
+  };
+
+  const handleFavorite = async () => {
+    try {
+      if (project.isFavorite) {
+        await projectService.unfavorite(project.id);
+        patchLocalProject(project.id, { isFavorite: false });
+      } else {
+        await projectService.favorite(project.id);
+        patchLocalProject(project.id, { isFavorite: true });
+      }
+      useUiStore.getState().invalidateFavorites();
+    } catch (error) {
+      const { message } = parseApiError(error);
+      toast.error(message);
+    }
+  };
+
+  const handleArchive = async () => {
+    try {
+      await projectService.archive(project.id);
+      patchLocalProject(project.id, { isArchived: true });
+      toast.success(`Space "${project.name}" archived`);
+    } catch (error) {
+      const { message } = parseApiError(error);
+      toast.error(message);
+    }
+  };
+
+  const handleRestore = async () => {
+    try {
+      await projectService.restore(project.id);
+      patchLocalProject(project.id, { isArchived: false });
+      toast.success(`Space "${project.name}" restored`);
+    } catch (error) {
+      const { message } = parseApiError(error);
+      toast.error(message);
     }
   };
 
@@ -443,6 +502,7 @@ function SpaceRow({
                 }
               </span>
               <span className="truncate font-normal text-[13px]">{project.name}</span>
+              {project.isArchived && <LuArchive className="h-3 w-3 shrink-0 text-gray-400" />}
             </button>
           )}
 
@@ -506,6 +566,9 @@ function SpaceRow({
             toast.error("Failed to update icon & color");
           }
         }}
+        onFavorite={handleFavorite}
+        onArchive={handleArchive}
+        onRestore={handleRestore}
       />
 
       {/* Edit modal — lives here so it survives after the context menu unmounts */}
@@ -584,15 +647,155 @@ function WorkspacePanelHeader() {
   );
 }
 
+// ── Favorites section ────────────────────────────────────────────────────────
+function FavoritesSidebarSection() {
+  const router = useRouter();
+  const { favoritesRefreshKey } = useUiStore();
+  const { patchLocalProject } = useProjects();
+  const [expanded, setExpanded] = useState(true);
+  const [favProjects, setFavProjects] = useState<Project[]>([]);
+  const [favTasks, setFavTasks] = useState<import("@/services/task.service").TaskListItem[]>([]);
+
+  useEffect(() => {
+    import("@/services/favorite.service").then(({ favoriteService }) => {
+      Promise.all([favoriteService.listProjects(), favoriteService.listTasks()])
+        .then(([projs, tasks]) => {
+          setFavProjects(projs);
+          setFavTasks(tasks);
+        })
+        .catch(() => {});
+    });
+  }, [favoritesRefreshKey]);
+
+  const hasAny = favProjects.length > 0 || favTasks.length > 0;
+
+  if (!hasAny) return null;
+
+  return (
+    <div className="mt-1 border-t border-gray-100 pt-4 dark:border-gray-800">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="flex w-full items-center justify-between px-2 mb-1 group"
+      >
+        <div className="flex items-center gap-1.5">
+          <LuStar className="h-3 w-3 text-amber-400" style={{ fill: "currentColor" }} />
+          <p className="text-[11px] uppercase tracking-wide text-gray-400 font-normal">Favorites</p>
+        </div>
+        {expanded ? (
+          <LuChevronDown className="h-3 w-3 text-gray-400 opacity-0 group-hover:opacity-100" />
+        ) : (
+          <LuChevronRight className="h-3 w-3 text-gray-400 opacity-0 group-hover:opacity-100" />
+        )}
+      </button>
+
+      {expanded && (
+        <div className="space-y-0.5">
+          {favProjects.map((p) => (
+            <div
+              key={p.id}
+              className="group flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-[13px] text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 transition-colors"
+            >
+              <button
+                type="button"
+                onClick={() => router.push(`/projects?projectId=${p.id}`)}
+                className="flex min-w-0 flex-1 items-center gap-2 text-left"
+              >
+                <span
+                  className="flex h-4 w-4 shrink-0 items-center justify-center rounded-sm text-white text-[10px]"
+                  style={{ backgroundColor: p.color }}
+                >
+                  {p.icon && ICON_MAP.has(p.icon)
+                    ? (() => { const I = ICON_MAP.get(p.icon!)!; return <I className="h-2.5 w-2.5" />; })()
+                    : p.name.charAt(0).toUpperCase()
+                  }
+                </span>
+                <span className="truncate">{p.name}</span>
+              </button>
+              <button
+                type="button"
+                title="Remove from favorites"
+                onClick={async () => {
+                  try {
+                    await projectService.unfavorite(p.id);
+                    setFavProjects((prev) => prev.filter((x) => x.id !== p.id));
+                    patchLocalProject(p.id, { isFavorite: false });
+                    useUiStore.getState().invalidateFavorites();
+                  } catch {
+                    toast.error("Failed to remove from favorites");
+                  }
+                }}
+                className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-amber-400 opacity-0 transition-all hover:bg-gray-200 group-hover:opacity-100 dark:hover:bg-gray-700"
+              >
+                <LuStar className="h-3.5 w-3.5" style={{ fill: "currentColor" }} />
+              </button>
+            </div>
+          ))}
+          {favTasks.map((t) => (
+            <div
+              key={t.id}
+              className="group flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-[13px] text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 transition-colors"
+            >
+              <button
+                type="button"
+                onClick={() => router.push(`/projects?projectId=${t.list.project.id}&taskId=${t.id}`)}
+                className="flex min-w-0 flex-1 items-center gap-2 text-left"
+              >
+                <span className="shrink-0 rounded px-1 py-0.5 text-[10px] font-mono bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                  {t.taskId}
+                </span>
+                <span className="truncate">{t.title}</span>
+              </button>
+              <button
+                type="button"
+                title="Remove from favorites"
+                onClick={async () => {
+                  try {
+                    await taskService.unfavorite(t.id);
+                    setFavTasks((prev) => prev.filter((x) => x.id !== t.id));
+                    useUiStore.getState().setTaskFavoriteOverride(t.id, false);
+                    useUiStore.getState().invalidateFavorites();
+                  } catch {
+                    toast.error("Failed to remove from favorites");
+                  }
+                }}
+                className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-amber-400 opacity-0 transition-all hover:bg-gray-200 group-hover:opacity-100 dark:hover:bg-gray-700"
+              >
+                <LuStar className="h-3.5 w-3.5" style={{ fill: "currentColor" }} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Home panel ───────────────────────────────────────────────────────────────
 function HomePanelContent() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [createOpen, setCreateOpen] = useState(false);
-  const { projects, isLoading: projectsLoading } = useProjects();
+  const [showArchived, setShowArchived] = useState(false);
+  const [spacesMenuOpen, setSpacesMenuOpen] = useState(false);
+  const spacesMenuRef = useRef<HTMLDivElement>(null);
+  const spacesMenuBtnRef = useRef<HTMLButtonElement>(null);
+  const { projects, isLoading: projectsLoading, fetchArchivedProjects } = useProjects();
   const { getLists } = useTaskLists();
   const activeProjectId = searchParams.get("projectId");
   const activeListId = searchParams.get("listId");
+
+  useEffect(() => {
+    if (!spacesMenuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (
+        !spacesMenuRef.current?.contains(e.target as Node) &&
+        !spacesMenuBtnRef.current?.contains(e.target as Node)
+      ) setSpacesMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [spacesMenuOpen]);
 
   useEffect(() => {
     projects.forEach((project) => {
@@ -601,6 +804,13 @@ function HomePanelContent() {
       });
     });
   }, [getLists, projects]);
+
+  useEffect(() => {
+    if (!showArchived) return;
+    projects.forEach((project) => {
+      void getLists(project.id, { includeArchived: true }).catch(() => {});
+    });
+  }, [showArchived, getLists, projects]);
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden px-4 py-3 text-[13px]">
@@ -630,17 +840,66 @@ function HomePanelContent() {
           );
         })}
 
+        {/* Favorites */}
+        <FavoritesSidebarSection />
+
         {/* Spaces */}
         <div className="mt-3 border-t border-gray-100 pt-5 dark:border-gray-800">
-          <div className="flex items-center justify-between px-2 mb-1">
+          <div className="relative flex items-center justify-between px-2 mb-1">
             <p className="text-[11px] uppercase tracking-wide text-gray-400 font-normal">Spaces</p>
-            <button
-              onClick={() => setCreateOpen(true)}
-              className="text-gray-400 hover:text-brand-500 transition-colors"
-            >
-              <LuPlus className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                ref={spacesMenuBtnRef}
+                type="button"
+                onClick={() => setSpacesMenuOpen((v) => !v)}
+                className="text-gray-400 hover:text-brand-500 transition-colors"
+              >
+                <LuMoreHorizontal className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setCreateOpen(true)}
+                className="text-gray-400 hover:text-brand-500 transition-colors"
+              >
+                <LuPlus className="w-4 h-4" />
+              </button>
+            </div>
+
+            {spacesMenuOpen && (
+              <div
+                ref={spacesMenuRef}
+                className="absolute top-6 right-0 z-50 w-52 rounded-xl border border-gray-200 bg-white py-1.5 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+              >
+                <button
+                  type="button"
+                  onClick={() => { setCreateOpen(true); setSpacesMenuOpen(false); }}
+                  className="flex w-full items-center gap-2.5 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                >
+                  <LuPlus className="h-4 w-4 text-gray-400" />
+                  Create Space
+                </button>
+                <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !showArchived;
+                    setShowArchived(next);
+                    if (next) void fetchArchivedProjects();
+                  }}
+                  className="flex w-full items-center justify-between gap-2.5 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <LuArchive className="h-4 w-4 text-gray-400" />
+                    Show archived
+                  </div>
+                  <div className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors ${showArchived ? "bg-brand-500" : "bg-gray-200 dark:bg-gray-700"}`}>
+                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${showArchived ? "translate-x-5" : "translate-x-0.5"}`} />
+                  </div>
+                </button>
+              </div>
+            )}
           </div>
+
           {/* Live projects from backend */}
           {projectsLoading ? (
             <div className="flex items-center justify-center py-4">
@@ -650,14 +909,17 @@ function HomePanelContent() {
             <p className="px-2.5 py-2 text-[12px] text-gray-400 italic">No spaces yet</p>
           ) : (
             <div className="space-y-0.5 mt-0.5">
-              {projects.map((project) => (
-                <SpaceRow
-                  key={project.id}
-                  project={project}
-                  activeProjectId={activeProjectId}
-                  activeListId={activeListId}
-                />
-              ))}
+              {projects
+                .filter((p) => showArchived || !p.isArchived)
+                .map((project) => (
+                  <SpaceRow
+                    key={project.id}
+                    project={project}
+                    activeProjectId={activeProjectId}
+                    activeListId={activeListId}
+                    showArchivedLists={showArchived}
+                  />
+                ))}
             </div>
           )}
 

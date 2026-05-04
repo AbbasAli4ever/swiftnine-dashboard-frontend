@@ -165,7 +165,18 @@ export const useTaskSearchStore = create<TaskSearchState>((set, get) => {
 
       return result;
     } catch (error) {
+      const status = (error as { response?: { status?: number } })?.response?.status;
       const message = parseApiError(error).message;
+      if (status === 404) {
+        // Resource no longer exists — evict this cache entry so stale data
+        // is not shown and callers don't receive an unhandled rejection.
+        set((state) => {
+          const next = { ...state.caches };
+          delete next[key];
+          return { caches: next };
+        });
+        return { items: [], meta: { page: 1, limit: 0, total: 0, total_pages: 0, has_next: false, has_prev: false } };
+      }
       set((state) => ({
         caches: {
           ...state.caches,
@@ -200,7 +211,20 @@ export const useTaskSearchStore = create<TaskSearchState>((set, get) => {
     refreshMatchingCaches: async (context) => {
       const entries = Object.values(get().caches).filter((entry) => matchesScope(entry.scope, context));
       for (const entry of entries) {
-        await runSearch(entry.scope, entry.params, entry.mode);
+        try {
+          await runSearch(entry.scope, entry.params, entry.mode);
+        } catch (err: unknown) {
+          const status = (err as { response?: { status?: number } })?.response?.status;
+          if (status === 404) {
+            // Resource no longer exists — drop the stale cache entry
+            set((state) => {
+              const next = { ...state.caches };
+              delete next[entry.key];
+              return { caches: next };
+            });
+          }
+          // Other errors (5xx, network) are already stored in the cache entry by runSearch
+        }
       }
     },
 

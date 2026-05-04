@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useModal } from "@/hooks/useModal";
 import { useProjects } from "@/context/ProjectContext";
+import { projectService } from "@/services/project.service";
 import { useTaskLists } from "@/context/TaskListContext";
 import { parseApiError } from "@/lib/api";
 import { StatusItem, flattenGroupedStatuses, statusService } from "@/services/status.service";
@@ -36,7 +37,7 @@ import {
 } from "./task-search-utils";
 import { toast } from "sonner";
 import type { ReactElement } from "react";
-import { LuCalendarDays, LuLayoutDashboard, LuList, LuSquareKanban, LuStar } from "react-icons/lu";
+import { LuArchive, LuCalendarDays, LuLayoutDashboard, LuList, LuSquareKanban, LuStar } from "react-icons/lu";
 import { ICON_MAP } from "@/components/projects/IconColorPicker";
 
 type ProjectView = "overview" | "list" | "board" | "calendar";
@@ -61,7 +62,7 @@ export default function TasksPage() {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { projects, isLoading: projectsLoading } = useProjects();
+  const { projects, isLoading: projectsLoading, patchLocalProject } = useProjects();
   const { getLists, getProjectLists, renameList, archiveList, restoreList, deleteList } = useTaskLists();
   const { activeWorkspaceId } = useWorkspaceStore();
   const {
@@ -88,6 +89,7 @@ export default function TasksPage() {
 
   const projectId = searchParams.get("projectId");
   const listId = searchParams.get("listId");
+  const taskIdParam = searchParams.get("taskId");
   const requestedView = (searchParams.get("view") as ProjectView | null) ?? null;
   const project = projects.find((item) => item.id === projectId) ?? null;
   const taskSearchParams = useMemo(() => parseTaskSearchParams(searchParams), [searchParams]);
@@ -97,6 +99,17 @@ export default function TasksPage() {
       closeTaskDetail();
     };
   }, [closeTaskDetail]);
+
+  // Auto-open task when taskId is in the URL (e.g. from sidebar favorites)
+  useEffect(() => {
+    if (!taskIdParam) return;
+    void openTaskDetail(taskIdParam);
+    // Remove taskId from URL after opening so back-navigation works cleanly
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete("taskId");
+    router.replace(`?${next.toString()}`);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskIdParam]);
 
   const currentView: ProjectView = useMemo(() => {
     if (listId) {
@@ -108,14 +121,13 @@ export default function TasksPage() {
 
   const allLists = projectId ? getProjectLists(projectId, { includeArchived: true }) : [];
   const activeLists = allLists.filter((list) => !list.isArchived);
-  const archivedLists = allLists.filter((list) => list.isArchived);
-  const selectedList = activeLists.find((list) => list.id === listId) ?? null;
+  const selectedList = allLists.find((list) => list.id === listId) ?? null;
   const visibleTabs = listId ? VIEW_TABS.filter((tab) => tab.id !== "overview") : VIEW_TABS;
 
   useEffect(() => {
     if (!projectId) return;
     void getLists(projectId, {
-      includeArchived: !listId && currentView === "list",
+      includeArchived: currentView === "list",
     }).catch(() => {});
   }, [currentView, getLists, listId, projectId]);
 
@@ -196,11 +208,11 @@ export default function TasksPage() {
   }, [groupedTasksByList, projectId, setTasksForLists]);
 
   const listSections = useMemo<TaskListSectionData[]>(() => {
-    return activeLists.map((list) => ({
+    return allLists.map((list) => ({
       list,
       tasks: groupedTasksByList[list.id] ?? [],
     }));
-  }, [activeLists, groupedTasksByList]);
+  }, [allLists, groupedTasksByList]);
 
   const updateQuery = (patch: Record<string, string | null>) => {
     const next = new URLSearchParams(searchParams.toString());
@@ -232,6 +244,17 @@ export default function TasksPage() {
 
   const openTaskDetailById = async (taskId: string) => {
     await openTaskDetail(taskId);
+  };
+
+  const handleUnarchiveProject = async () => {
+    if (!projectId) return;
+    try {
+      await projectService.restore(projectId);
+      patchLocalProject(projectId, { isArchived: false });
+      toast.success("Space restored");
+    } catch (error) {
+      toast.error(parseApiError(error).message);
+    }
   };
 
   const handleRenameList = async (name: string) => {
@@ -407,6 +430,21 @@ export default function TasksPage() {
         </div>
       </div>
 
+      {project?.isArchived && (
+        <div className="mx-4 mb-3 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
+          <LuArchive className="h-4 w-4 shrink-0" />
+          <span className="flex-1">This Space is archived.</span>
+          <button
+            type="button"
+            onClick={() => void handleUnarchiveProject()}
+            className="font-medium underline hover:no-underline"
+          >
+            Unarchive
+          </button>
+        </div>
+      )}
+
+
       {currentView !== "overview" && scopeHeader}
 
       <div className="min-h-0 flex-1 overflow-auto">
@@ -433,7 +471,6 @@ export default function TasksPage() {
               projectId={project.id}
               sections={selectedList ? [{ list: selectedList, tasks: groupedTasksByList[selectedList.id] ?? [] }] : listSections}
               statuses={statuses}
-              archivedLists={selectedList ? [] : archivedLists}
               onAdd={openCreate}
               onCreateList={() => setCreateListOpen(true)}
               onRenameList={setRenameTarget}

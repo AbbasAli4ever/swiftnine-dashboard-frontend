@@ -1,24 +1,33 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { useEditor, EditorContent, Extension, useEditorState } from "@tiptap/react";
+import { useCallback, useEffect, useRef } from "react";
+import { useEditor, EditorContent, Extension, useEditorState, Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
 import Placeholder from "@tiptap/extension-placeholder";
+import Image from "@tiptap/extension-image";
 import styles from "./RichTextEditor.module.css";
 import {
   LuBold, LuItalic, LuUnderline, LuStrikethrough,
   LuList, LuListOrdered, LuQuote,
   LuAlignLeft, LuAlignCenter, LuAlignRight,
   LuHeading1, LuHeading2,
-  LuUndo2, LuRedo2, LuMinus,
+  LuUndo2, LuRedo2, LuMinus, LuPaperclip,
 } from "react-icons/lu";
+import { uploadAttachment } from "@/lib/uploadAttachment";
+import { Attachment } from "@/services/attachment.service";
+import { toast } from "sonner";
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 interface Props {
   value: string;
   onChange: (html: string) => void;
   placeholder?: string;
+  taskId?: string;
+  userId?: string;
+  onAttachmentAdded?: (att: Attachment) => void;
 }
 
 function Btn({ onClick, active, disabled, title, children }: {
@@ -47,34 +56,55 @@ function Btn({ onClick, active, disabled, title, children }: {
 
 const Sep = () => <div className="mx-1 h-5 w-px shrink-0 bg-gray-200 dark:bg-gray-700" />;
 
-/* Shift+Enter: new list item inside lists, new paragraph outside */
 const ShiftEnter = Extension.create({
   name: "shiftEnter",
   addKeyboardShortcuts() {
     return {
       "Shift-Enter": ({ editor }) => {
-        if (editor.isActive("listItem")) {
-          return editor.commands.splitListItem("listItem");
-        }
+        if (editor.isActive("listItem")) return editor.commands.splitListItem("listItem");
         return editor.commands.splitBlock();
       },
     };
   },
 });
 
-export default function RichTextEditor({ value, onChange, placeholder = "Add a description…" }: Props) {
+export default function RichTextEditor({
+  value,
+  onChange,
+  placeholder = "Add a description…",
+  taskId,
+  userId,
+  onAttachmentAdded,
+}: Props) {
   const saveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const editorRef = useRef<Editor | null>(null);
+  const canUploadImages = Boolean(taskId && userId);
+
+  const insertImage = useCallback(async (file: File) => {
+    if (!taskId || !userId) return;
+    if (file.size > MAX_FILE_SIZE) { toast.error(`"${file.name}" exceeds 10 MB`); return; }
+    if (!file.type.startsWith("image/")) { toast.error("Only image files can be inserted"); return; }
+
+    const toastId = toast.loading(`Uploading ${file.name}…`);
+    try {
+      const att = await uploadAttachment(file, taskId, userId);
+      editorRef.current?.chain().focus().setImage({ src: att.url, alt: att.fileName }).run();
+      onAttachmentAdded?.(att);
+      toast.success("Image uploaded", { id: toastId });
+    } catch {
+      toast.error(`Failed to upload "${file.name}"`, { id: toastId });
+    }
+  }, [taskId, userId, onAttachmentAdded]);
 
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
-      StarterKit.configure({
-        heading: { levels: [1, 2] },
-        hardBreak: false,
-      }),
+      StarterKit.configure({ heading: { levels: [1, 2] }, hardBreak: false }),
       Underline,
       TextAlign.configure({ types: ["heading", "paragraph"] }),
       Placeholder.configure({ placeholder }),
+      Image.configure({ inline: false, allowBase64: false }),
       ShiftEnter,
     ],
     content: value || "",
@@ -86,6 +116,29 @@ export default function RichTextEditor({ value, onChange, placeholder = "Add a d
     },
   });
 
+  // Keep editorRef in sync
+  useEffect(() => { editorRef.current = editor; }, [editor]);
+
+  // Paste handler: intercept image pastes from clipboard
+  useEffect(() => {
+    if (!canUploadImages || !editor) return;
+    const dom = editor.view.dom as HTMLElement;
+
+    const onPaste = (e: ClipboardEvent) => {
+      const files = Array.from(e.clipboardData?.files ?? []).filter((f) =>
+        f.type.startsWith("image/")
+      );
+      if (files.length === 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      files.forEach((f) => void insertImage(f));
+    };
+
+    dom.addEventListener("paste", onPaste);
+    return () => dom.removeEventListener("paste", onPaste);
+  }, [canUploadImages, editor, insertImage]);
+
+  // Sync external value changes into editor
   const lastSyncedValue = useRef(value);
   useEffect(() => {
     if (!editor || value === lastSyncedValue.current) return;
@@ -97,7 +150,6 @@ export default function RichTextEditor({ value, onChange, placeholder = "Add a d
 
   useEffect(() => () => { if (saveTimeout.current) clearTimeout(saveTimeout.current); }, []);
 
-  // Subscribe to editor state so toolbar re-renders on every selection/content change
   const editorState = useEditorState({
     editor,
     selector: (ctx) => ({
@@ -126,6 +178,11 @@ export default function RichTextEditor({ value, onChange, placeholder = "Add a d
     isBullet: false, isOrdered: false, isBlockquote: false,
     isH1: false, isH2: false,
     isAlignLeft: false, isAlignCenter: false, isAlignRight: false,
+  };
+
+  const handleImageInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    Array.from(e.target.files ?? []).forEach((f) => void insertImage(f));
+    e.target.value = "";
   };
 
   return (
@@ -183,6 +240,23 @@ export default function RichTextEditor({ value, onChange, placeholder = "Add a d
         <Btn title="Divider line" onClick={() => editor.chain().focus().setHorizontalRule().run()}>
           <LuMinus className="h-3.5 w-3.5" />
         </Btn>
+
+        {canUploadImages && (
+          <>
+            <Sep />
+            <Btn title="Attach image" onClick={() => imageInputRef.current?.click()}>
+              <LuPaperclip className="h-3.5 w-3.5" />
+            </Btn>
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={handleImageInputChange}
+            />
+          </>
+        )}
       </div>
 
       {/* ── Content ── */}

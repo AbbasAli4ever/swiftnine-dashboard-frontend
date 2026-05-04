@@ -45,6 +45,7 @@ import TaskComments from "./TaskComments";
 import { toast } from "sonner";
 import { parseApiError } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth.store";
+import { useUiStore } from "@/stores/ui.store";
 
 interface TaskDetailModalProps {
   task: TaskDetail;
@@ -494,11 +495,22 @@ export default function TaskDetailModal({ task, statuses, members, listId, onClo
   const [addingSubtask, setAddingSubtask] = useState(false);
   const [rightTab, setRightTab] = useState<"comments" | "activity">("comments");
   const [parentTask, setParentTask] = useState<{ id: string; title: string; taskId: string } | null>(null);
+  const [attachmentRefreshKey, setAttachmentRefreshKey] = useState(0);
+  const taskFavoriteOverrides = useUiStore((s) => s.taskFavoriteOverrides);
+  const [isFavorite, setIsFavorite] = useState(
+    task.id in taskFavoriteOverrides ? taskFavoriteOverrides[task.id] : (task.isFavorite ?? false)
+  );
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const ellipsisBtnRef = useRef<HTMLButtonElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const titleSaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (task.id in taskFavoriteOverrides) {
+      setIsFavorite(taskFavoriteOverrides[task.id]);
+    }
+  }, [taskFavoriteOverrides, task.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -547,6 +559,23 @@ export default function TaskDetailModal({ task, statuses, members, listId, onClo
     try {
       await deleteTask(task.id, listId);
       onClose();
+    } catch (err) {
+      toast.error(parseApiError(err).message);
+    }
+  };
+
+  const handleToggleFavorite = async () => {
+    try {
+      if (isFavorite) {
+        await taskService.unfavorite(task.id);
+        setIsFavorite(false);
+        useUiStore.getState().setTaskFavoriteOverride(task.id, false);
+      } else {
+        await taskService.favorite(task.id);
+        setIsFavorite(true);
+        useUiStore.getState().setTaskFavoriteOverride(task.id, true);
+      }
+      useUiStore.getState().invalidateFavorites();
     } catch (err) {
       toast.error(parseApiError(err).message);
     }
@@ -689,10 +718,11 @@ export default function TaskDetailModal({ task, statuses, members, listId, onClo
                   <div className="p-1">
                     <button
                       type="button"
+                      onClick={() => { void handleToggleFavorite(); setMenuOpen(false); }}
                       className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
                     >
-                      <LuStar className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-                      Favorite
+                      <LuStar className="h-3.5 w-3.5 shrink-0 text-gray-400" style={isFavorite ? { fill: "currentColor" } : undefined} />
+                      {isFavorite ? "Unfavorite" : "Favorite"}
                     </button>
                   </div>
 
@@ -712,8 +742,13 @@ export default function TaskDetailModal({ task, statuses, members, listId, onClo
                 </div>
               )}
             </div>
-            <button type="button" className="rounded-lg border border-gray-200 p-1.5 text-gray-400 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800">
-              <LuStar className="h-3.5 w-3.5" />
+            <button
+              type="button"
+              onClick={() => void handleToggleFavorite()}
+              title={isFavorite ? "Unfavorite" : "Favorite"}
+              className={`rounded-lg border p-1.5 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800 ${isFavorite ? "border-amber-300 text-amber-400 dark:border-amber-600" : "border-gray-200 text-gray-400 dark:border-gray-700"}`}
+            >
+              <LuStar className="h-3.5 w-3.5" style={isFavorite ? { fill: "currentColor" } : undefined} />
             </button>
             <button type="button" className="rounded-lg border border-gray-200 p-1.5 text-gray-400 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800">
               <LuArrowUpRight className="h-3.5 w-3.5" />
@@ -869,6 +904,9 @@ export default function TaskDetailModal({ task, statuses, members, listId, onClo
                   value={description}
                   onChange={(html) => { setDescription(html); saveDescription(html); }}
                   placeholder="Add description..."
+                  taskId={task.id}
+                  userId={currentUser?.id ?? task.creator.id}
+                  onAttachmentAdded={() => setAttachmentRefreshKey((k) => k + 1)}
                 />
               </div>
 
@@ -914,7 +952,7 @@ export default function TaskDetailModal({ task, statuses, members, listId, onClo
               </div>
 
               {/* Attachments */}
-              <TaskAttachments taskId={task.id} userId={currentUser?.id ?? task.creator.id} />
+              <TaskAttachments taskId={task.id} userId={currentUser?.id ?? task.creator.id} refreshKey={attachmentRefreshKey} />
             </div>
           </div>
 

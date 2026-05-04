@@ -18,6 +18,7 @@ import {
   LuEyeOff,
   LuCopy,
   LuArchive,
+  LuArchiveRestore,
   LuTrash2,
   LuUsers,
   LuChevronRight,
@@ -65,6 +66,9 @@ interface Props {
   onRename: () => void;
   onDelete: () => void;
   onIconColorChange: (icon: string | null, color: string) => void;
+  onFavorite?: () => void;
+  onArchive?: () => void;
+  onRestore?: () => void;
 }
 
 export default function SpaceContextMenu({
@@ -76,6 +80,9 @@ export default function SpaceContextMenu({
   onRename,
   onDelete,
   onIconColorChange,
+  onFavorite,
+  onArchive,
+  onRestore,
 }: Props) {
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
@@ -143,7 +150,11 @@ export default function SpaceContextMenu({
         style={{ top: position.top, left: position.left }}
         className="fixed z-9999 w-64 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-2xl py-1.5 max-h-[calc(100vh-32px)] overflow-y-auto"
       >
-        <MenuItem icon={<LuStar className="w-4 h-4" />} label="Favorite" hasSubmenu onClick={onClose} />
+        <MenuItem
+          icon={<LuStar className="w-4 h-4" style={project.isFavorite ? { fill: "currentColor", color: "#f59e0b" } : undefined} />}
+          label={project.isFavorite ? "Unfavorite" : "Favorite"}
+          onClick={() => { onFavorite?.(); onClose(); }}
+        />
         <MenuItem icon={<LuPencil className="w-4 h-4" />} label="Edit" onClick={onEdit} />
         <MenuItem icon={<LuPencil className="w-4 h-4" />} label="Rename" onClick={() => { onClose(); onRename(); }} />
         <MenuItem icon={<LuLink className="w-4 h-4" />} label="Copy link" onClick={handleCopyLink} />
@@ -178,7 +189,19 @@ export default function SpaceContextMenu({
         <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
 
         <MenuItem icon={<LuCopy className="w-4 h-4" />} label="Duplicate" onClick={onClose} />
-        <MenuItem icon={<LuArchive className="w-4 h-4" />} label="Archive" onClick={onClose} />
+        {project.isArchived ? (
+          <MenuItem
+            icon={<LuArchiveRestore className="w-4 h-4" />}
+            label="Restore"
+            onClick={() => { onRestore?.(); onClose(); }}
+          />
+        ) : (
+          <MenuItem
+            icon={<LuArchive className="w-4 h-4" />}
+            label="Archive"
+            onClick={() => { onArchive?.(); onClose(); }}
+          />
+        )}
         <MenuItem icon={<LuTrash2 className="w-4 h-4" />} label="Delete" danger onClick={onDelete} />
 
         <div className="px-3 pt-2 pb-1">

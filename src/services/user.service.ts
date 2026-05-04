@@ -6,4 +6,6 @@ export const userService = {
     const { data } = await api.get<UserProfile>(`/user/${userId}`);
     return data;
   },
+
+  logoutAll: () => api.post("/user/logout-all"),
 };

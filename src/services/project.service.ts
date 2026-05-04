@@ -18,6 +18,7 @@ export interface Project {
   icon: string | null;
   taskIdPrefix: string;
   isArchived: boolean;
+  isFavorite?: boolean;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -56,6 +57,9 @@ export const projectService = {
   list: () =>
     api.get<ProjectsResponse>("/projects").then((r) => r.data.data),
 
+  listArchived: () =>
+    api.get<ProjectsResponse>("/projects/archived").then((r) => r.data.data),
+
   get: (id: string) =>
     api.get<ProjectResponse>(`/projects/${id}`).then((r) => r.data.data),
 
@@ -68,4 +72,14 @@ export const projectService = {
       .then((r) => r.data.data),
 
   delete: (id: string) => api.delete(`/projects/${id}`),
+
+  archive: (id: string) =>
+    api.patch<ProjectResponse>(`/projects/${id}/archive`).then((r) => r.data.data),
+
+  restore: (id: string) =>
+    api.patch<ProjectResponse>(`/projects/${id}/restore`).then((r) => r.data.data),
+
+  favorite: (id: string) => api.put(`/projects/${id}/favorite`),
+
+  unfavorite: (id: string) => api.delete(`/projects/${id}/favorite`),
 };

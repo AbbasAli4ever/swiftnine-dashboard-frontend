@@ -15,14 +15,15 @@
 5. [User Endpoints](#5-user-endpoints)
 6. [Workspace Endpoints](#6-workspace-endpoints)
 7. [Member Management Endpoints](#7-member-management-endpoints)
-8. [Project Endpoints](#8-project-endpoints)
+8. [Project Endpoints](#8-project-endpoints) _(updated: archive, restore, favorites)_
+8b. [Favorites Endpoints](#8b-favorites-endpoints-) _(new)_
 9. [Status Endpoints](#9-status-endpoints)
 10. [Task List Endpoints](#10-task-list-endpoints)
-11. [Task Endpoints](#11-task-endpoints)
+11. [Task Endpoints](#11-task-endpoints) _(updated: descriptionJson, isFavorite, task favorites)_
 12. [Tag Endpoints](#12-tag-endpoints)
 13. [Time Entry Endpoints](#13-time-entry-endpoints)
 14. [Attachment Endpoints](#14-attachment-endpoints)
-15. [Comments & Reactions Endpoints](#15-comments--reactions-endpoints)
+15. [Comments & Reactions Endpoints](#15-comments--reactions-endpoints) _(updated: mentions, PATCH reaction, reaction:updated SSE)_
 16. [Activity Endpoints](#16-activity-endpoints)
 17. [System](#17-system)
 
@@ -320,6 +321,35 @@ Logs out the **current session** only. Invalidates the `refresh_token` cookie. D
 **Response `200`** — no body
 
 > If the cookie is missing or already invalid, the endpoint still returns `200`.
+
+---
+
+### `POST /user/logout-all` ⭐ NEW
+
+Logs out **all active sessions** for the current user across every device and browser tab. Deletes every refresh token for this user.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+```
+
+**Request** — no body
+
+**Response `200`**
+```json
+{
+  "message": "All sessions logged out successfully"
+}
+```
+
+> **Note:** The current access token remains valid until its 15-minute TTL expires. The user will need to log in again on any device they want to continue using.
+
+> **When to use:** Expose as "Sign out of all devices" in account security settings.
+
+**Errors**
+| Status | When |
+|---|---|
+| 401 | Not authenticated |
 
 ---
 
@@ -1357,6 +1387,190 @@ x-workspace-id: <workspaceId>
 
 ---
 
+### `GET /projects/archived` ⭐ NEW
+
+List all archived projects in the workspace.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Response `200`** — same array shape as `GET /projects` but all items have `isArchived: true`
+
+---
+
+### `GET /projects?includeArchived=true` ⭐ NEW
+
+Add `?includeArchived=true` to `GET /projects` to return both active and archived projects in a single call.
+
+---
+
+### `PATCH /projects/:projectId/archive` ⭐ NEW
+
+Archive a project without deleting its data. **OWNER or ADMIN only.**
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Request** — no body
+
+**Response `200`** — updated project object with `isArchived: true`
+
+**Errors**
+| Status | When |
+|---|---|
+| 403 | Not OWNER or ADMIN |
+| 404 | Project not found |
+
+---
+
+### `PATCH /projects/:projectId/restore` ⭐ NEW
+
+Restore an archived project. **OWNER or ADMIN only.**
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Request** — no body
+
+**Response `200`** — updated project object with `isArchived: false`
+
+**Errors**
+| Status | When |
+|---|---|
+| 403 | Not OWNER or ADMIN |
+| 404 | Project not found |
+
+---
+
+### `PUT /projects/:projectId/favorite` ⭐ NEW
+
+Star a project for the current user. Idempotent — safe to call multiple times.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Request** — no body
+
+**Response `200`**
+```json
+{
+  "success": true,
+  "data": { "isFavorite": true },
+  "message": "Project favorited successfully"
+}
+```
+
+---
+
+### `DELETE /projects/:projectId/favorite` ⭐ NEW
+
+Unstar a project for the current user.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Request** — no body
+
+**Response `200`**
+```json
+{
+  "success": true,
+  "data": { "isFavorite": false },
+  "message": "Project unfavorited successfully"
+}
+```
+
+---
+
+## 8b. Favorites Endpoints ⭐ NEW
+
+All favorites endpoints require `Authorization: Bearer <accessToken>` and `x-workspace-id`.
+
+---
+
+### `GET /favorites/projects`
+
+List all projects the current user has starred, sorted newest-favorited first.
+
+**Query params**
+```
+?includeArchived=true    (optional — include archived projects)
+```
+
+**Response `200`** — same project shape as `GET /projects`
+
+---
+
+### `GET /favorites/tasks`
+
+List all tasks the current user has starred, sorted newest-favorited first.
+
+**Query params**
+```
+?includeArchived=true    (optional — include tasks in archived lists/projects)
+```
+
+**Response `200`** — array of `TaskListItemData` (each item has `isFavorite: true`)
+
+---
+
+### `PUT /tasks/:taskId/favorite`
+
+Star a task. Idempotent.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Response `200`**
+```json
+{
+  "success": true,
+  "data": { "isFavorite": true },
+  "message": "Task favorited successfully"
+}
+```
+
+---
+
+### `DELETE /tasks/:taskId/favorite`
+
+Unstar a task.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Response `200`**
+```json
+{
+  "success": true,
+  "data": { "isFavorite": false },
+  "message": "Task unfavorited successfully"
+}
+```
+
+---
+
 ## 9. Status Endpoints
 
 All status endpoints require `Authorization: Bearer <accessToken>` and `x-workspace-id`. Status write operations (create, update, delete, reorder, reset) are **OWNER only**. Read operations are available to any workspace member.
@@ -1888,6 +2102,12 @@ All task endpoints require `Authorization: Bearer <accessToken>` and `x-workspac
   "depth": 0,
   "title": "Implement auth module",
   "description": "JWT + OAuth2",
+  "descriptionJson": {
+    "type": "doc",
+    "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "JWT + OAuth2" }] }]
+  },
+  "descriptionPlaintext": "JWT + OAuth2",
+  "isFavorite": false,
   "priority": "HIGH",
   "startDate": "2026-04-14T00:00:00.000Z",
   "dueDate": "2026-04-21T00:00:00.000Z",
@@ -1965,6 +2185,9 @@ All task endpoints require `Authorization: Bearer <accessToken>` and `x-workspac
 - `assignees` — array of `{ user, assignedBy }`. No top-level record ID or `userId` field on the assignee object.
 - `tags` — array of `{ tag }`. No top-level record ID or `tagId` field on the task-tag object.
 - `children` — subtasks, ordered by position. Only present on `TaskDetailData` (not on list items).
+- `isFavorite` ⭐ NEW — `boolean`. Whether the current user has starred this task. Present on both `TaskDetailData` and `TaskListItemData`.
+- `descriptionJson` ⭐ NEW — Rich text AST (TipTap/ProseMirror format). `null` if not set. Only on `TaskDetailData`.
+- `descriptionPlaintext` ⭐ NEW — Auto-extracted plaintext from `descriptionJson`. Read-only, used for search. Only on `TaskDetailData`.
 
 **`TaskListItemData`** — lighter shape returned by list and reorder endpoints:
 
@@ -1999,7 +2222,7 @@ All task endpoints require `Authorization: Bearer <accessToken>` and `x-workspac
 }
 ```
 
-Note: `TaskListItemData` does NOT include `description`, `parentId`, `createdBy`, `children`, or `timeEntries`.
+Note: `TaskListItemData` does NOT include `description`, `descriptionJson`, `descriptionPlaintext`, `parentId`, `createdBy`, `children`, or `timeEntries`. It **does** include `isFavorite`. ⭐ UPDATED
 
 ---
 
@@ -2018,6 +2241,12 @@ x-workspace-id: <workspaceId>
 {
   "title": "Implement auth module",
   "description": "JWT + OAuth2",
+  "descriptionJson": {
+    "type": "doc",
+    "content": [
+      { "type": "paragraph", "content": [{ "type": "text", "text": "JWT + OAuth2" }] }
+    ]
+  },
   "statusId": "uuid",
   "priority": "HIGH",
   "startDate": "2026-04-14T00:00:00.000Z",
@@ -2030,13 +2259,16 @@ x-workspace-id: <workspaceId>
 | Field | Required | Rules |
 |---|---|---|
 | `title` | Yes | 1–500 chars |
-| `description` | No | max 10000 chars |
+| `description` | No | Plain text, max 10000 chars |
+| `descriptionJson` | No | ⭐ NEW — Rich text JSON object (TipTap/ProseMirror format). Use this for rich text editors |
 | `statusId` | Yes | UUID of a status in this project |
 | `priority` | No | `"URGENT"`, `"HIGH"`, `"NORMAL"`, `"LOW"`, `"NONE"` — defaults to `"NONE"` |
 | `startDate` | No | ISO 8601 datetime string |
 | `dueDate` | No | ISO 8601 datetime string |
 | `assigneeIds` | No | Array of workspace member user UUIDs |
 | `tagIds` | No | Array of workspace tag UUIDs |
+
+> **Tip:** Use `descriptionJson` for rich text editors (TipTap etc.) and `description` for plain textarea inputs. Don't send both — pick one per interaction.
 
 **Response `201`** — `TaskDetailData` wrapped in `{ success, data, message }`
 
@@ -2097,13 +2329,53 @@ x-workspace-id: <workspaceId>
 }
 ```
 
-**Notes**
-- `q` and `search` are aliases
-- `assignee_ids` supports special value `unassigned`
-- `include_subtasks` defaults to `false`
-- `include_closed` defaults to `true`
-- `include_archived` defaults to `false`
-- `me=true` filters to tasks assigned to the current user
+**Query param reference**
+
+| Param | Type | Default | Notes |
+|---|---|---|---|
+| `q` / `search` | string | — | Full-text search across title and description. Both are aliases |
+| `page` | number | `1` | Page number |
+| `limit` | number | `20` | Page size |
+| `sort_by` | string | `created_at` | `due_date`, `priority`, `created_at`, `updated_at`, `title` |
+| `sort_order` | string | `desc` | `asc` or `desc` |
+| `me` | boolean | `false` | **My Tasks mode** — filters to tasks assigned to the current user. Use this for any "My Tasks" view instead of passing your own userId |
+| `status_ids` | CSV UUIDs | — | Filter by specific status IDs |
+| `status_groups` | CSV | — | `NOT_STARTED`, `ACTIVE`, `DONE`, `CLOSED` |
+| `priority` | CSV | — | `URGENT`, `HIGH`, `NORMAL`, `LOW`, `NONE` |
+| `assignee_ids` | CSV UUIDs | — | Filter by assignee user IDs. Special value: `unassigned` returns tasks with no assignees |
+| `assignee_match` | string | `any` | `any` = has at least one. `all` = has all of the given assignees |
+| `tag_ids` | CSV UUIDs | — | Filter by tag IDs |
+| `tag_match` | string | `any` | `any` or `all` |
+| `due_date` | string | — | `today_or_earlier`, `this_week`, `overdue`, `none` |
+| `include_subtasks` | boolean | `false` | Include subtasks (depth > 0) in results |
+| `include_closed` | boolean | `true` | Include tasks in `CLOSED` status group |
+| `include_archived` | boolean | `false` | Include tasks from archived lists/projects |
+
+**`me=true` — My Tasks**
+
+`me=true` injects the current authenticated user's ID into the assignee filter server-side. You don't need to know the user's UUID — the backend resolves it from the JWT.
+
+```
+GET /api/v1/tasks?me=true
+```
+
+Common combinations:
+
+```
+# My overdue tasks
+GET /api/v1/tasks?me=true&due_date=overdue
+
+# My active tasks sorted by due date (default "My Tasks" view)
+GET /api/v1/tasks?me=true&status_groups=ACTIVE,NOT_STARTED&sort_by=due_date&sort_order=asc
+
+# My high priority tasks
+GET /api/v1/tasks?me=true&priority=HIGH,URGENT
+
+# My tasks in a specific project
+GET /api/v1/tasks?me=true&project_id=<uuid>
+```
+
+> `me=true` and `assignee_ids` can be combined — they are merged. `me=true&assignee_ids=<otherId>` returns tasks assigned to you **or** the other user.
 
 ---
 
@@ -2204,6 +2476,10 @@ x-workspace-id: <workspaceId>
 {
   "title": "Updated title",
   "description": "Updated description",
+  "descriptionJson": {
+    "type": "doc",
+    "content": [...]
+  },
   "statusId": "uuid",
   "priority": "URGENT",
   "startDate": "2026-04-14T00:00:00.000Z",
@@ -2212,7 +2488,9 @@ x-workspace-id: <workspaceId>
 }
 ```
 
-- Send `"description": null` to clear it.
+- Send `"description": null` to clear plain text description.
+- Send `"descriptionJson": null` to clear rich text description. ⭐ NEW
+- `descriptionJson` accepts a TipTap/ProseMirror JSON object. ⭐ NEW
 - `listId` moves the task to a different list within the **same project**. The task gets a new position at the end of the target list.
 
 **Response `200`** — `TaskDetailData`
@@ -3028,12 +3306,13 @@ x-workspace-id: <workspaceId>
 - backend sends a heartbeat every 15 seconds
 - the first event is `comments:init`
 
-**Current SSE event names**
+**SSE event names**
 - `comments:init`
 - `comment:created`
 - `comment:updated`
 - `comment:deleted`
 - `reaction:created`
+- `reaction:updated` ⭐ NEW
 - `reaction:deleted`
 
 ### `POST /tasks/:taskId/comments`
@@ -3050,9 +3329,16 @@ x-workspace-id: <workspaceId>
 ```json
 {
   "content": "This needs a retry guard",
-  "parentId": "optional-parent-comment-uuid"
+  "parentId": "optional-parent-comment-uuid",
+  "mentionedUserIds": ["user-uuid-1", "user-uuid-2"]
 }
 ```
+
+| Field | Required | Rules |
+|---|---|---|
+| `content` | Yes | 1–10,000 chars |
+| `parentId` | No | UUID of parent comment for threaded reply |
+| `mentionedUserIds` | No | ⭐ NEW — Array of **user UUIDs** to mention. All must be active workspace members. Author cannot mention themselves (silently dropped). Max 100 |
 
 **Response `200`**
 ```json
@@ -3078,24 +3364,98 @@ x-workspace-id: <workspaceId>
 
 ### `PUT /comments/:commentId`
 
-Update a comment. Only the author can edit, and only within 5 minutes of creation.
-
-### `DELETE /comments/:commentId`
-
-Delete a comment. Allowed for the comment author or the workspace OWNER.
-
-### `POST /comments/:commentId/reactions`
-
-Add a reaction to a comment.
+Update a comment. Only the author can edit, and only within **5 minutes** of creation.
 
 **Request**
 ```json
 {
-  "reactFace": "like"
+  "content": "Updated content here",
+  "mentionedUserIds": ["user-uuid-1"]
 }
 ```
 
-`reactFace` is a non-empty string. The frontend can treat it as an emoji identifier or symbolic reaction name.
+| Field | Required | Rules |
+|---|---|---|
+| `content` | Yes | 1–10,000 chars |
+| `mentionedUserIds` | No | ⭐ NEW — When provided, **replaces** all existing mentions. When omitted, existing mentions are preserved |
+
+**Response `200`** — full comment object with `isEdited: true`
+
+---
+
+### `DELETE /comments/:commentId`
+
+Delete a comment. Allowed for the comment author or the workspace OWNER. Cascade-deletes the entire reply thread. The SSE `comment:deleted` payload includes `deletedIds` — all affected comment IDs.
+
+---
+
+### `POST /comments/:commentId/reactions`
+
+Add a reaction to a comment. Idempotent — if the same user adds the same emoji again, the existing reaction is returned without creating a duplicate.
+
+**Request**
+```json
+{
+  "reactFace": "👍"
+}
+```
+
+`reactFace` is a non-empty string, max 64 chars. Can be an emoji or a symbolic name.
+
+**Response `201`** — reaction object
+
+---
+
+### `PATCH /reactions/:reactionId` ⭐ NEW
+
+Change the emoji on an existing reaction. Only the reaction owner can do this.
+
+**Headers**
+```
+Authorization: Bearer <accessToken>
+x-workspace-id: <workspaceId>
+```
+
+**Request**
+```json
+{
+  "reactFace": "❤️"
+}
+```
+
+**Response `200`**
+```json
+{
+  "success": true,
+  "message": "Reaction updated",
+  "data": {
+    "id": "reaction-uuid",
+    "commentId": "comment-uuid",
+    "memberId": "member-uuid",
+    "reactFace": "❤️",
+    "createdAt": "2026-04-25T10:05:00.000Z",
+    "member": {
+      "id": "member-uuid",
+      "workspaceId": "ws-uuid",
+      "userId": "user-uuid",
+      "role": "MEMBER",
+      "createdAt": "...",
+      "updatedAt": "...",
+      "deletedAt": null
+    }
+  }
+}
+```
+
+> The SSE `reaction:updated` event fires with the same payload.
+
+**Errors**
+| Status | When |
+|---|---|
+| 403 | Not the reaction owner |
+| 404 | Reaction not found |
+
+---
 
 ### `DELETE /reactions/:reactionId`
 
@@ -3217,7 +3577,8 @@ No auth required. Returns database connectivity status.
 | Invite preview (`GET /workspaces/invite/:token`) | None |
 | Invite claim (new user) | None |
 | Invite accept (existing user) | `Authorization: Bearer <token>` |
-| All project endpoints | `Authorization: Bearer <token>` + `x-workspace-id` |
+| All project endpoints (incl. archive/restore/favorite) | `Authorization: Bearer <token>` + `x-workspace-id` |
+| Favorites (`/favorites/*`) | `Authorization: Bearer <token>` + `x-workspace-id` |
 | All status endpoints | `Authorization: Bearer <token>` + `x-workspace-id` |
 | All task list endpoints | `Authorization: Bearer <token>` + `x-workspace-id` |
 | All task endpoints | `Authorization: Bearer <token>` + `x-workspace-id` |
@@ -3243,6 +3604,8 @@ No auth required. Returns database connectivity status.
 | Create project | Any workspace member |
 | View / update project | Any workspace member |
 | Delete project | OWNER |
+| Archive / restore project | OWNER or ADMIN |
+| Star / unstar project or task | Any workspace member (own favorites only) |
 | View statuses | Any workspace member |
 | Create / update / delete / reorder statuses | OWNER |
 | Create / view / update / archive / restore / reorder task lists | Any workspace member |
@@ -3258,7 +3621,9 @@ No auth required. Returns database connectivity status.
 | Create comment | Any workspace member |
 | Edit comment | Comment author only, within 5 minutes |
 | Delete comment | Comment author or OWNER |
-| Add / delete reaction | Reaction owner for delete |
+| Add reaction | Any workspace member |
+| Update reaction emoji | Reaction owner only |
+| Delete reaction | Reaction owner only |
 | View activity | Any workspace member |
 
 ### Registration Flow Summary

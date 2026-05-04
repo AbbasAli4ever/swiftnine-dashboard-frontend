@@ -80,3 +80,17 @@
   pointer-events: none;
   height: 0;
 }
+
+.body :global(.ProseMirror) img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: 8px 0;
+  display: block;
+  cursor: default;
+}
+
+.body :global(.ProseMirror) img.ProseMirror-selectednode {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+}

@@ -6,13 +6,14 @@ import {
   LuChevronRight,
   LuEllipsis,
   LuGripVertical,
-
   LuPencil,
   LuPlus,
   LuTrash2,
   LuLoader,
+  LuStar,
 } from "react-icons/lu";
-import { TaskListItem, TaskPriority, CreateSubtaskPayload, TaskAssignee } from "@/services/task.service";
+import { TaskListItem, TaskPriority, CreateSubtaskPayload, TaskAssignee, taskService } from "@/services/task.service";
+import { useUiStore } from "@/stores/ui.store";
 import { StatusItem } from "@/services/status.service";
 import { WorkspaceMember } from "@/services/workspace.service";
 import { useTaskStore } from "@/stores/task.store";
@@ -168,6 +169,10 @@ export default function TaskRow({
   const [hovered, setHovered] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
+  const taskFavoriteOverrides = useUiStore((s) => s.taskFavoriteOverrides);
+  const [isFavorite, setIsFavorite] = useState(
+    task.id in taskFavoriteOverrides ? taskFavoriteOverrides[task.id] : (task.isFavorite ?? false)
+  );
   const [addingSubtask, setAddingSubtask] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(task.title);
@@ -218,6 +223,29 @@ export default function TaskRow({
   const subtasks = subtasksByParent[task.id] ?? [];
   const isLoadingSubtasks = loadingSubtasks.has(task.id);
   const hasChildren = task._count.children > 0;
+
+  useEffect(() => {
+    if (task.id in taskFavoriteOverrides) {
+      setIsFavorite(taskFavoriteOverrides[task.id]);
+    }
+  }, [taskFavoriteOverrides, task.id]);
+
+  const handleToggleFavorite = async () => {
+    try {
+      if (isFavorite) {
+        await taskService.unfavorite(task.id);
+        setIsFavorite(false);
+        useUiStore.getState().setTaskFavoriteOverride(task.id, false);
+      } else {
+        await taskService.favorite(task.id);
+        setIsFavorite(true);
+        useUiStore.getState().setTaskFavoriteOverride(task.id, true);
+      }
+      useUiStore.getState().invalidateFavorites();
+    } catch (err) {
+      toast.error(parseApiError(err).message);
+    }
+  };
 
   const handleMenuOpen = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -477,6 +505,14 @@ export default function TaskRow({
                 Add subtask
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => { void handleToggleFavorite(); setMenuOpen(false); }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+            >
+              <LuStar className="h-3.5 w-3.5" style={isFavorite ? { fill: "currentColor" } : undefined} />
+              {isFavorite ? "Unfavorite" : "Favorite"}
+            </button>
             <button
               type="button"
               onClick={() => { onDelete(); setMenuOpen(false); }}

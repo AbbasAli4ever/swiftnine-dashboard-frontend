@@ -111,6 +111,8 @@ export default function MySettingsPage() {
   const [saving, setSaving] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const [logoutAllModalOpen, setLogoutAllModalOpen] = useState(false);
+  const [loggingOutAll, setLoggingOutAll] = useState(false);
 
   // Track saved baseline to detect dirty state
   const [savedName, setSavedName] = useState("");
@@ -194,6 +196,21 @@ export default function MySettingsPage() {
     } finally {
       setDeletingAccount(false);
       setDeleteModalOpen(false);
+    }
+  };
+
+  const handleLogoutAll = async () => {
+    setLoggingOutAll(true);
+    try {
+      const { userService } = await import("@/services/user.service");
+      await userService.logoutAll();
+      toast.success("Signed out of all sessions");
+      await logout();
+    } catch (err) {
+      toast.error(parseApiError(err).message);
+    } finally {
+      setLoggingOutAll(false);
+      setLogoutAllModalOpen(false);
     }
   };
 
@@ -629,6 +646,7 @@ export default function MySettingsPage() {
             <p className="text-sm text-gray-700 dark:text-gray-300">Log out all sessions including any session on mobile, iPad, and other browsers</p>
             <button
               type="button"
+              onClick={() => setLogoutAllModalOpen(true)}
               className="shrink-0 text-sm font-normal text-brand-500 hover:text-brand-600 whitespace-nowrap"
             >
               Log out of all sessions
@@ -664,6 +682,16 @@ export default function MySettingsPage() {
         onClose={() => { if (!deletingAccount) setDeleteModalOpen(false); }}
         onConfirm={handleDeleteAccount}
         isLoading={deletingAccount}
+      />
+
+      <ConfirmActionModal
+        isOpen={logoutAllModalOpen}
+        title="Sign out of all devices"
+        description="This will end all active sessions across every device. You will be signed out of this session too."
+        confirmLabel="Sign out everywhere"
+        onClose={() => { if (!loggingOutAll) setLogoutAllModalOpen(false); }}
+        onConfirm={handleLogoutAll}
+        isLoading={loggingOutAll}
       />
 
       {/* ── Sticky save bar ──────────────────────────────────── */}
