@@ -47,19 +47,28 @@ function deriveStatuses(tasks: TaskListItem[]): StatusItem[] {
 
 function MyStatusGroup({
   status,
-  tasks,
+  listIds,
   allStatuses,
   members,
   onRefresh,
 }: {
   status: StatusItem;
-  tasks: TaskListItem[];
+  listIds: string[];
   allStatuses: StatusItem[];
   members: WorkspaceMember[];
   onRefresh: () => void;
 }) {
-  const { updateTask, deleteTask, addAssignee, removeAssignee, openTaskDetail } = useTaskStore();
+  const { tasksByList, updateTask, deleteTask, addAssignee, removeAssignee, openTaskDetail } = useTaskStore();
   const [collapsed, setCollapsed] = useState(false);
+
+  // Read live from the store — same pattern as StatusGroup in TaskListView
+  const tasks = useMemo(
+    () =>
+      listIds.flatMap((lid) =>
+        (tasksByList[lid] ?? []).filter((t) => t.status.id === status.id && t.depth === 0)
+      ),
+    [tasksByList, listIds, status.id]
+  );
 
   // Group tasks within this status by project
   const byProject = useMemo<{ projectId: string; projectName: string; tasks: TaskListItem[] }[]>(() => {
@@ -77,7 +86,6 @@ function MyStatusGroup({
   const handleUpdateStatus = async (task: TaskListItem, statusId: string) => {
     try {
       await updateTask(task.id, task.list.id, { statusId });
-      onRefresh();
     } catch (err) {
       toast.error(parseApiError(err).message);
     }
@@ -119,7 +127,6 @@ function MyStatusGroup({
     try {
       await deleteTask(task.id, task.list.id);
       toast.success("Task deleted");
-      onRefresh();
     } catch (err) {
       toast.error(parseApiError(err).message);
     }
@@ -263,14 +270,7 @@ export default function MyTasksPage() {
 
   const statuses = useMemo(() => deriveStatuses(tasks), [tasks]);
 
-  const tasksByStatus = useMemo<Map<string, TaskListItem[]>>(() => {
-    const map = new Map<string, TaskListItem[]>();
-    for (const t of tasks) {
-      if (!map.has(t.status.id)) map.set(t.status.id, []);
-      map.get(t.status.id)!.push(t);
-    }
-    return map;
-  }, [tasks]);
+  const listIds = useMemo(() => [...new Set(tasks.map((t) => t.list.id))], [tasks]);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -314,20 +314,16 @@ export default function MyTasksPage() {
           </div>
         ) : (
           <div className="pb-8">
-            {statuses.map((status) => {
-              const statusTasks = tasksByStatus.get(status.id) ?? [];
-              if (statusTasks.length === 0) return null;
-              return (
-                <MyStatusGroup
-                  key={status.id}
-                  status={status}
-                  tasks={statusTasks}
-                  allStatuses={statuses}
-                  members={members}
-                  onRefresh={fetchTasks}
-                />
-              );
-            })}
+            {statuses.map((status) => (
+              <MyStatusGroup
+                key={status.id}
+                status={status}
+                listIds={listIds}
+                allStatuses={statuses}
+                members={members}
+                onRefresh={fetchTasks}
+              />
+            ))}
           </div>
         )}
       </div>
