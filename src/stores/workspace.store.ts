@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { workspaceService, WorkspaceMember } from "@/services/workspace.service";
 
 export interface Workspace {
   id: string;
@@ -14,6 +15,8 @@ export interface Workspace {
 interface WorkspaceState {
   workspaces: Workspace[];
   activeWorkspaceId: string | null;
+  members: WorkspaceMember[];
+  membersFetchedAt: number | null;
 
   setWorkspaces: (workspaces: Workspace[]) => void;
   addWorkspace: (workspace: Workspace) => void;
@@ -21,13 +24,16 @@ interface WorkspaceState {
   removeWorkspace: (id: string) => void;
   setActiveWorkspaceId: (id: string) => void;
   clearWorkspaces: () => void;
+  fetchMembers: () => Promise<void>;
 }
 
 export const useWorkspaceStore = create<WorkspaceState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       workspaces: [],
       activeWorkspaceId: null,
+      members: [],
+      membersFetchedAt: null,
 
       setWorkspaces: (workspaces) =>
         set((s) => ({
@@ -67,11 +73,20 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 
       setActiveWorkspaceId: (id) => set({ activeWorkspaceId: id }),
 
-      clearWorkspaces: () => set({ workspaces: [], activeWorkspaceId: null }),
+      clearWorkspaces: () => set({ workspaces: [], activeWorkspaceId: null, members: [], membersFetchedAt: null }),
+
+      fetchMembers: async () => {
+        const { activeWorkspaceId: id, membersFetchedAt } = get();
+        if (!id) return;
+        if (membersFetchedAt && Date.now() - membersFetchedAt < 10_000) return;
+        try {
+          const all = await workspaceService.getMembers(id);
+          set({ members: all.filter((m) => m.inviteStatus !== "PENDING"), membersFetchedAt: Date.now() });
+        } catch {}
+      },
     }),
     {
       name: "workspace-storage",
-      // Only persist the active workspace id — the list is always re-fetched from the server
       partialize: (s) => ({ activeWorkspaceId: s.activeWorkspaceId }),
     }
   )

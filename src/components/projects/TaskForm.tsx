@@ -5,10 +5,8 @@ import { createPortal } from "react-dom";
 import { LuX, LuMaximize2, LuPaperclip, LuSparkles, LuFileText } from "react-icons/lu";
 import { StatusItem } from "@/services/status.service";
 import { TaskList } from "@/services/task-list.service";
-import { WorkspaceMember } from "@/services/workspace.service";
 import { useTaskStore } from "@/stores/task.store";
-import { useWorkspaceStore } from "@/stores/workspace.store";
-import { workspaceService } from "@/services/workspace.service";
+import { useWorkspaceMembers } from "@/hooks/useWorkspaceMembers";
 import { tagService, WorkspaceTag } from "@/services/tag.service";
 import TagPicker from "./TagPicker";
 import { TaskPriority } from "@/services/task.service";
@@ -40,7 +38,7 @@ export default function TaskForm({
   defaultListId,
 }: TaskFormProps) {
   const { createTask } = useTaskStore();
-  const { activeWorkspaceId } = useWorkspaceStore();
+  const { members, refetch: refetchMembers } = useWorkspaceMembers();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -53,7 +51,6 @@ export default function TaskForm({
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [currentTags, setCurrentTags] = useState<{ tag: { id: string; name: string; color: string } }[]>([]);
   const [allTags, setAllTags] = useState<WorkspaceTag[]>([]);
-  const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [saving, setSaving] = useState(false);
 
   const titleRef = useRef<HTMLInputElement>(null);
@@ -73,10 +70,9 @@ export default function TaskForm({
   }, [isOpen, defaultStatusId, statuses]);
 
   useEffect(() => {
-    if (!activeWorkspaceId || !isOpen) return;
-    workspaceService.getMembers(activeWorkspaceId).then(setMembers).catch(() => {});
+    if (!isOpen) return;
     tagService.list().then(setAllTags).catch(() => {});
-  }, [activeWorkspaceId, isOpen]);
+  }, [isOpen]);
 
   const resolvedListId = defaultListId ?? availableLists[0]?.id ?? "";
   const currentStatus = statuses.find((s) => s.id === statusId) ?? statuses[0];
@@ -208,7 +204,7 @@ export default function TaskForm({
 
             {/* Assignee */}
             <div className="rounded-lg border border-gray-200 dark:border-gray-700">
-              <AssigneePicker assignees={assignees} members={members} onAdd={handleAddAssignee} onRemove={handleRemoveAssignee} iconSize="sm" />
+              <AssigneePicker assignees={assignees} members={members} onAdd={handleAddAssignee} onRemove={handleRemoveAssignee} onOpen={refetchMembers} iconSize="sm" />
             </div>
 
             {/* Due date */}

@@ -42,6 +42,7 @@ export function WorkspaceProvider({
     removeWorkspace,
     setActiveWorkspaceId,
     clearWorkspaces,
+    fetchMembers,
   } = useWorkspaceStore();
 
   const [isLoading, setIsLoading] = useState(false);
@@ -70,6 +71,11 @@ export function WorkspaceProvider({
     }
     fetchWorkspaces();
   }, [isAuthenticated, authLoading, fetchWorkspaces, clearWorkspaces]);
+
+  // Fetch members once per active workspace (on load or workspace switch)
+  useEffect(() => {
+    if (activeWorkspaceId) fetchMembers();
+  }, [activeWorkspaceId, fetchMembers]);
 
   const switchWorkspace = useCallback(
     (id: string) => {

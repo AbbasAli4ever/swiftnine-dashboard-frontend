@@ -9,10 +9,9 @@ import { useTaskLists } from "@/context/TaskListContext";
 import { parseApiError } from "@/lib/api";
 import { StatusItem, flattenGroupedStatuses, statusService } from "@/services/status.service";
 import { TaskList } from "@/services/task-list.service";
-import { WorkspaceMember, workspaceService } from "@/services/workspace.service";
 import { WorkspaceTag, tagService } from "@/services/tag.service";
 import { TaskListItem } from "@/services/task.service";
-import { useWorkspaceStore } from "@/stores/workspace.store";
+import { useWorkspaceMembers } from "@/hooks/useWorkspaceMembers";
 import { getTaskSearchCacheKey, useTaskSearchStore } from "@/stores/task-search.store";
 import { useTaskStore } from "@/stores/task.store";
 import TaskListView, { TaskListSectionData } from "./TaskListView";
@@ -64,7 +63,7 @@ export default function TasksPage() {
   const searchParams = useSearchParams();
   const { projects, isLoading: projectsLoading, patchLocalProject } = useProjects();
   const { getLists, getProjectLists, renameList, archiveList, restoreList, deleteList } = useTaskLists();
-  const { activeWorkspaceId } = useWorkspaceStore();
+  const { members, refetch: refetchMembers } = useWorkspaceMembers();
   const {
     openTaskDetail,
     closeTaskDetail,
@@ -74,7 +73,6 @@ export default function TasksPage() {
     setTasksForLists,
   } = useTaskStore();
   const { searchProject, searchList } = useTaskSearchStore();
-  const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [tags, setTags] = useState<WorkspaceTag[]>([]);
   const [statuses, setStatuses] = useState<StatusItem[]>([]);
   const [pendingDefaults, setPendingDefaults] = useState<PendingCreateDefaults>({});
@@ -146,10 +144,8 @@ export default function TasksPage() {
   }, [activeLists.length, listId, projectId, router, selectedList]);
 
   useEffect(() => {
-    if (!activeWorkspaceId) return;
-    workspaceService.getMembers(activeWorkspaceId).then(setMembers).catch(() => setMembers([]));
     tagService.list().then(setTags).catch(() => setTags([]));
-  }, [activeWorkspaceId]);
+  }, []);
 
   const taskScope = useMemo(() => {
     if (!projectId) return null;
@@ -495,6 +491,7 @@ export default function TasksPage() {
             statuses={statuses}
             members={members}
             onOpenTaskDetail={(taskId) => void openTaskDetailById(taskId)}
+            onRefetchMembers={refetchMembers}
             disableAutoFetch
             disableSameStatusReorder={disableBoardReorder}
             taskSearchParams={selectedList ? undefined : taskSearchParams}
@@ -525,7 +522,6 @@ export default function TasksPage() {
           key={openTask.id}
           task={openTask}
           statuses={statuses}
-          members={members}
           listId={openTask.list.id}
           onClose={closeTaskDetail}
           onMinimize={minimizeTask}

@@ -13,7 +13,6 @@ import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { useWorkspaceStore } from "@/stores/workspace.store";
 import { notificationService } from "@/services/notification.service";
-import { workspaceService } from "@/services/workspace.service";
 import { Notification } from "@/types/notification";
 
 interface NotificationContextValue {
@@ -40,18 +39,16 @@ function isPrimaryNotification(item: Notification): boolean {
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated } = useAuth();
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
+  const storeMembers = useWorkspaceStore((s) => s.members);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [memberMap, setMemberMap] = useState<Map<string, string>>(new Map());
   const notificationsRef = useRef(notifications);
   useEffect(() => { notificationsRef.current = notifications; }, [notifications]);
 
-  useEffect(() => {
-    if (!activeWorkspaceId) return;
-    workspaceService.getMembers(activeWorkspaceId)
-      .then((members) => setMemberMap(new Map(members.map((m) => [m.id, m.fullName]))))
-      .catch(() => {});
-  }, [activeWorkspaceId]);
+  const memberMap = useMemo(
+    () => new Map(storeMembers.map((m) => [m.id, m.fullName])),
+    [storeMembers]
+  );
 
   useEffect(() => {
     const userId = user?.id;

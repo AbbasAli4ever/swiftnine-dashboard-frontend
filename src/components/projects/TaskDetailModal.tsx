@@ -32,6 +32,7 @@ import { taskService, TaskDetail, TaskPriority, TaskAssignee, UpdateTaskPayload 
 import { StatusItem } from "@/services/status.service";
 import { WorkspaceMember } from "@/services/workspace.service";
 import { useTaskStore } from "@/stores/task.store";
+import { useWorkspaceStore } from "@/stores/workspace.store";
 import StatusIcon from "./StatusIcon";
 import StatusPicker from "./StatusPicker";
 import PriorityPicker from "./PriorityPicker";
@@ -50,7 +51,6 @@ import { useUiStore } from "@/stores/ui.store";
 interface TaskDetailModalProps {
   task: TaskDetail;
   statuses: StatusItem[];
-  members: WorkspaceMember[];
   listId: string;
   onClose: () => void;
   onMinimize?: () => void;
@@ -84,6 +84,7 @@ function SubtaskRow({
   statuses,
   members,
   onOpen,
+  fetchMembers,
 }: {
   subtask: TaskDetail["children"][number];
   parentId: string;
@@ -91,6 +92,7 @@ function SubtaskRow({
   statuses: StatusItem[];
   members: WorkspaceMember[];
   onOpen: (id: string) => void;
+  fetchMembers?: () => void;
 }) {
   const { updateSubtask, deleteSubtask, addAssignee, removeAssignee } = useTaskStore();
   const storeTags = useTaskStore(s => s.openTask?.children?.find(c => c.id === subtask.id)?.tags);
@@ -242,6 +244,7 @@ function SubtaskRow({
             members={members}
             onAdd={async (userId) => { try { await addAssignee(subtask.id, listId, [userId]); } catch (err) { toast.error(parseApiError(err).message); } }}
             onRemove={async (userId) => { try { await removeAssignee(subtask.id, listId, userId); } catch (err) { toast.error(parseApiError(err).message); } }}
+            onOpen={fetchMembers}
           />
         </div>
 
@@ -485,7 +488,9 @@ function ActivityRow({ item }: { item: ActivityItem }) {
   );
 }
 
-export default function TaskDetailModal({ task, statuses, members, listId, onClose, onMinimize }: TaskDetailModalProps) {
+export default function TaskDetailModal({ task, statuses, listId, onClose, onMinimize }: TaskDetailModalProps) {
+  const members = useWorkspaceStore((s) => s.members);
+  const fetchMembers = useWorkspaceStore((s) => s.fetchMembers);
   const { updateTask, addAssignee, removeAssignee, addTag, removeTag, openTaskDetail, refreshOpenTask, deleteTask } = useTaskStore();
   const liveChildren = useTaskStore(s => s.openTask?.id === task.id ? s.openTask.children : task.children);
   const currentUser = useAuthStore(s => s.user);
@@ -845,7 +850,7 @@ export default function TaskDetailModal({ task, statuses, members, listId, onClo
                     <LuUserRound className="h-3.5 w-3.5 shrink-0 text-gray-400" />
                     Assignees
                   </div>
-                  <AssigneePicker assignees={task.assignees} members={members} onAdd={handleAddAssignee} onRemove={handleRemoveAssignee} showLabel />
+                  <AssigneePicker assignees={task.assignees} members={members} onAdd={handleAddAssignee} onRemove={handleRemoveAssignee} showLabel onOpen={fetchMembers} />
                 </div>
 
                 {/* Dates */}
@@ -934,6 +939,7 @@ export default function TaskDetailModal({ task, statuses, members, listId, onClo
                       statuses={statuses}
                       members={members}
                       onOpen={(id) => { void openTaskDetail(id); }}
+                      fetchMembers={fetchMembers}
                     />
                   ))}
                   {addingSubtask && (
@@ -996,7 +1002,7 @@ export default function TaskDetailModal({ task, statuses, members, listId, onClo
             </div>
 
             {rightTab === "comments" ? (
-              <TaskComments taskId={task.id} currentUser={currentUser} members={members} />
+              <TaskComments taskId={task.id} currentUser={currentUser} members={members} onRefetchMembers={fetchMembers} />
             ) : (
               <ActivityFeed taskId={task.id} />
             )}

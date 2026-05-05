@@ -40,6 +40,7 @@ interface TaskRowProps {
   onAddAssignee: (userId: string) => void;
   onRemoveAssignee: (userId: string) => void;
   onDelete: () => void;
+  onRefetchMembers?: () => void;
   dragHandleProps?: Record<string, unknown>;
   indent?: number;
   parentId?: string;
@@ -162,6 +163,7 @@ export default function TaskRow({
   onAddAssignee,
   onRemoveAssignee,
   onDelete,
+  onRefetchMembers,
   dragHandleProps,
   indent = 0,
   parentId,
@@ -387,7 +389,7 @@ export default function TaskRow({
 
           {/* Assignee */}
           <div>
-            <AssigneePicker assignees={task.assignees} members={members} onAdd={onAddAssignee} onRemove={onRemoveAssignee} />
+            <AssigneePicker assignees={task.assignees} members={members} onAdd={onAddAssignee} onRemove={onRemoveAssignee} onOpen={onRefetchMembers} />
           </div>
 
           {/* Due date */}

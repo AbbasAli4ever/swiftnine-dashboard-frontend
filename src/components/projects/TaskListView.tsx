@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { TaskList } from "@/services/task-list.service";
 import { StatusItem } from "@/services/status.service";
-import { WorkspaceMember, workspaceService } from "@/services/workspace.service";
-import { useWorkspaceStore } from "@/stores/workspace.store";
+import { WorkspaceMember } from "@/services/workspace.service";
+import { useWorkspaceMembers } from "@/hooks/useWorkspaceMembers";
 import { useTaskStore } from "@/stores/task.store";
 import { TaskListItem, TaskPriority } from "@/services/task.service";
 import { parseApiError } from "@/lib/api";
@@ -71,6 +71,7 @@ function StatusGroup({
   statuses,
   members,
   onOpenTaskDetail,
+  onRefetchMembers,
   dragState,
   dropTargetStatusId,
   dropIdx,
@@ -84,6 +85,7 @@ function StatusGroup({
   statuses: StatusItem[];
   members: WorkspaceMember[];
   onOpenTaskDetail: (taskId: string) => void;
+  onRefetchMembers?: () => void;
   dragState: ListDragState | null;
   dropTargetStatusId: string | null;
   dropIdx: number | null;
@@ -246,6 +248,7 @@ function StatusGroup({
                     onAddAssignee={(userId) => handleAddAssignee(task, userId)}
                     onRemoveAssignee={(userId) => handleRemoveAssignee(task, userId)}
                     onDelete={() => handleDelete(task)}
+                    onRefetchMembers={onRefetchMembers}
                     dragHandleProps={{
                       onPointerDown: (e: React.PointerEvent) => {
                         if (rowEl) onDragStart(e, task, idx, rowEl);
@@ -302,6 +305,7 @@ function ListSection({
   statuses,
   members,
   onOpenTaskDetail,
+  onRefetchMembers,
   showListHeader,
   disableAutoFetch,
   disableSameStatusReorder,
@@ -311,6 +315,7 @@ function ListSection({
   statuses: StatusItem[];
   members: WorkspaceMember[];
   onOpenTaskDetail: (taskId: string) => void;
+  onRefetchMembers?: () => void;
   showListHeader: boolean;
   disableAutoFetch?: boolean;
   disableSameStatusReorder?: boolean;
@@ -471,6 +476,7 @@ function ListSection({
       statuses={statuses}
       members={members}
       onOpenTaskDetail={(taskId) => { if (!suppressClickRef.current) onOpenTaskDetail(taskId); }}
+      onRefetchMembers={onRefetchMembers}
       dragState={activeDrag}
       dropTargetStatusId={dropTargetStatusId}
       dropIdx={dropIdx}
@@ -543,14 +549,8 @@ export default function TaskListView({
   disableAutoFetch = false,
   disableSameStatusReorder = false,
 }: TaskListViewProps) {
-  const [members, setMembers] = useState<WorkspaceMember[]>([]);
-  const { activeWorkspaceId } = useWorkspaceStore();
+  const { members, refetch: refetchMembers } = useWorkspaceMembers();
   const resolvedStatuses = statuses.length > 0 ? statuses : FALLBACK_STATUSES;
-
-  useEffect(() => {
-    if (!activeWorkspaceId) return;
-    workspaceService.getMembers(activeWorkspaceId).then(setMembers).catch(() => {});
-  }, [activeWorkspaceId]);
 
   return (
     <div className="space-y-4 pb-4">
@@ -591,6 +591,7 @@ export default function TaskListView({
             statuses={resolvedStatuses}
             members={members}
             onOpenTaskDetail={(taskId) => onOpenTaskDetail?.(taskId)}
+            onRefetchMembers={refetchMembers}
             showListHeader={mode === "project" && sections.length > 1}
             disableAutoFetch={disableAutoFetch}
             disableSameStatusReorder={disableSameStatusReorder}

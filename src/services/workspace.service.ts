@@ -37,6 +37,7 @@ export interface WorkspaceMember {
   fullName: string;
   email: string;
   role: "OWNER" | "MEMBER";
+  inviteStatus: "PENDING" | "ACCEPTED" | "REJECTED";
   lastActive: string | null;
   invitedBy: string | null;
   invitedOn: string | null;

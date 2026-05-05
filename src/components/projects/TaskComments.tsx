@@ -513,6 +513,7 @@ function Composer({
   onClearReplyTo,
   members,
   onSubmit,
+  onMentionOpen,
   disabled,
 }: {
   placeholder: string;
@@ -520,6 +521,7 @@ function Composer({
   onClearReplyTo: () => void;
   members: WorkspaceMember[];
   onSubmit: (text: string, mentionedUserIds: string[]) => Promise<void>;
+  onMentionOpen?: () => void;
   disabled?: boolean;
 }) {
   const [text, setText] = useState("");
@@ -547,6 +549,7 @@ function Composer({
     const textUpToCursor = val.slice(0, cursor);
     const match = textUpToCursor.match(/(^|[\s\n])@(\S*)$/);
     if (match) {
+      if (mentionQuery === null) onMentionOpen?.();
       setMentionQuery(match[2]);
       setMentionStart(cursor - match[2].length - 1); // position of '@'
     } else {
@@ -660,9 +663,10 @@ interface TaskCommentsProps {
   taskId: string;
   currentUser: AuthUser | null;
   members: WorkspaceMember[];
+  onRefetchMembers?: () => void;
 }
 
-export default function TaskComments({ taskId, currentUser, members }: TaskCommentsProps) {
+export default function TaskComments({ taskId, currentUser, members, onRefetchMembers }: TaskCommentsProps) {
   const [commentState, setCommentState] = useState<{ streamKey: string; items: Comment[] }>({
     streamKey: "",
     items: [],
@@ -921,6 +925,7 @@ export default function TaskComments({ taskId, currentUser, members }: TaskComme
           onClearReplyTo={() => {}}
           members={members}
           onSubmit={handleSubmit}
+          onMentionOpen={onRefetchMembers}
         />
       </>
     );
@@ -1001,6 +1006,7 @@ export default function TaskComments({ taskId, currentUser, members }: TaskComme
         onClearReplyTo={() => setReplyTo(null)}
         members={members}
         onSubmit={handleSubmit}
+        onMentionOpen={onRefetchMembers}
       />
     </>
   );

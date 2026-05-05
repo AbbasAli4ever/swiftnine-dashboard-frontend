@@ -110,12 +110,14 @@ function CardContent({
   members,
   listId,
   ghost,
+  onRefetchMembers,
 }: {
   task: TaskListItem;
   statuses: StatusItem[];
   members: WorkspaceMember[];
   listId: string;
   ghost?: boolean;
+  onRefetchMembers?: () => void;
 }) {
   const { updateTask, addAssignee, removeAssignee } = useTaskStore();
 
@@ -169,7 +171,7 @@ function CardContent({
       )}
       {!ghost && (
         <div className="flex items-center gap-1.5 flex-wrap" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-          <AssigneePicker assignees={task.assignees} members={members} onAdd={handleAddAssignee} onRemove={handleRemoveAssignee} iconSize="sm" />
+          <AssigneePicker assignees={task.assignees} members={members} onAdd={handleAddAssignee} onRemove={handleRemoveAssignee} onOpen={onRefetchMembers} iconSize="sm" />
           <DatePicker startDate={task.startDate} dueDate={task.dueDate} onChange={(r) => handleUpdateDates(r.startDate, r.dueDate)} iconSize="sm" />
           <PriorityPicker value={task.priority} onChange={handleUpdatePriority} onClear={() => handleUpdatePriority("NONE")} iconSize="sm" />
           <div className="ml-auto">
@@ -190,6 +192,7 @@ function BoardCard({
   suppressClickRef,
   onOpenDetail,
   onDragStart,
+  onRefetchMembers,
 }: {
   task: TaskListItem;
   statuses: StatusItem[];
@@ -199,6 +202,7 @@ function BoardCard({
   suppressClickRef: React.RefObject<boolean>;
   onOpenDetail: (taskId: string) => void;
   onDragStart: (e: React.PointerEvent, task: TaskListItem, listId: string, cardEl: HTMLDivElement) => void;
+  onRefetchMembers?: () => void;
 }) {
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -219,7 +223,7 @@ function BoardCard({
       style={{ opacity: isDragging ? 0 : 1 }}
       className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-900 select-none transition-opacity cursor-pointer"
     >
-      <CardContent task={task} statuses={statuses} members={members} listId={listId} />
+      <CardContent task={task} statuses={statuses} members={members} listId={listId} onRefetchMembers={onRefetchMembers} />
     </div>
   );
 }
@@ -236,6 +240,7 @@ function BoardColumn({
   suppressClickRef,
   onOpenDetail,
   onDragStart,
+  onRefetchMembers,
   disableAutoFetch,
   overrideTasks,
   defaultListId,
@@ -251,6 +256,7 @@ function BoardColumn({
   suppressClickRef: React.RefObject<boolean>;
   onOpenDetail: (taskId: string) => void;
   onDragStart: (e: React.PointerEvent, task: TaskListItem, listId: string, cardEl: HTMLDivElement) => void;
+  onRefetchMembers?: () => void;
   disableAutoFetch?: boolean;
   overrideTasks?: TaskListItem[];
   defaultListId?: string;
@@ -366,6 +372,7 @@ function BoardColumn({
                 suppressClickRef={suppressClickRef}
                 onOpenDetail={onOpenDetail}
                 onDragStart={onDragStart}
+                onRefetchMembers={onRefetchMembers}
               />
             </div>
           );
@@ -411,6 +418,7 @@ interface TaskBoardProps {
   statuses: StatusItem[];
   members: WorkspaceMember[];
   onOpenTaskDetail: (taskId: string) => void;
+  onRefetchMembers?: () => void;
   disableAutoFetch?: boolean;
   disableSameStatusReorder?: boolean;
   taskSearchParams?: import("@/services/task.service").TaskSearchParams;
@@ -422,6 +430,7 @@ export default function TaskBoard({
   statuses,
   members,
   onOpenTaskDetail,
+  onRefetchMembers,
   disableAutoFetch = false,
   disableSameStatusReorder = false,
   taskSearchParams,
@@ -715,6 +724,7 @@ export default function TaskBoard({
               suppressClickRef={suppressClickRef}
               onOpenDetail={onOpenTaskDetail}
               onDragStart={handleDragStart}
+              onRefetchMembers={onRefetchMembers}
               disableAutoFetch
               overrideTasks={col.tasks}
               defaultListId={defaultListId}
@@ -749,6 +759,7 @@ export default function TaskBoard({
               suppressClickRef={suppressClickRef}
               onOpenDetail={onOpenTaskDetail}
               onDragStart={handleDragStart}
+              onRefetchMembers={onRefetchMembers}
               disableAutoFetch={disableAutoFetch}
             />
           ))

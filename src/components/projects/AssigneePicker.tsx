@@ -30,12 +30,13 @@ interface AssigneePickerProps {
   members: WorkspaceMember[];
   onAdd: (userId: string) => void;
   onRemove: (userId: string) => void;
+  onOpen?: () => void;
   align?: "left" | "right";
   iconSize?: "sm" | "md";
   showLabel?: boolean;
 }
 
-export default function AssigneePicker({ assignees, members, onAdd, onRemove, align = "left", iconSize = "md", showLabel = false }: AssigneePickerProps) {
+export default function AssigneePicker({ assignees, members, onAdd, onRemove, onOpen, align = "left", iconSize = "md", showLabel = false }: AssigneePickerProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const ref = useRef<HTMLDivElement>(null);
@@ -60,7 +61,10 @@ export default function AssigneePicker({ assignees, members, onAdd, onRemove, al
 
   const handleOpen = (e?: React.MouseEvent) => {
     e?.stopPropagation();
-    setOpen((v) => !v);
+    setOpen((v) => {
+      if (!v) onOpen?.();
+      return !v;
+    });
   };
 
   const assignedIds = new Set(assignees.map((a) => a.user.id));
