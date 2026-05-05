@@ -92,18 +92,6 @@ function ActorAvatar({ actorId, userInfo, size = 28 }: ActorAvatarProps) {
   const dim = `${size}px`;
   if (!actorId) return null;
 
-  if (userInfo?.avatarUrl) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={userInfo.avatarUrl}
-        alt={userInfo.fullName}
-        style={{ width: dim, height: dim }}
-        className="rounded-full object-cover shrink-0"
-      />
-    );
-  }
-
   const name = userInfo?.fullName ?? "";
   const bg = userInfo?.avatarColor ?? hashColor(actorId);
   const initials = name ? getInitials(name) : "?";

@@ -11,6 +11,11 @@ interface UiState {
   openUserPanel: (userId: string) => void;
   closeUserPanel: () => void;
 
+  // Active DM thread (for sidebar highlight)
+  activeDmUserId: string | null;
+  openDmThread: (userId: string) => void;
+  closeDmThread: () => void;
+
   // Triggers sidebar favorites section to re-fetch
   favoritesRefreshKey: number;
   invalidateFavorites: () => void;
@@ -30,6 +35,10 @@ export const useUiStore = create<UiState>((set) => ({
   viewingUserId: null,
   openUserPanel: (userId: string) => set({ viewingUserId: userId, profilePanelOpen: false }),
   closeUserPanel: () => set({ viewingUserId: null }),
+
+  activeDmUserId: null,
+  openDmThread: (userId: string) => set({ activeDmUserId: userId }),
+  closeDmThread: () => set({ activeDmUserId: null }),
 
   favoritesRefreshKey: 0,
   invalidateFavorites: () => set((s) => ({ favoritesRefreshKey: s.favoritesRefreshKey + 1 })),

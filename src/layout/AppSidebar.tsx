@@ -22,6 +22,7 @@ import ConfirmActionModal from "@/components/common/ConfirmActionModal";
 import CreateListModal from "@/components/projects/CreateListModal";
 import ListContextMenu from "@/components/projects/ListContextMenu";
 import DocsListSidebarSection from "@/components/docs/DocsListSidebarSection";
+import DmSidebarSection from "@/components/dm/DmSidebarSection";
 import { ICON_MAP } from "@/components/projects/IconColorPicker";
 import { toast } from "sonner";
 import { RiHomeSmileFill } from "react-icons/ri";
@@ -937,28 +938,7 @@ function HomePanelContent() {
         <DocsListSidebarSection />
 
         {/* Direct Messages */}
-        {/* <div className="pt-3">
-          <p className="px-2 pb-1 text-[11px] uppercase tracking-wide text-gray-400 font-normal">Direct Messages</p>
-          {dmUsers.map((u) => (
-            <button
-              key={u.name}
-              className="flex items-center gap-2.5 w-full rounded-lg px-2.5 py-1.5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            >
-              <span className={`relative flex items-center justify-center w-5 h-5 rounded-full text-white text-[10px] font-normal ${u.color} shrink-0`}>
-                {u.initials}
-                <span className="absolute -bottom-0.5 -right-0.5 h-1.5 w-1.5 rounded-full border border-white bg-emerald-500 dark:border-gray-900" />
-              </span>
-              <span className="truncate">
-                {u.name}
-                {u.you && <span className="text-gray-400 ml-1">— You</span>}
-              </span>
-            </button>
-          ))}
-          <button className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 mt-0.5 w-full text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-brand-500 transition-colors">
-            <LuPlus className="w-4 h-4" />
-            <span>New message</span>
-          </button>
-        </div> */}
+        <DmSidebarSection />
       </div>
 
       {/* <div className="border-t border-gray-100 px-1 pt-3 dark:border-gray-800">

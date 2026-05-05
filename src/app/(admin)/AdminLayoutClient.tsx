@@ -22,7 +22,10 @@ export default function AdminLayoutClient({
   const { workspaces, isLoading: workspacesLoading } = useWorkspace();
   const { profilePanelOpen, closeProfilePanel, viewingUserId, closeUserPanel } = useUiStore();
   const pathname = usePathname();
-  const isMessageQueuePage = pathname === "/replies" || pathname === "/assigned-comments";
+  const isMessageQueuePage =
+    pathname === "/replies" ||
+    pathname === "/assigned-comments" ||
+    pathname.startsWith("/messages");
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
