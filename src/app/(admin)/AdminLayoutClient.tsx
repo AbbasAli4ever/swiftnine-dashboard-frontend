@@ -7,6 +7,7 @@ import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
 import CreateWorkspaceModal from "@/components/workspace/CreateWorkspaceModal";
 import GlobalTaskDetailModal from "@/components/projects/GlobalTaskDetailModal";
+import NotificationPermissionBanner from "@/components/ui/NotificationPermissionBanner";
 import UserProfilePanel from "@/components/user-profile/UserProfilePanel";
 import ViewUserProfilePanel from "@/components/user-profile/ViewUserProfilePanel";
 import { useUiStore } from "@/stores/ui.store";
@@ -52,6 +53,7 @@ export default function AdminLayoutClient({
 
       {/* Main area — shrinks when profile panel is open */}
       <div className={`flex flex-col min-w-0 ml-[320px] transition-all duration-200 ease-in-out ${profilePanelOpen ? "flex-1" : "flex-1"}`}>
+        <NotificationPermissionBanner />
         {!isMessageQueuePage && <AppHeader />}
         <main className="flex-1 overflow-hidden">
           {children}

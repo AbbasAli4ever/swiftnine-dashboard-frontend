@@ -23,6 +23,7 @@ import CreateListModal from "@/components/projects/CreateListModal";
 import ListContextMenu from "@/components/projects/ListContextMenu";
 import DocsListSidebarSection from "@/components/docs/DocsListSidebarSection";
 import DmSidebarSection from "@/components/dm/DmSidebarSection";
+import ChannelSidebarSection from "@/components/channels/ChannelSidebarSection";
 import { ICON_MAP } from "@/components/projects/IconColorPicker";
 import { toast } from "sonner";
 import { RiHomeSmileFill } from "react-icons/ri";
@@ -936,6 +937,9 @@ function HomePanelContent() {
 
         {/* Docs */}
         <DocsListSidebarSection />
+
+        {/* Channels */}
+        <ChannelSidebarSection />
 
         {/* Direct Messages */}
         <DmSidebarSection />

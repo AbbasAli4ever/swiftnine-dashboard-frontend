@@ -1,26 +1,50 @@
 "use client";
 
 import { useState } from "react";
-import { MOCK_DM_USERS } from "@/lib/mock-dm-data";
 import { getInitials } from "@/lib/getInitials";
 import { useUiStore } from "@/stores/ui.store";
 import { useRouter } from "next/navigation";
-import DmMessageInput from "@/components/dm/DmMessageInput";
+import { useWorkspaceStore } from "@/stores/workspace.store";
+import { useAuth } from "@/context/AuthContext";
+import { chatService } from "@/services/chat.service";
+import { useDmStore } from "@/stores/dm.store";
+import { parseApiError } from "@/lib/api";
+import { toast } from "sonner";
 
 export default function MessagesPage() {
   const [query, setQuery] = useState("");
+  const [loadingUserId, setLoadingUserId] = useState<string | null>(null);
   const { openDmThread } = useUiStore();
+  const { setUserToChannelId, setDmChannels, dmChannels } = useDmStore();
   const router = useRouter();
+  const { user } = useAuth();
+  const members = useWorkspaceStore((s) => s.members);
 
-  const filtered = MOCK_DM_USERS.filter(
-    (u) =>
-      u.fullName.toLowerCase().includes(query.toLowerCase()) ||
-      u.email.toLowerCase().includes(query.toLowerCase())
+  // Filter out self and match query
+  const filtered = members.filter(
+    (m) =>
+      m.id !== user?.id &&
+      (m.fullName.toLowerCase().includes(query.toLowerCase()) ||
+        m.email.toLowerCase().includes(query.toLowerCase()))
   );
 
-  const handleSelect = (userId: string) => {
-    openDmThread(userId);
-    router.push(`/messages/${userId}`);
+  const handleSelect = async (memberId: string) => {
+    if (loadingUserId) return;
+    setLoadingUserId(memberId);
+    try {
+      const channel = await chatService.createOrGetDm(memberId);
+      setUserToChannelId(memberId, channel.id);
+      // Add to dm list if not already there
+      const exists = dmChannels.some((c) => c.id === channel.id);
+      if (!exists) setDmChannels([...dmChannels, channel]);
+      openDmThread(memberId);
+      router.push(`/messages/${memberId}`);
+    } catch (err) {
+      const { message } = parseApiError(err);
+      toast.error(message || "Failed to open conversation");
+    } finally {
+      setLoadingUserId(null);
+    }
   };
 
   return (
@@ -43,7 +67,7 @@ export default function MessagesPage() {
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search people or enter an email to invite them"
+            placeholder="Search people"
             className="w-full h-9 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 pl-9 pr-4 text-sm text-gray-800 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-500/10 transition-colors"
           />
         </div>
@@ -55,38 +79,36 @@ export default function MessagesPage() {
           <p className="text-sm text-gray-400 text-center py-8">No people found</p>
         ) : (
           <div className="space-y-0.5">
-            {filtered.map((u) => (
-              <button
-                key={u.id}
-                onClick={() => handleSelect(u.id)}
-                className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left"
-              >
-                <div className="relative shrink-0">
-                  <div
-                    className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-normal"
-                    style={{ backgroundColor: u.avatarColor }}
-                  >
-                    {getInitials(u.fullName)}
+            {filtered.map((m) => {
+              const isLoading = loadingUserId === m.id;
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => handleSelect(m.id)}
+                  disabled={!!loadingUserId}
+                  className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left disabled:opacity-60"
+                >
+                  <div className="relative shrink-0">
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-normal bg-indigo-500">
+                      {getInitials(m.fullName)}
+                    </div>
                   </div>
-                  {u.status === "ONLINE" && (
-                    <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-white dark:border-gray-900" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{m.fullName}</p>
+                    <p className="text-xs text-gray-400 truncate">{m.email}</p>
+                  </div>
+                  {isLoading && (
+                    <svg className="w-4 h-4 animate-spin text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
                   )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{u.fullName}</p>
-                  <p className="text-xs text-gray-400 truncate">{u.email}</p>
-                </div>
-                <span className={`text-xs font-normal ${u.status === "ONLINE" ? "text-green-500" : "text-gray-400"}`}>
-                  {u.status === "ONLINE" ? "Online" : "Offline"}
-                </span>
-              </button>
-            ))}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
-
-      {/* Input */}
-      <DmMessageInput />
     </div>
   );
 }

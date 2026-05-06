@@ -10,9 +10,11 @@ import React, {
   useState,
 } from "react";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useWorkspaceStore } from "@/stores/workspace.store";
 import { notificationService } from "@/services/notification.service";
+import { useSystemNotifications } from "@/hooks/useSystemNotifications";
 import { Notification } from "@/types/notification";
 
 interface NotificationContextValue {
@@ -38,12 +40,14 @@ function isPrimaryNotification(item: Notification): boolean {
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated } = useAuth();
+  const router = useRouter();
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const storeMembers = useWorkspaceStore((s) => s.members);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const notificationsRef = useRef(notifications);
   useEffect(() => { notificationsRef.current = notifications; }, [notifications]);
+  const { showNotification } = useSystemNotifications();
 
   const memberMap = useMemo(
     () => new Map(storeMembers.map((m) => [m.id, m.fullName])),
@@ -73,6 +77,31 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         onCreated: (item) => {
           if (!isPrimaryNotification(item)) return;
           setNotifications((prev) => [item, ...prev]);
+
+          const isChatNotif = item.type === "chat:message" || item.type === "chat:mention";
+          if (!isChatNotif) return;
+
+          const senderName = memberMap.get(item.actorId ?? "") || "Someone";
+          const body = item.message ?? item.title;
+
+          // In-app toast — always show when the page is open
+          const channelPath = item.type === "chat:mention"
+            ? `/messages/${item.referenceId}`
+            : `/channels/${item.referenceId}`;
+
+          toast(senderName, {
+            description: body,
+            duration: 5000,
+            position: "bottom-right",
+            action: item.referenceId
+              ? { label: "View", onClick: () => router.push(channelPath) }
+              : undefined,
+          });
+
+          // System notification — only when tab is backgrounded to avoid double-notifying
+          if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+            showNotification(senderName, { body, tag: item.id });
+          }
         },
         onUpdated: (item) => {
           if (!isPrimaryNotification(item)) {
