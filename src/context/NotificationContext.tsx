@@ -54,6 +54,14 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     [storeMembers]
   );
 
+  // Refs so SSE closure always reads the latest values without needing to restart the stream
+  const memberMapRef = useRef(memberMap);
+  useEffect(() => { memberMapRef.current = memberMap; }, [memberMap]);
+  const showNotificationRef = useRef(showNotification);
+  useEffect(() => { showNotificationRef.current = showNotification; }, [showNotification]);
+  const routerRef = useRef(router);
+  useEffect(() => { routerRef.current = router; }, [router]);
+
   useEffect(() => {
     const userId = user?.id;
     if (!isAuthenticated || !userId || !activeWorkspaceId) return;
@@ -81,26 +89,25 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
           const isChatNotif = item.type === "chat:message" || item.type === "chat:mention";
           if (!isChatNotif) return;
 
-          const senderName = memberMap.get(item.actorId ?? "") || "Someone";
+          const senderName = memberMapRef.current.get(item.actorId ?? "") || "Someone";
           const body = item.message ?? item.title;
-
-          // In-app toast — always show when the page is open
           const channelPath = item.type === "chat:mention"
             ? `/messages/${item.referenceId}`
             : `/channels/${item.referenceId}`;
 
+          // In-app toast — always show when page is open (any tab)
           toast(senderName, {
             description: body,
             duration: 5000,
             position: "bottom-right",
             action: item.referenceId
-              ? { label: "View", onClick: () => router.push(channelPath) }
+              ? { label: "View", onClick: () => routerRef.current.push(channelPath) }
               : undefined,
           });
 
-          // System notification — only when tab is backgrounded to avoid double-notifying
-          if (typeof document !== "undefined" && document.visibilityState === "hidden") {
-            showNotification(senderName, { body, tag: item.id });
+          // System notification — only when tab is not visible to avoid double-notifying
+          if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+            showNotificationRef.current(senderName, { body, tag: item.id });
           }
         },
         onUpdated: (item) => {

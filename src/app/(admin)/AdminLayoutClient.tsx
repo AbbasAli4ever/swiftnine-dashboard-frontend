@@ -25,8 +25,7 @@ export default function AdminLayoutClient({
   const pathname = usePathname();
   const isMessageQueuePage =
     pathname === "/replies" ||
-    pathname === "/assigned-comments" ||
-    pathname.startsWith("/messages");
+    pathname === "/assigned-comments";
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -51,20 +50,23 @@ export default function AdminLayoutClient({
     <div className="flex h-screen overflow-hidden bg-white dark:bg-gray-900">
       <AppSidebar />
 
-      {/* Main area — shrinks when profile panel is open */}
-      <div className={`flex flex-col min-w-0 ml-[320px] transition-all duration-200 ease-in-out ${profilePanelOpen ? "flex-1" : "flex-1"}`}>
+      {/* Main area */}
+      <div className="flex flex-col flex-1 min-w-0 ml-[320px]">
         <NotificationPermissionBanner />
         {!isMessageQueuePage && <AppHeader />}
-        <main className="flex-1 overflow-hidden">
-          {children}
-        </main>
+        {/* Content row: main + profile panels side by side, below the header */}
+        <div className="flex flex-1 overflow-hidden">
+          <main className="flex-1 overflow-hidden">
+            {children}
+          </main>
+
+          {/* Own profile panel — only covers content area */}
+          <UserProfilePanel isOpen={profilePanelOpen} onClose={closeProfilePanel} />
+
+          {/* Other user's profile panel — only covers content area */}
+          <ViewUserProfilePanel userId={viewingUserId} onClose={closeUserPanel} />
+        </div>
       </div>
-
-      {/* Own profile panel */}
-      <UserProfilePanel isOpen={profilePanelOpen} onClose={closeProfilePanel} />
-
-      {/* Other user's profile panel */}
-      <ViewUserProfilePanel userId={viewingUserId} onClose={closeUserPanel} />
 
       <GlobalTaskDetailModal />
       <CreateWorkspaceModal isOpen={forcedModal} />

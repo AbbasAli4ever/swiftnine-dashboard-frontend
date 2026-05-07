@@ -5,6 +5,7 @@ import { getInitials } from "@/lib/getInitials";
 import { useAuth } from "@/context/AuthContext";
 import { useUiStore } from "@/stores/ui.store";
 import { useDmStore } from "@/stores/dm.store";
+import { useWorkspaceStore } from "@/stores/workspace.store";
 import { chatService, buildContentJson } from "@/services/chat.service";
 import { useChatSocket } from "@/hooks/useChatSocket";
 import { parseApiError } from "@/lib/api";
@@ -60,7 +61,24 @@ function formatConversationDate(iso: string) {
   });
 }
 
-type Tab = "Chat" | "Calendar" | "Assigned Tasks";
+function renderSystemText(contentJson: Record<string, unknown>, resolveName: (id: string) => string): string {
+  const event = contentJson.event as string | undefined;
+  const actor = resolveName((contentJson.actorUserId ?? contentJson.actorId) as string ?? "");
+  const user = resolveName(contentJson.userId as string ?? "");
+  switch (event) {
+    case "channel_created": return `${actor} created this channel`;
+    case "channel_renamed": return `${actor} renamed the channel from "${contentJson.from}" to "${contentJson.to}"`;
+    case "channel_privacy_changed": return `${actor} changed the channel to ${(contentJson.to as string)?.toLowerCase() ?? "unknown"}`;
+    case "member_joined":
+      return contentJson.source === "join_request"
+        ? `${user} joined the channel`
+        : `${actor} added ${user} to the channel`;
+    case "member_role_changed": return `${actor} changed ${user}'s role from ${contentJson.from} to ${contentJson.to}`;
+    case "member_removed": return `${actor} removed ${user} from the channel`;
+    case "dm_started": return `${actor} started this conversation`;
+    default: return event ? `${event.replace(/_/g, " ")}` : "System event";
+  }
+}
 
 function MessageBubble({
   msg,
@@ -71,6 +89,7 @@ function MessageBubble({
   senderColor,
   onEdit,
   onDelete,
+  resolveName,
 }: {
   msg: ChatMessage;
   isMe: boolean;
@@ -80,6 +99,7 @@ function MessageBubble({
   senderColor: string;
   onEdit: (msg: ChatMessage) => void;
   onDelete: (msg: ChatMessage) => void;
+  resolveName: (id: string) => string;
 }) {
   const [hovered, setHovered] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -99,10 +119,11 @@ function MessageBubble({
   const isSystem = msg.kind === "SYSTEM";
 
   if (isSystem) {
+    const systemText = renderSystemText(msg.contentJson, resolveName);
     return (
       <div className="flex justify-center py-1">
         <span className="text-xs text-gray-400 italic px-3 py-1 bg-gray-50 dark:bg-gray-800 rounded-full">
-          {msg.plaintext || "System event"}
+          {systemText}
         </span>
       </div>
     );
@@ -249,6 +270,7 @@ function MessageBubble({
 export default function DmChatView({ userId, channelId, otherUserName, otherUserId }: Props) {
   const { user } = useAuth();
   const { openUserPanel } = useUiStore();
+  const workspaceMembers = useWorkspaceStore((s) => s.members);
   const {
     messagesByChannel,
     messagesLoadingByChannel,
@@ -262,7 +284,6 @@ export default function DmChatView({ userId, channelId, otherUserName, otherUser
     clearChannelUnread,
   } = useDmStore();
 
-  const [activeTab, setActiveTab] = useState<Tab>("Chat");
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
@@ -411,8 +432,8 @@ export default function DmChatView({ userId, channelId, otherUserName, otherUser
   const myColor = "#6366f1";
   const myInitials = getInitials(user?.fullName ?? "Me");
   const grouped = groupMessages(messages);
-  const tabs: Tab[] = ["Chat", "Calendar", "Assigned Tasks"];
-  const tabLabel = (t: Tab) => (t === "Assigned Tasks" ? `${otherUserName}'s Assigned Tasks` : t);
+  const workspaceMemberMap = new Map(workspaceMembers.map((m) => [m.id, m.fullName]));
+  const resolveName = (id: string) => workspaceMemberMap.get(id) ?? id;
   const typingUserIds = typingUsers ? Array.from(typingUsers).filter((id) => id !== myId) : [];
 
   const handleEditStart = (msg: ChatMessage) => {
@@ -501,39 +522,15 @@ export default function DmChatView({ userId, channelId, otherUserName, otherUser
             {otherUserName || "Direct Message"}
           </span>
         </div>
-        <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-white bg-violet-600 hover:bg-violet-700 transition-colors shrink-0">
+        {/* <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-white bg-violet-600 hover:bg-violet-700 transition-colors shrink-0">
           <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
             <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
           </svg>
           Ask AI
-        </button>
+        </button> */}
       </div>
 
-      {/* Tab bar */}
-      <div className="flex border-b border-gray-100 dark:border-gray-800 px-5 shrink-0">
-        {tabs.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-3 py-2.5 text-sm transition-colors border-b-2 -mb-px ${
-              activeTab === tab
-                ? "border-brand-500 text-brand-500 font-medium"
-                : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
-            }`}
-          >
-            {tabLabel(tab)}
-          </button>
-        ))}
-      </div>
-
-      {/* Body */}
-      {activeTab !== "Chat" ? (
-        <div className="flex-1 flex items-center justify-center">
-          <p className="text-sm text-gray-400">No content yet</p>
-        </div>
-      ) : (
-        <>
-          <div
+      <div
             ref={scrollContainerRef}
             onScroll={handleScroll}
             className="flex-1 overflow-y-auto px-5 py-4 space-y-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
@@ -705,6 +702,7 @@ export default function DmChatView({ userId, channelId, otherUserName, otherUser
                             senderColor={senderColor}
                             onEdit={handleEditStart}
                             onDelete={handleDelete}
+                            resolveName={resolveName}
                           />
                         );
                       })}
@@ -738,14 +736,12 @@ export default function DmChatView({ userId, channelId, otherUserName, otherUser
             )}
           </div>
 
-          <DmMessageInput
-            recipientName={otherUserName}
-            channelId={channelId}
-            onTypingStart={sendTypingStart}
-            onTypingStop={sendTypingStop}
-          />
-        </>
-      )}
+      <DmMessageInput
+        recipientName={otherUserName}
+        channelId={channelId}
+        onTypingStart={sendTypingStart}
+        onTypingStop={sendTypingStop}
+      />
     </div>
   );
 }

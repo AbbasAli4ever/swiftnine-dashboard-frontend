@@ -51,6 +51,44 @@ function groupMessages(messages: ChatMessage[]): { label: string; messages: Chat
   return Array.from(groups.entries()).map(([label, messages]) => ({ label, messages }));
 }
 
+function renderSystemText(contentJson: Record<string, unknown>, resolveName: (id: string) => string): string {
+  const event = contentJson.event as string | undefined;
+  const actor = resolveName((contentJson.actorUserId ?? contentJson.actorId) as string ?? "");
+  const user = resolveName(contentJson.userId as string ?? "");
+  switch (event) {
+    case "channel_created": return `${actor} created this channel`;
+    case "channel_renamed": return `${actor} renamed the channel from "${contentJson.from}" to "${contentJson.to}"`;
+    case "channel_privacy_changed": return `${actor} changed the channel to ${(contentJson.to as string)?.toLowerCase() ?? "unknown"}`;
+    case "member_joined":
+      return contentJson.source === "join_request"
+        ? `${user} joined the channel`
+        : `${actor} added ${user} to the channel`;
+    case "member_role_changed": return `${actor} changed ${user}'s role from ${contentJson.from} to ${contentJson.to}`;
+    case "member_removed": return `${actor} removed ${user} from the channel`;
+    case "dm_started": return `${actor} started this conversation`;
+    default: return event ? `${event.replace(/_/g, " ")}` : "System event";
+  }
+}
+
+function renderWithMentions(plaintext: string, mentions: ChatMessage["mentions"]): React.ReactNode {
+  if (!mentions.length) return plaintext;
+  const parts: React.ReactNode[] = [];
+  let remaining = plaintext;
+  let key = 0;
+  for (const mention of mentions) {
+    const tag = `@${mention.fullName}`;
+    const idx = remaining.indexOf(tag);
+    if (idx === -1) continue;
+    if (idx > 0) parts.push(remaining.slice(0, idx));
+    parts.push(
+      <span key={key++} className="text-brand-500 font-medium">{tag}</span>
+    );
+    remaining = remaining.slice(idx + tag.length);
+  }
+  if (remaining) parts.push(remaining);
+  return parts;
+}
+
 function MessageBubble({
   msg,
   isMe,
@@ -60,6 +98,7 @@ function MessageBubble({
   senderColor,
   onEdit,
   onDelete,
+  resolveName,
 }: {
   msg: ChatMessage;
   isMe: boolean;
@@ -69,6 +108,7 @@ function MessageBubble({
   senderColor: string;
   onEdit: (msg: ChatMessage) => void;
   onDelete: (msg: ChatMessage) => void;
+  resolveName: (id: string) => string;
 }) {
   const [hovered, setHovered] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -88,10 +128,11 @@ function MessageBubble({
   }, [menuOpen]);
 
   if (isSystem) {
+    const systemText = renderSystemText(msg.contentJson, resolveName);
     return (
       <div className="flex justify-center py-1">
         <span className="text-xs text-gray-400 italic px-3 py-1 bg-gray-50 dark:bg-gray-800 rounded-full">
-          {msg.plaintext || "System event"}
+          {systemText}
         </span>
       </div>
     );
@@ -125,7 +166,7 @@ function MessageBubble({
         ) : (
           <>
             <p className="text-sm text-gray-700 dark:text-gray-300 mt-0.5 leading-relaxed whitespace-pre-wrap">
-              {msg.plaintext}
+              {renderWithMentions(msg.plaintext, msg.mentions)}
             </p>
 
             {msg.attachments.length > 0 && (
@@ -420,9 +461,10 @@ export default function ChannelChatView({ channelId, channelName, members, priva
   };
 
   const myId = user?.id ?? "";
-  const myColor = "#6366f1";
   const myInitials = getInitials(user?.fullName ?? "Me");
   const grouped = groupMessages(messages);
+  const workspaceMemberMap = new Map(workspaceMembers.map((m) => [m.id, m.fullName]));
+  const resolveName = (id: string) => workspaceMemberMap.get(id) ?? id;
   const typingUserIds = typingUsers ? Array.from(typingUsers).filter((id) => id !== myId) : [];
 
   const handleAddMember = async (userId: string) => {
@@ -475,12 +517,12 @@ export default function ChannelChatView({ channelId, channelName, members, priva
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-white bg-violet-600 hover:bg-violet-700 transition-colors">
+            {/* <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-white bg-violet-600 hover:bg-violet-700 transition-colors">
               <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
               </svg>
               Ask AI
-            </button>
+            </button> */}
             {/* Member count avatar button */}
             <button
               onClick={() => setShowMembersSidebar((v) => !v)}
@@ -608,6 +650,7 @@ export default function ChannelChatView({ channelId, channelName, members, priva
                         senderColor={senderColor}
                         onEdit={handleEditStart}
                         onDelete={handleDelete}
+                        resolveName={resolveName}
                       />
                     );
                   })}
@@ -641,6 +684,12 @@ export default function ChannelChatView({ channelId, channelName, members, priva
           channelId={channelId}
           onTypingStart={sendTypingStart}
           onTypingStop={sendTypingStop}
+          enableMentions
+          members={members.map((m) => ({
+            userId: m.userId,
+            fullName: m.user.fullName,
+            avatarUrl: m.user.avatarUrl,
+          }))}
         />
       </div>
 
