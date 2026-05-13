@@ -14,7 +14,7 @@
     "@fullcalendar/interaction": "^6.1.19",  
     "@fullcalendar/list": "^6.1.19",
     "@fullcalendar/react": "^6.1.19",
-    "@fullcalendar/timegrid": "^6.1.19",
+    "@fullcalendar/timegrid": "^6.1.19",   
     "@hookform/resolvers": "^5.2.2",        
     "@react-jvectormap/core": "^1.0.4",  
     "@react-jvectormap/world": "^1.1.2",   
