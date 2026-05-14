@@ -89,7 +89,9 @@ api.interceptors.response.use(
       url.includes("/auth/logout") ||
       url.includes("/auth/forgot-password") ||
       url.includes("/auth/reset-password") ||
-      url.includes("/auth/google");
+      url.includes("/auth/google") ||
+      url.includes("/unlock") ||
+      url.includes("/password");
 
     // Pass non-401 errors and auth-endpoint 401s straight through
     if (error.response?.status !== 401 || isAuthEndpoint) {

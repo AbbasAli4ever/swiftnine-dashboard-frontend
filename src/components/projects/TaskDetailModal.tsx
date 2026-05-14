@@ -95,9 +95,15 @@ function SubtaskRow({
   fetchMembers?: () => void;
 }) {
   const { updateSubtask, deleteSubtask, addAssignee, removeAssignee } = useTaskStore();
-  const storeTags = useTaskStore(s => s.openTask?.children?.find(c => c.id === subtask.id)?.tags);
+  const storeChild = useTaskStore(s => s.openTask?.children?.find(c => c.id === subtask.id));
+  const storeTags = storeChild?.tags;
   const [optimisticTags, setOptimisticTags] = useState<typeof subtask.tags | null>(null);
   const displayTags = optimisticTags ?? storeTags ?? subtask.tags ?? [];
+  const liveAssignees = storeChild?.assignees ?? subtask.assignees;
+  const liveStartDate = storeChild?.startDate ?? subtask.startDate;
+  const liveDueDate = storeChild?.dueDate ?? subtask.dueDate;
+  const livePriority = storeChild?.priority ?? subtask.priority;
+  const liveStatus = storeChild?.status ?? subtask.status;
 
   const handleAddTag = async (tagId: string, tagInfo?: { name: string; color: string }) => {
     const base = storeTags ?? subtask.tags ?? [];
@@ -174,7 +180,7 @@ function SubtaskRow({
         <div className="flex min-w-0 items-center gap-2 pl-2">
           <span className="w-3.5 shrink-0" />
           <span className="shrink-0">
-            <StatusIcon group={subtask.status.group} color={subtask.status.group === "CLOSED" ? "#2a9764" : subtask.status.color} size={15} />
+            <StatusIcon group={liveStatus.group} color={liveStatus.group === "CLOSED" ? "#2a9764" : liveStatus.color} size={15} />
           </span>
           {editingTitle ? (
             <input
@@ -240,7 +246,7 @@ function SubtaskRow({
         {/* Assignee */}
         <div>
           <AssigneePicker
-            assignees={subtask.assignees}
+            assignees={liveAssignees}
             members={members}
             onAdd={async (userId) => { try { await addAssignee(subtask.id, listId, [userId]); } catch (err) { toast.error(parseApiError(err).message); } }}
             onRemove={async (userId) => { try { await removeAssignee(subtask.id, listId, userId); } catch (err) { toast.error(parseApiError(err).message); } }}
@@ -251,8 +257,8 @@ function SubtaskRow({
         {/* Due date */}
         <div>
           <DatePicker
-            startDate={subtask.startDate}
-            dueDate={subtask.dueDate}
+            startDate={liveStartDate}
+            dueDate={liveDueDate}
             onChange={async (range) => { try { await updateSubtask(subtask.id, parentId, listId, { startDate: range.startDate, dueDate: range.dueDate }); } catch (err) { toast.error(parseApiError(err).message); } }}
           />
         </div>
@@ -260,7 +266,7 @@ function SubtaskRow({
         {/* Priority */}
         <div>
           <PriorityPicker
-            value={subtask.priority}
+            value={livePriority}
             onChange={async (priority) => { try { await updateSubtask(subtask.id, parentId, listId, { priority }); } catch (err) { toast.error(parseApiError(err).message); } }}
             onClear={async () => { try { await updateSubtask(subtask.id, parentId, listId, { priority: "NONE" }); } catch (err) { toast.error(parseApiError(err).message); } }}
           />
@@ -270,7 +276,7 @@ function SubtaskRow({
         <div>
           <StatusPicker
             statuses={statuses}
-            value={subtask.status.id}
+            value={liveStatus.id}
             onChange={async (statusId) => { try { await updateSubtask(subtask.id, parentId, listId, { statusId }); } catch (err) { toast.error(parseApiError(err).message); } }}
             align="right"
           />

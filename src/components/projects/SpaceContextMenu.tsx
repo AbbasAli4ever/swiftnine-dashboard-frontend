@@ -22,6 +22,7 @@ import {
   LuTrash2,
   LuUsers,
   LuChevronRight,
+  LuShield,
 } from "react-icons/lu";
 
 interface MenuItemProps {
@@ -69,6 +70,7 @@ interface Props {
   onFavorite?: () => void;
   onArchive?: () => void;
   onRestore?: () => void;
+  onPasswordProtection?: () => void;
 }
 
 export default function SpaceContextMenu({
@@ -83,6 +85,7 @@ export default function SpaceContextMenu({
   onFavorite,
   onArchive,
   onRestore,
+  onPasswordProtection,
 }: Props) {
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
@@ -176,6 +179,12 @@ export default function SpaceContextMenu({
         <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
 
         <MenuItem icon={<LuUsers className="w-4 h-4" />} label="Sharing & Permissions" onClick={onClose} />
+        <MenuItem
+          icon={<LuShield className="w-4 h-4" />}
+          label="Password Protection"
+          description={project.passwordUpdatedAt ? "Password set" : undefined}
+          onClick={() => { onPasswordProtection?.(); onClose(); }}
+        />
 
         <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
 

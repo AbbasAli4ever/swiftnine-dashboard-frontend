@@ -167,9 +167,10 @@ export const useTaskSearchStore = create<TaskSearchState>((set, get) => {
     } catch (error) {
       const status = (error as { response?: { status?: number } })?.response?.status;
       const message = parseApiError(error).message;
-      if (status === 404) {
-        // Resource no longer exists — evict this cache entry so stale data
-        // is not shown and callers don't receive an unhandled rejection.
+
+      if (status === 404 || status === 403) {
+        // Resource gone or access denied (e.g. locked project) — evict cache
+        // and return empty so callers don't receive an unhandled rejection.
         set((state) => {
           const next = { ...state.caches };
           delete next[key];

@@ -24,7 +24,38 @@ export interface Project {
   updatedAt: string;
   statuses: ProjectStatus[];
   _count: { taskLists: number };
+  locked?: boolean;
+  passwordUpdatedAt?: string | null;
 }
+
+export type LockedProjectListItem = {
+  id: string;
+  workspaceId: string;
+  locked: true;
+  isFavorite: boolean;
+  favoritedAt?: string;
+};
+
+export type UnlockedProjectListItem = {
+  id: string;
+  workspaceId: string;
+  locked: false;
+  passwordUpdatedAt: string | null;
+  isFavorite: boolean;
+  name: string;
+  description: string | null;
+  color: string;
+  icon: string | null;
+  taskIdPrefix: string;
+  statuses: ProjectStatus[];
+  isArchived: boolean;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  _count?: { taskLists: number };
+};
+
+export type ProjectListItem = LockedProjectListItem | UnlockedProjectListItem;
 
 interface ProjectResponse {
   success: boolean;

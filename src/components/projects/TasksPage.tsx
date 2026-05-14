@@ -27,6 +27,8 @@ import ConfirmActionModal from "@/components/common/ConfirmActionModal";
 import TaskFiltersModal from "./TaskFiltersModal";
 import ProjectTaskHeader from "./ProjectTaskHeader";
 import ListTaskHeader from "./ListTaskHeader";
+import ProjectAttachments from "./ProjectAttachments";
+import ProjectUnlockModal from "./ProjectUnlockModal";
 import TaskPagination from "./TaskPagination";
 import {
   clearTaskSearchPatch,
@@ -36,10 +38,10 @@ import {
 } from "./task-search-utils";
 import { toast } from "sonner";
 import type { ReactElement } from "react";
-import { LuArchive, LuCalendarDays, LuLayoutDashboard, LuList, LuSquareKanban, LuStar } from "react-icons/lu";
+import { LuArchive, LuCalendarDays, LuLayoutDashboard, LuList, LuSquareKanban, LuStar, LuPaperclip, LuLock } from "react-icons/lu";
 import { ICON_MAP } from "@/components/projects/IconColorPicker";
 
-type ProjectView = "overview" | "list" | "board" | "calendar";
+type ProjectView = "overview" | "list" | "board" | "calendar" | "attachments";
 
 type PendingCreateDefaults = {
   listId?: string | null;
@@ -50,18 +52,20 @@ const VIEW_TABS: Array<{
   id: ProjectView;
   label: string;
   icon: ReactElement;
+  projectOnly?: boolean;
 }> = [
-  { id: "overview", label: "Overview", icon: <LuLayoutDashboard className="h-4 w-4" /> },
+  { id: "overview", label: "Overview", icon: <LuLayoutDashboard className="h-4 w-4" />, projectOnly: true },
   { id: "list", label: "List", icon: <LuList className="h-4 w-4" /> },
   { id: "board", label: "Board", icon: <LuSquareKanban className="h-4 w-4" /> },
   { id: "calendar", label: "Calendar", icon: <LuCalendarDays className="h-4 w-4" /> },
+  { id: "attachments", label: "Attachments", icon: <LuPaperclip className="h-4 w-4" />, projectOnly: true },
 ];
 
 export default function TasksPage() {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { projects, isLoading: projectsLoading, patchLocalProject } = useProjects();
+  const { projects, isLoading: projectsLoading, patchLocalProject, refetch: refetchProjects } = useProjects();
   const { getLists, getProjectLists, renameList, archiveList, restoreList, deleteList } = useTaskLists();
   const { members, refetch: refetchMembers } = useWorkspaceMembers();
   const {
@@ -117,25 +121,30 @@ export default function TasksPage() {
     return requestedView ?? "overview";
   }, [listId, requestedView]);
 
+  const [unlockModalOpen, setUnlockModalOpen] = useState(false);
   const allLists = projectId ? getProjectLists(projectId, { includeArchived: true }) : [];
   const activeLists = allLists.filter((list) => !list.isArchived);
   const selectedList = allLists.find((list) => list.id === listId) ?? null;
-  const visibleTabs = listId ? VIEW_TABS.filter((tab) => tab.id !== "overview") : VIEW_TABS;
+  const visibleTabs = listId
+    ? VIEW_TABS.filter((tab) => !tab.projectOnly)
+    : VIEW_TABS;
+
+  const isProjectLocked = projects.find((p) => p.id === projectId)?.locked ?? false;
 
   useEffect(() => {
-    if (!projectId) return;
+    if (!projectId || isProjectLocked) return;
     void getLists(projectId, {
       includeArchived: currentView === "list",
     }).catch(() => {});
-  }, [currentView, getLists, listId, projectId]);
+  }, [currentView, getLists, listId, projectId, isProjectLocked]);
 
   useEffect(() => {
-    if (!projectId) return;
+    if (!projectId || isProjectLocked) return;
     statusService
       .list(projectId)
       .then((grouped) => setStatuses(flattenGroupedStatuses(grouped)))
       .catch(() => setStatuses([]));
-  }, [projectId]);
+  }, [projectId, isProjectLocked]);
 
   useEffect(() => {
     if (listId && !selectedList && activeLists.length > 0) {
@@ -148,12 +157,12 @@ export default function TasksPage() {
   }, []);
 
   const taskScope = useMemo(() => {
-    if (!projectId) return null;
+    if (!projectId || isProjectLocked) return null;
     if (selectedList) {
       return { type: "list" as const, projectId, listId: selectedList.id };
     }
     return { type: "project" as const, projectId };
-  }, [projectId, selectedList]);
+  }, [projectId, selectedList, isProjectLocked]);
 
   const pagedCacheKey = useMemo(() => (
     taskScope ? getTaskSearchCacheKey(taskScope, taskSearchParams, "page") : null
@@ -344,8 +353,43 @@ export default function TasksPage() {
     );
   }
 
-  const projectInitial = project.name.charAt(0).toUpperCase();
-  const heading = selectedList ? selectedList.name : project.name;
+  if (project.locked) {
+    return (
+      <>
+        <div className="flex h-full flex-col items-center justify-center gap-6">
+          <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-linear-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700">
+            <LuLock className="h-9 w-9 text-gray-400 dark:text-gray-500" />
+          </div>
+          <div className="text-center">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Project is locked</h2>
+            <p className="mt-2 text-sm text-gray-400 max-w-xs">
+              This project is password protected. Enter the password to access its content.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setUnlockModalOpen(true)}
+            className="flex items-center gap-2 rounded-xl bg-brand-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-600 transition-colors"
+          >
+            <LuLock className="h-4 w-4" />
+            Unlock Project
+          </button>
+        </div>
+        <ProjectUnlockModal
+          isOpen={unlockModalOpen}
+          projectId={project.id}
+          onClose={() => setUnlockModalOpen(false)}
+          onUnlocked={() => {
+            setUnlockModalOpen(false);
+            void refetchProjects();
+          }}
+        />
+      </>
+    );
+  }
+
+  const projectInitial = (project.name ?? "").charAt(0).toUpperCase();
+  const heading = selectedList ? selectedList.name : (project.name ?? "");
   const scopeHeader = selectedList ? (
     <ListTaskHeader
       listName={selectedList.name}
@@ -504,7 +548,26 @@ export default function TasksPage() {
             onView={(taskId) => void openTaskDetailById(taskId)}
           />
         ) : null}
+
+        {currentView === "attachments" ? (
+          <div className="px-1 py-2 h-full">
+            <ProjectAttachments
+              projectId={project.id}
+              onLockedError={() => setUnlockModalOpen(true)}
+            />
+          </div>
+        ) : null}
       </div>
+
+      <ProjectUnlockModal
+        isOpen={unlockModalOpen}
+        projectId={project.id}
+        onClose={() => setUnlockModalOpen(false)}
+        onUnlocked={() => {
+          setUnlockModalOpen(false);
+          patchLocalProject(project.id, { locked: false });
+        }}
+      />
 
       <TaskForm
         key={`${project.id}-${pendingDefaults.listId ?? "none"}-${pendingDefaults.statusId ?? "none"}-${formModal.isOpen ? "open" : "closed"}`}

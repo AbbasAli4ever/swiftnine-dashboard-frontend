@@ -362,6 +362,9 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     try {
       const updated = await taskService.update(subtaskId, payload);
       set((s) => {
+        const patchChild = (c: TaskDetail["children"][number]) => c.id === subtaskId
+          ? { ...c, title: updated.title, priority: updated.priority, startDate: updated.startDate, dueDate: updated.dueDate, status: updated.status, assignees: updated.assignees, tags: updated.tags, isCompleted: updated.isCompleted, completedAt: updated.completedAt, updatedAt: updated.updatedAt }
+          : c;
         const updatedSubs = (s.subtasksByParent[parentId] ?? []).map((t) =>
           t.id === subtaskId
             ? {
@@ -388,6 +391,9 @@ export const useTaskStore = create<TaskState>((set, get) => ({
         };
         if (s.openTask?.id === subtaskId) {
           return { ...newState, openTask: updated } as Partial<TaskState>;
+        }
+        if (s.openTask?.id === parentId && s.openTask.children) {
+          return { ...newState, openTask: { ...s.openTask, children: s.openTask.children.map(patchChild) } } as Partial<TaskState>;
         }
         return newState as Partial<TaskState>;
       });
@@ -540,21 +546,28 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
   addAssignee: async (taskId, listId, userIds) => {
     const updated = await taskService.addAssignee(taskId, userIds);
-    set((s) => ({
-      tasksByList: {
-        ...s.tasksByList,
-        [listId]: (s.tasksByList[listId] ?? []).map((t) =>
-          t.id === taskId ? { ...t, assignees: updated.assignees } : t
+    set((s) => {
+      const patchedOpenTask = s.openTask?.id === taskId
+        ? updated
+        : s.openTask?.children?.some(c => c.id === taskId)
+          ? { ...s.openTask, children: s.openTask.children.map(c => c.id === taskId ? { ...c, assignees: updated.assignees } : c) }
+          : s.openTask;
+      return {
+        tasksByList: {
+          ...s.tasksByList,
+          [listId]: (s.tasksByList[listId] ?? []).map((t) =>
+            t.id === taskId ? { ...t, assignees: updated.assignees } : t
+          ),
+        },
+        subtasksByParent: Object.fromEntries(
+          Object.entries(s.subtasksByParent).map(([pid, subs]) => [
+            pid,
+            subs.map((t) => t.id === taskId ? { ...t, assignees: updated.assignees } : t),
+          ])
         ),
-      },
-      subtasksByParent: Object.fromEntries(
-        Object.entries(s.subtasksByParent).map(([pid, subs]) => [
-          pid,
-          subs.map((t) => t.id === taskId ? { ...t, assignees: updated.assignees } : t),
-        ])
-      ),
-      openTask: s.openTask?.id === taskId ? updated : s.openTask,
-    }));
+        openTask: patchedOpenTask,
+      };
+    });
     useTaskSearchStore.getState().applyLocalUpdate(taskId, { assignees: updated.assignees });
   },
 
@@ -577,7 +590,9 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       ),
       openTask: s.openTask?.id === taskId
         ? { ...s.openTask, assignees: optimisticRemove(s.openTask.assignees) }
-        : s.openTask,
+        : s.openTask?.children?.some(c => c.id === taskId)
+          ? { ...s.openTask, children: s.openTask.children.map(c => c.id === taskId ? { ...c, assignees: optimisticRemove(c.assignees) } : c) }
+          : s.openTask,
     }));
     const patchedAssignees = get().tasksByList[listId]?.find(t => t.id === taskId)?.assignees
       ?? Object.values(get().subtasksByParent).flat().find(t => t.id === taskId)?.assignees
@@ -598,7 +613,11 @@ export const useTaskStore = create<TaskState>((set, get) => ({
             subs.map((t) => t.id === taskId ? { ...t, assignees: updated.assignees } : t),
           ])
         ),
-        openTask: s.openTask?.id === taskId ? updated : s.openTask,
+        openTask: s.openTask?.id === taskId
+          ? updated
+          : s.openTask?.children?.some(c => c.id === taskId)
+            ? { ...s.openTask, children: s.openTask.children.map(c => c.id === taskId ? { ...c, assignees: updated.assignees } : c) }
+            : s.openTask,
       }));
       useTaskSearchStore.getState().applyLocalUpdate(taskId, { assignees: updated.assignees });
     } catch (err) { throw err; }
