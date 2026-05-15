@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
+import { hasSessionExists } from "@/stores/auth.store";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { NotificationProvider } from "@/context/NotificationContext";
 import AppHeader from "@/layout/AppHeader";
@@ -28,12 +29,15 @@ export default function AdminLayoutClient({
     pathname === "/assigned-comments";
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    // Only bounce to /signin when we are sure the user has never logged in on
+    // this browser. If session_exists is set, AuthContext is still trying to
+    // restore via /auth/refresh — don't race ahead with a redirect.
+    if (!isLoading && !isAuthenticated && !hasSessionExists()) {
       window.location.replace("/signin");
     }
   }, [isLoading, isAuthenticated]);
 
-  if (isLoading) {
+  if (isLoading || (!isAuthenticated && hasSessionExists())) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-white dark:bg-gray-900">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-brand-500 border-t-transparent" />

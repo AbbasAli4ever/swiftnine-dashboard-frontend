@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// Routes that require the user to be logged in
-const PROTECTED_PREFIXES = ["/"];
-
 // Auth routes — logged-in users should be redirected away from these
 const AUTH_ROUTES = ["/signin", "/signup"];
 
@@ -43,13 +40,11 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL("/", req.url));
   }
 
-  // If user is NOT logged in and tries to visit a protected route → redirect to signin
-  if (!hasSession) {
-    const signinUrl = new URL("/signin", req.url);
-    signinUrl.searchParams.set("from", pathname);
-    return NextResponse.redirect(signinUrl);
-  }
-
+  // Protected-route auth is handled client-side in AdminLayoutClient.
+  // It calls refreshSession() on mount, giving the client a chance to restore
+  // the session via the refresh_token cookie before deciding to redirect.
+  // Blocking here causes a race: the middleware runs before the client can
+  // refresh, so users with valid sessions get bounced to /signin on tab reopen.
   return NextResponse.next();
 }
 
