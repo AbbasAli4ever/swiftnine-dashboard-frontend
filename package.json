@@ -7,7 +7,7 @@
     "build": "next build",     
     "start": "next start",
     "lint": "eslint ."      
-  },    
+  },      
   "dependencies": {      
     "@fullcalendar/core": "^6.1.19",
     "@fullcalendar/daygrid": "^6.1.19",
