@@ -28,6 +28,7 @@ import TaskFiltersModal from "./TaskFiltersModal";
 import ProjectTaskHeader from "./ProjectTaskHeader";
 import ListTaskHeader from "./ListTaskHeader";
 import ProjectAttachments from "./ProjectAttachments";
+import ListAttachments from "./ListAttachments";
 import ProjectUnlockModal from "./ProjectUnlockModal";
 import TaskPagination from "./TaskPagination";
 import {
@@ -58,7 +59,7 @@ const VIEW_TABS: Array<{
   { id: "list", label: "List", icon: <LuList className="h-4 w-4" /> },
   { id: "board", label: "Board", icon: <LuSquareKanban className="h-4 w-4" /> },
   { id: "calendar", label: "Calendar", icon: <LuCalendarDays className="h-4 w-4" /> },
-  { id: "attachments", label: "Attachments", icon: <LuPaperclip className="h-4 w-4" />, projectOnly: true },
+  { id: "attachments", label: "Attachments", icon: <LuPaperclip className="h-4 w-4" /> },
 ];
 
 export default function TasksPage() {
@@ -551,10 +552,14 @@ export default function TasksPage() {
 
         {currentView === "attachments" ? (
           <div className="px-1 py-2 h-full">
-            <ProjectAttachments
-              projectId={project.id}
-              onLockedError={() => setUnlockModalOpen(true)}
-            />
+            {selectedList ? (
+              <ListAttachments listId={selectedList.id} />
+            ) : (
+              <ProjectAttachments
+                projectId={project.id}
+                onLockedError={() => setUnlockModalOpen(true)}
+              />
+            )}
           </div>
         ) : null}
       </div>

@@ -57,8 +57,8 @@ export default function TaskCard({ task, onView, onDelete, draggable, onDragStar
       )}
 
       {/* Title */}
-      <p className={`mb-3 pl-2 text-sm font-normal leading-snug text-gray-700 dark:text-gray-200 line-clamp-2 ${task.status === "done" ? "line-through text-gray-400 dark:text-gray-600" : ""}`}>
-        {task.title}
+      <p className={`mb-3 pl-2 text-sm font-normal leading-snug text-gray-700 dark:text-gray-200 line-clamp-2 wrap-break-word ${task.status === "done" ? "line-through text-gray-400 dark:text-gray-600" : ""}`}>
+        {task.title.split(/(\s+)/).map((part) => (part.length > 15 && !/^\s+$/.test(part) ? part.slice(0, 15) + "..." : part)).join("")}
       </p>
 
       {/* Subtask progress */}

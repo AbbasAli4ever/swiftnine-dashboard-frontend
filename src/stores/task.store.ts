@@ -242,16 +242,40 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     // Optimistic update
     const prev = get().tasksByList[listId]?.find((t) => t.id === taskId);
     const prevOpenTask = get().openTask?.id === taskId ? get().openTask : null;
-    useTaskSearchStore.getState().applyLocalUpdate(taskId, payload as Partial<TaskListItem>);
+    // If payload contains statusId, resolve the full status object so the UI updates immediately
+    const resolveStatus = (statusId: string) => {
+      const all = [
+        ...Object.values(get().tasksByList).flat(),
+        ...Object.values(get().subtasksByParent).flat(),
+      ];
+      return all.find((t) => t.status.id === statusId)?.status;
+    };
+    const optimisticStatus = payload.statusId ? resolveStatus(payload.statusId) : undefined;
+    const searchPatch: Partial<TaskListItem> = { ...(payload as Partial<TaskListItem>) };
+    if (optimisticStatus) searchPatch.status = optimisticStatus;
+    useTaskSearchStore.getState().applyLocalUpdate(taskId, searchPatch);
     set((s) => {
+      const applyPatch = (t: TaskListItem) => {
+        const patched: TaskListItem = { ...t, ...payload };
+        if (optimisticStatus) patched.status = optimisticStatus;
+        return patched;
+      };
       const updatedTasks = (s.tasksByList[listId] ?? []).map((t) =>
-        t.id === taskId ? { ...t, ...payload } : t
+        t.id === taskId ? applyPatch(t) : t
       );
       const newState: Partial<TaskState> = {
         tasksByList: { ...s.tasksByList, [listId]: updatedTasks },
+        subtasksByParent: Object.fromEntries(
+          Object.entries(s.subtasksByParent).map(([pid, subs]) => [
+            pid,
+            subs.map((t) => t.id === taskId ? applyPatch(t) : t),
+          ])
+        ),
       };
       if (s.openTask?.id === taskId) {
-        return { ...newState, openTask: { ...s.openTask, ...payload } } as Partial<TaskState>;
+        const openPatched: TaskDetail = { ...s.openTask, ...payload };
+        if (optimisticStatus) openPatched.status = optimisticStatus;
+        return { ...newState, openTask: openPatched } as Partial<TaskState>;
       }
       return newState as Partial<TaskState>;
     });
@@ -259,26 +283,31 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     try {
       const updated = await taskService.update(taskId, payload);
       set((s) => {
-        const updatedTasks = (s.tasksByList[listId] ?? []).map((t) =>
-          t.id === taskId
-            ? {
-                ...t,
-                title: updated.title,
-                priority: updated.priority,
-                startDate: updated.startDate,
-                dueDate: updated.dueDate,
-                status: updated.status,
-                assignees: updated.assignees,
-                tags: updated.tags,
-                isCompleted: updated.isCompleted,
-                completedAt: updated.completedAt,
-                updatedAt: updated.updatedAt,
-              }
-            : t
-        );
-
+        const serverPatch = {
+          title: updated.title,
+          priority: updated.priority,
+          startDate: updated.startDate,
+          dueDate: updated.dueDate,
+          status: updated.status,
+          assignees: updated.assignees,
+          tags: updated.tags,
+          isCompleted: updated.isCompleted,
+          completedAt: updated.completedAt,
+          updatedAt: updated.updatedAt,
+        };
         const newState: Partial<TaskState> = {
-          tasksByList: { ...s.tasksByList, [listId]: updatedTasks },
+          tasksByList: {
+            ...s.tasksByList,
+            [listId]: (s.tasksByList[listId] ?? []).map((t) =>
+              t.id === taskId ? { ...t, ...serverPatch } : t
+            ),
+          },
+          subtasksByParent: Object.fromEntries(
+            Object.entries(s.subtasksByParent).map(([pid, subs]) => [
+              pid,
+              subs.map((t) => t.id === taskId ? { ...t, ...serverPatch } : t),
+            ])
+          ),
         };
 
         if (payload.listId && payload.listId !== listId) {
@@ -346,15 +375,58 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     // Optimistic update
     const prev = get().subtasksByParent[parentId]?.find((t) => t.id === subtaskId);
     const prevOpenTask = get().openTask?.id === subtaskId ? get().openTask : null;
+    // If payload contains statusId, resolve the full status object so the UI updates immediately
+    const resolveStatus = (statusId: string) => {
+      const all = [
+        ...Object.values(get().tasksByList).flat(),
+        ...Object.values(get().subtasksByParent).flat(),
+      ];
+      return all.find((t) => t.status.id === statusId)?.status;
+    };
+    const optimisticStatus = payload.statusId ? resolveStatus(payload.statusId) : undefined;
     set((s) => {
-      const updatedSubs = (s.subtasksByParent[parentId] ?? []).map((t) =>
-        t.id === subtaskId ? { ...t, ...payload } : t
-      );
-      const newState: Partial<TaskState> = {
-        subtasksByParent: { ...s.subtasksByParent, [parentId]: updatedSubs },
+      const applyPatch = (t: TaskListItem) => {
+        const patched: TaskListItem = { ...t, ...payload };
+        if (optimisticStatus) patched.status = optimisticStatus;
+        return patched;
       };
+      const hadParentKey = parentId in s.subtasksByParent;
+      const nextSubsByParent = hadParentKey
+        ? {
+            ...s.subtasksByParent,
+            [parentId]: s.subtasksByParent[parentId].map((t) =>
+              t.id === subtaskId ? applyPatch(t) : t
+            ),
+          }
+        : s.subtasksByParent;
+      // Subtasks can also live in tasksByList (depth > 0); patch there too
+      const nextTasksByList = {
+        ...s.tasksByList,
+        [listId]: (s.tasksByList[listId] ?? []).map((t) =>
+          t.id === subtaskId ? applyPatch(t) : t
+        ),
+      };
+      const newState: Partial<TaskState> = {
+        subtasksByParent: nextSubsByParent,
+        tasksByList: nextTasksByList,
+      };
+      // Patch openTask.children if the open task is the parent
+      if (s.openTask && s.openTask.children?.some((c) => c.id === subtaskId)) {
+        const patchedChildren = s.openTask.children.map((c) =>
+          c.id === subtaskId
+            ? {
+                ...c,
+                ...payload,
+                ...(optimisticStatus ? { status: optimisticStatus } : {}),
+              }
+            : c
+        );
+        newState.openTask = { ...s.openTask, children: patchedChildren };
+      }
       if (s.openTask?.id === subtaskId) {
-        return { ...newState, openTask: { ...s.openTask, ...payload } } as Partial<TaskState>;
+        const openPatched: TaskDetail = { ...s.openTask, ...payload };
+        if (optimisticStatus) openPatched.status = optimisticStatus;
+        newState.openTask = openPatched;
       }
       return newState as Partial<TaskState>;
     });
@@ -362,32 +434,42 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     try {
       const updated = await taskService.update(subtaskId, payload);
       set((s) => {
-        const patchChild = (c: TaskDetail["children"][number]) => c.id === subtaskId
-          ? { ...c, title: updated.title, priority: updated.priority, startDate: updated.startDate, dueDate: updated.dueDate, status: updated.status, assignees: updated.assignees, tags: updated.tags, isCompleted: updated.isCompleted, completedAt: updated.completedAt, updatedAt: updated.updatedAt }
-          : c;
-        const updatedSubs = (s.subtasksByParent[parentId] ?? []).map((t) =>
-          t.id === subtaskId
-            ? {
-                ...t,
-                title: updated.title,
-                priority: updated.priority,
-                startDate: updated.startDate,
-                dueDate: updated.dueDate,
-                status: updated.status,
-                assignees: updated.assignees,
-                tags: updated.tags,
-                isCompleted: updated.isCompleted,
-                completedAt: updated.completedAt,
-                updatedAt: updated.updatedAt,
-              }
-            : t
-        );
-        const updatedList = (s.tasksByList[listId] ?? []).map((t) =>
-          t.id === parentId ? { ...t, _count: { children: updatedSubs.length } } : t
-        );
+        const serverPatch = {
+          title: updated.title,
+          priority: updated.priority,
+          startDate: updated.startDate,
+          dueDate: updated.dueDate,
+          status: updated.status,
+          assignees: updated.assignees,
+          tags: updated.tags,
+          isCompleted: updated.isCompleted,
+          completedAt: updated.completedAt,
+          updatedAt: updated.updatedAt,
+        };
+        const patchChild = (c: TaskDetail["children"][number]) =>
+          c.id === subtaskId ? { ...c, ...serverPatch } : c;
+        const hadParentKey = parentId in s.subtasksByParent;
+        const nextSubsByParent = hadParentKey
+          ? {
+              ...s.subtasksByParent,
+              [parentId]: s.subtasksByParent[parentId].map((t) =>
+                t.id === subtaskId ? { ...t, ...serverPatch } : t
+              ),
+            }
+          : s.subtasksByParent;
+        const nextTasksByList = {
+          ...s.tasksByList,
+          [listId]: (s.tasksByList[listId] ?? []).map((t) =>
+            t.id === subtaskId
+              ? { ...t, ...serverPatch }
+              : t.id === parentId && hadParentKey
+                ? { ...t, _count: { children: s.subtasksByParent[parentId].length } }
+                : t
+          ),
+        };
         const newState: Partial<TaskState> = {
-          subtasksByParent: { ...s.subtasksByParent, [parentId]: updatedSubs },
-          tasksByList: { ...s.tasksByList, [listId]: updatedList },
+          subtasksByParent: nextSubsByParent,
+          tasksByList: nextTasksByList,
         };
         if (s.openTask?.id === subtaskId) {
           return { ...newState, openTask: updated } as Partial<TaskState>;
@@ -399,15 +481,20 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       });
     } catch (err) {
       // Rollback on error
-      set((s) => ({
-        subtasksByParent: {
-          ...s.subtasksByParent,
-          [parentId]: (s.subtasksByParent[parentId] ?? []).map((t) =>
-            t.id === subtaskId && prev ? prev : t
-          ),
-        },
-        openTask: prevOpenTask && s.openTask?.id === subtaskId ? prevOpenTask : s.openTask,
-      }));
+      set((s) => {
+        const hadParentKey = parentId in s.subtasksByParent;
+        return {
+          subtasksByParent: hadParentKey
+            ? {
+                ...s.subtasksByParent,
+                [parentId]: s.subtasksByParent[parentId].map((t) =>
+                  t.id === subtaskId && prev ? prev : t
+                ),
+              }
+            : s.subtasksByParent,
+          openTask: prevOpenTask && s.openTask?.id === subtaskId ? prevOpenTask : s.openTask,
+        };
+      });
       throw err;
     }
   },

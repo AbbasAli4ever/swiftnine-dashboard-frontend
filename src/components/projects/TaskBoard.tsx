@@ -71,8 +71,8 @@ function GhostCard({
             size={15}
           />
         </span>
-        <span className={`flex-1 text-left text-sm font-normal leading-5 ${task.isCompleted ? "text-gray-400 line-through" : "text-gray-800 dark:text-white"}`}>
-          {task.title}
+        <span className={`flex-1 min-w-0 text-left text-sm font-normal leading-5 line-clamp-2 wrap-break-word ${task.isCompleted ? "text-gray-400 line-through" : "text-gray-800 dark:text-white"}`}>
+          {task.title.split(/(\s+)/).map((part) => (part.length > 15 && !/^\s+$/.test(part) ? part.slice(0, 15) + "..." : part)).join("")}
         </span>
       </div>
       {task.tags.length > 0 && (
@@ -152,8 +152,8 @@ function CardContent({
             size={15}
           />
         </span>
-        <span className={`flex-1 text-left text-sm font-normal leading-5 ${task.isCompleted ? "text-gray-400 line-through" : "text-gray-800 dark:text-white"}`}>
-          {task.title}
+        <span className={`flex-1 min-w-0 text-left text-sm font-normal leading-5 line-clamp-2 wrap-break-word ${task.isCompleted ? "text-gray-400 line-through" : "text-gray-800 dark:text-white"}`}>
+          {task.title.split(/(\s+)/).map((part) => (part.length > 15 && !/^\s+$/.test(part) ? part.slice(0, 15) + "..." : part)).join("")}
         </span>
       </div>
       {task.tags.length > 0 && (
