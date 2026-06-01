@@ -14,6 +14,7 @@ const PUBLIC_PREFIXES = [
   "/reset-password",
   "/auth/callback", // Google OAuth lands here with refresh_token already set
   "/error-404",
+  "/portal-select",
 ];
 
 function isPublic(pathname: string) {
@@ -35,9 +36,9 @@ export function middleware(req: NextRequest) {
   // The httpOnly refresh_token cookie is set by the backend on login/register/OAuth.
   const hasSession = req.cookies.has("refresh_token");
 
-  // If user is logged in and tries to visit signin/signup → redirect to dashboard
+  // If user is logged in and tries to visit signin/signup → redirect to portal select
   if (hasSession && isAuthRoute(pathname)) {
-    return NextResponse.redirect(new URL("/", req.url));
+    return NextResponse.redirect(new URL("/portal-select", req.url));
   }
 
   // Protected-route auth is handled client-side in AdminLayoutClient.

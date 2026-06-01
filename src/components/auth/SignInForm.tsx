@@ -47,7 +47,7 @@ export default function SignInForm() {
       const safeRedirect =
         redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//")
           ? redirectTo
-          : "/";
+          : "/portal-select";
       toast.success("Welcome back!");
       window.location.replace(safeRedirect);
     } catch (err) {

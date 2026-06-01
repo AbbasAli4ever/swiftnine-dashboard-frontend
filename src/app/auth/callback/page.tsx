@@ -2,7 +2,7 @@
 
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth.store";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect } from "react";
 
 function Spinner() {
@@ -18,14 +18,13 @@ function Spinner() {
 
 function CallbackHandler() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const setAuth = useAuthStore((s) => s.setAuth);
 
   useEffect(() => {
     const token = searchParams.get("token");
 
     if (!token) {
-      router.replace("/signin?error=oauth_failed");
+      window.location.replace("/signin?error=oauth_failed");
       return;
     }
 
@@ -50,11 +49,11 @@ function CallbackHandler() {
           avatarUrl: data.avatarUrl,
           avatarColor: data.avatarColor,
         });
-        router.replace("/");
+        window.location.replace("/portal-select");
       })
       .catch(() => {
         // Profile fetch failed — store the token at minimum so the user lands
-        // on the dashboard. The next page load will restore the full profile.
+        // on the portal select. The next page load will restore the full profile.
         setAuth(token, {
           id: "",
           fullName: "User",
@@ -62,7 +61,7 @@ function CallbackHandler() {
           avatarUrl: null,
           avatarColor: "#6366f1",
         });
-        router.replace("/");
+        window.location.replace("/portal-select");
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

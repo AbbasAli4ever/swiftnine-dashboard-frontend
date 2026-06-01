@@ -2,7 +2,7 @@
 
 import { api, refreshSession } from "@/lib/api";
 import { AuthUser, useAuthStore, hasSessionExists } from "@/stores/auth.store";
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
 import React, {
   createContext,
   useCallback,
@@ -33,7 +33,6 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { accessToken, user, setAuth, clearAuth } = useAuthStore();
-  const router = useRouter();
   const pathname = usePathname();
   const [isLoading, setIsLoading] = useState(true);
 
@@ -117,9 +116,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         { email, otp }
       );
       setAuth(data.accessToken, data.user);
-      router.replace("/");
+      window.location.replace("/portal-select");
     },
-    [setAuth, router]
+    [setAuth]
   );
 
   const logout = useCallback(async () => {
