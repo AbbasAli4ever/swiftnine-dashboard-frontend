@@ -1,8 +1,10 @@
 "use client";
 
-import Link from "next/link";
+import { BellIcon, MoonIcon, SearchIcon, SunIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useTheme } from "@/context/ThemeContext";
 
 const PAGE_TITLES: Record<string, { title: string; subtitle: string }> = {
   "/university": {
@@ -38,97 +40,69 @@ const PAGE_TITLES: Record<string, { title: string; subtitle: string }> = {
 
 export default function UniversityHeader() {
   const pathname = usePathname();
-  const [search, setSearch] = useState("");
+  const { theme, toggleTheme } = useTheme();
   const page = PAGE_TITLES[pathname] ?? {
     title: "University",
     subtitle: "SwiftNine University",
   };
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-6 gap-4">
-      {/* Page title */}
-      <div className="min-w-0">
-        <h1 className="text-lg font-semibold text-gray-900 dark:text-white leading-tight">
+    <header className="flex w-full flex-col gap-4 lg:flex-row lg:items-start lg:justify-between px-4 pb-4 pt-6 sm:px-6 lg:px-10 bg-[#f5f7fa] dark:bg-gray-900">
+      <div className="flex flex-col gap-1">
+        <h1 className="font-['Inter',Helvetica] text-2xl font-bold leading-none tracking-[0] text-gray-800 dark:text-white">
           {page.title}
         </h1>
-        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+        <p className="font-['Inter',Helvetica] text-[13.6px] font-normal leading-[normal] tracking-[0] text-gray-500 dark:text-gray-400">
           {page.subtitle}
         </p>
       </div>
-
-      {/* Right side */}
-      <div className="flex items-center gap-3">
-        {/* Search */}
-        <div className="relative hidden sm:block">
-          <input
-            type="text"
+      <div className="flex w-full flex-col gap-4 lg:w-auto lg:flex-row lg:items-center lg:justify-end lg:gap-6">
+        <div className="relative w-full lg:w-[250px]">
+          <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 h-[13.6px] w-[13.6px] -translate-y-1/2 text-gray-500 dark:text-gray-400" />
+          <Input
+            defaultValue=""
             placeholder="Search courses, topics..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-56 rounded-full border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 pl-9 pr-4 py-2 text-sm text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/30 focus:border-[#7C3AED]"
+            className="h-auto rounded-[20px] border border-gray-200 bg-white py-2.5 pl-9 pr-4 font-['Inter',Helvetica] text-[13.6px] font-normal tracking-[0] text-[#757575] placeholder:text-[#757575] dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:placeholder:text-gray-500"
           />
-          <svg
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-            width="14"
-            height="14"
-            viewBox="0 0 16 16"
-            fill="none"
-          >
-            <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.8"/>
-            <path d="M11 11l3 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
-          </svg>
         </div>
-
-        {/* Portal switcher */}
-        <Link
-          href="/portal-select"
-          className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-          title="Switch portal"
-        >
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-            <path d="M2 8h12M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          Switch
-        </Link>
-
-        {/* Notifications */}
-        <button className="relative flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M8 1.5A4.5 4.5 0 0 0 3.5 6v2.5l-1.5 2h12l-1.5-2V6A4.5 4.5 0 0 0 8 1.5z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
-            <path d="M6.5 12.5a1.5 1.5 0 0 0 3 0" stroke="currentColor" strokeWidth="1.5"/>
-          </svg>
-        </button>
-
-        {/* Theme toggle */}
-        <ThemeToggle />
+        <div className="flex items-center gap-4">
+          <div className="inline-flex h-[39px] items-center rounded-lg border border-gray-200 bg-white p-2 dark:border-gray-700 dark:bg-gray-800">
+            <button
+              type="button"
+              className="inline-flex items-center justify-center rounded-md px-2.5 py-[5px] font-['Inter',Helvetica] text-[13px] font-normal leading-[normal] tracking-[0] text-gray-500 dark:text-gray-400"
+            >
+              Tasks
+            </button>
+            <button
+              type="button"
+              className="inline-flex items-center justify-center rounded-md bg-[#8920fe] px-3.5 py-[5px] font-['Inter',Helvetica] text-[13px] font-medium leading-[normal] tracking-[0] text-white"
+            >
+              LSM
+            </button>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="h-10 w-10 rounded-[20px] border-gray-200 bg-white text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 hover:dark:bg-gray-700"
+          >
+            <BellIcon className="h-[13.3px] w-[13.3px]" />
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            onClick={toggleTheme}
+            className="h-10 w-10 rounded-[20px] border-gray-200 bg-white text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 hover:dark:bg-gray-700"
+          >
+            {theme === "dark" ? (
+              <SunIcon className="h-[13.3px] w-[13.3px]" />
+            ) : (
+              <MoonIcon className="h-[13.3px] w-[13.3px]" />
+            )}
+          </Button>
+        </div>
       </div>
     </header>
-  );
-}
-
-function ThemeToggle() {
-  const [dark, setDark] = useState(false);
-
-  const toggle = () => {
-    setDark(!dark);
-    document.documentElement.classList.toggle("dark");
-  };
-
-  return (
-    <button
-      onClick={toggle}
-      className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-    >
-      {dark ? (
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <circle cx="8" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.5"/>
-          <path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.2 3.2l1.05 1.05M11.75 11.75l1.05 1.05M3.2 12.8l1.05-1.05M11.75 4.25l1.05-1.05" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-        </svg>
-      ) : (
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <path d="M13.5 9.5A5.5 5.5 0 0 1 6.5 2.5a5.5 5.5 0 1 0 7 7z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
-        </svg>
-      )}
-    </button>
   );
 }

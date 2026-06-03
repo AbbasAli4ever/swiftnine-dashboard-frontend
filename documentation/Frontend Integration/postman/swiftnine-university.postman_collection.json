@@ -1,0 +1,574 @@
+{
+  "info": {
+    "_postman_id": "0f9ec7f4-6f1f-4b2b-9c88-58f71f403c30",
+    "name": "SwiftNine University API - Frontend Integration",
+    "description": "Frontend handoff collection captured from the current non-production Swagger/OpenAPI route inventory. Set baseUrl to a University API base URL that already includes /api/v1 and set token to a current dashboard bearer token. If this snapshot disagrees with current Swagger/OpenAPI later, trust Swagger/OpenAPI.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.collectionVariables.get('baseUrl')) {",
+          "  throw new Error('Set collection variable baseUrl, including /api/v1.');",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3003/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "courseId",
+      "value": "8c6fd83b-83df-4c09-aec4-44ebbb9689bb",
+      "type": "string"
+    },
+    {
+      "key": "lessonId",
+      "value": "65fa8258-5156-44ef-bf51-3ffde9c10af8",
+      "type": "string"
+    },
+    {
+      "key": "resourceId",
+      "value": "117ee221-c200-4f81-9ba7-4d795737c8d7",
+      "type": "string"
+    },
+    {
+      "key": "certificateId",
+      "value": "d519b324-3884-44e8-a0f0-8a314d34d4e3",
+      "type": "string"
+    },
+    {
+      "key": "verificationToken",
+      "value": "example-verification-token",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Liveness",
+          "auth": {
+            "type": "noauth"
+          },
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/health",
+            "description": "Public API liveness probe."
+          }
+        },
+        {
+          "name": "Authenticated Token Probe",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/health/authed",
+            "description": "Checks the current dashboard bearer token against the University API."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Courses",
+      "item": [
+        {
+          "name": "List Courses",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/lms/courses?page=1&pageSize=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "lms",
+                "courses"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "20"
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "category",
+                  "value": "TECHNICAL",
+                  "disabled": true
+                },
+                {
+                  "key": "mandatory",
+                  "value": "false",
+                  "disabled": true
+                },
+                {
+                  "key": "bookmarked",
+                  "value": "true",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Course Detail",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/lms/courses/{{courseId}}"
+          }
+        },
+        {
+          "name": "Course Curriculum",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/lms/courses/{{courseId}}/curriculum"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Enrollments",
+      "item": [
+        {
+          "name": "Enroll",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/lms/courses/{{courseId}}/enroll"
+          }
+        },
+        {
+          "name": "My Courses",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/lms/my-courses?page=1&pageSize=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "lms",
+                "my-courses"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "20"
+                },
+                {
+                  "key": "status",
+                  "value": "ACTIVE",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Withdraw Enrollment",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"CANCELLED\"\n}"
+            },
+            "url": "{{baseUrl}}/lms/courses/{{courseId}}/enrollment",
+            "description": "Only CANCELLED is supported. Completed or currently certified enrollments cannot be withdrawn."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bookmarks",
+      "item": [
+        {
+          "name": "Add Bookmark",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/lms/courses/{{courseId}}/bookmark"
+          }
+        },
+        {
+          "name": "Remove Bookmark",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/lms/courses/{{courseId}}/bookmark"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Media",
+      "item": [
+        {
+          "name": "Create Playback Session",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/lms/lessons/{{lessonId}}/playback-session",
+            "description": "Returns manifestUrl and may set CloudFront signed cookies on the HTTP response."
+          }
+        },
+        {
+          "name": "Get Resource URL",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/lms/lessons/{{lessonId}}/resource/{{resourceId}}/url"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Progress",
+      "item": [
+        {
+          "name": "Record Video Progress",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentTime\": 45,\n  \"duration\": 300,\n  \"watchedFrom\": 30,\n  \"watchedTo\": 45\n}"
+            },
+            "url": "{{baseUrl}}/lms/lessons/{{lessonId}}/progress",
+            "description": "15-second sample tick from Docs/api-examples/progress.md."
+          }
+        },
+        {
+          "name": "Complete Resource Lesson",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/lms/lessons/{{lessonId}}/complete",
+            "description": "Call after requesting the resource URL; required resource lessons need the dwell delay."
+          }
+        },
+        {
+          "name": "Dashboard Stats",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/lms/me/dashboard-stats"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Certificates",
+      "item": [
+        {
+          "name": "Verify Certificate Publicly",
+          "auth": {
+            "type": "noauth"
+          },
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/lms/certificates/verify/{{verificationToken}}",
+            "description": "Public QR verification route. Keep real verification tokens out of shared examples."
+          }
+        },
+        {
+          "name": "Readiness By Course",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/lms/certificates/by-course/{{courseId}}"
+          }
+        },
+        {
+          "name": "My Certificates",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/lms/my-certificates"
+          }
+        },
+        {
+          "name": "Certificate Detail",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/lms/certificates/{{certificateId}}"
+          }
+        },
+        {
+          "name": "Certificate Download URL",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/lms/certificates/{{certificateId}}/download"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notes",
+      "item": [
+        {
+          "name": "Get Lesson Note",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/lms/lessons/{{lessonId}}/notes"
+          }
+        },
+        {
+          "name": "Upsert Lesson Note",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Remember to compare this with the brief template.\"\n}"
+            },
+            "url": "{{baseUrl}}/lms/lessons/{{lessonId}}/notes"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reviews",
+      "item": [
+        {
+          "name": "Create Course Review",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rating\": 5,\n  \"comment\": \"Clear, practical, and useful.\"\n}"
+            },
+            "url": "{{baseUrl}}/lms/courses/{{courseId}}/reviews"
+          }
+        },
+        {
+          "name": "Update My Course Review",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rating\": 4,\n  \"comment\": \"Useful, with a few notes for later.\"\n}"
+            },
+            "url": "{{baseUrl}}/lms/courses/{{courseId}}/reviews/mine"
+          }
+        },
+        {
+          "name": "Delete My Course Review",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/lms/courses/{{courseId}}/reviews/mine"
+          }
+        },
+        {
+          "name": "List Course Reviews",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/lms/courses/{{courseId}}/reviews?page=1&pageSize=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "lms",
+                "courses",
+                "{{courseId}}",
+                "reviews"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Profile",
+      "item": [
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/lms/me/profile"
+          }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jobTitle\": \"Growth Manager\",\n  \"department\": \"Marketing\",\n  \"notificationPrefs\": {\n    \"email\": true,\n    \"courseReminders\": false\n  },\n  \"appearance\": {\n    \"theme\": \"system\"\n  }\n}"
+            },
+            "url": "{{baseUrl}}/lms/me/profile"
+          }
+        },
+        {
+          "name": "Upload Avatar",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "avatar",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/lms/me/profile/avatar",
+            "description": "Choose a JPEG, PNG, or WEBP file under 5 MB."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin Reports",
+      "item": [
+        {
+          "name": "User Progress Report",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/lms/admin/reports/user-progress?page=1&pageSize=50"
+          }
+        },
+        {
+          "name": "User Progress CSV",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/lms/admin/reports/user-progress.csv"
+          }
+        },
+        {
+          "name": "Course Completion Report",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/lms/admin/reports/course-completion?page=1&pageSize=50"
+          }
+        },
+        {
+          "name": "Course Completion CSV",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/lms/admin/reports/course-completion.csv"
+          }
+        },
+        {
+          "name": "Certificates Report",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/lms/admin/reports/certificates?page=1&pageSize=50"
+          }
+        },
+        {
+          "name": "Certificates CSV",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/lms/admin/reports/certificates.csv"
+          }
+        },
+        {
+          "name": "Expired Certificates Report",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/lms/admin/reports/expired-certificates?page=1&pageSize=50"
+          }
+        },
+        {
+          "name": "Expired Certificates CSV",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/lms/admin/reports/expired-certificates.csv"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin Certificates",
+      "item": [
+        {
+          "name": "Revoke Certificate",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Issued in error.\"\n}"
+            },
+            "url": "{{baseUrl}}/lms/admin/certificates/{{certificateId}}/revoke"
+          }
+        }
+      ]
+    }
+  ]
+}

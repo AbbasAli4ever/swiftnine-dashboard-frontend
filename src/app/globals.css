@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import 'video.js/dist/video-js.css';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -193,6 +194,14 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+  }
+
+  *:not([class*="animate-"]),
+  *:not([class*="animate-"])::before,
+  *:not([class*="animate-"])::after {
+    transition-property: background-color, border-color, color, fill, stroke;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 200ms;
   }
 
 }
