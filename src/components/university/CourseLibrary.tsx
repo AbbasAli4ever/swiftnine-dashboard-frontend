@@ -4,7 +4,7 @@ import { useState, useCallback } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCourseLibrary } from "@/hooks/useCourseLibrary";
-import { formatDuration, enrollCourse, type CatalogCourse } from "@/services/university.service";
+import { formatDuration, enrollCourse, bookmarkCourse, removeBookmark, type CatalogCourse } from "@/services/university.service";
 
 // Label → exact backend CourseCategory enum value
 const CATEGORIES: { label: string; value: string | null }[] = [
@@ -145,6 +145,8 @@ const CATEGORY_GRADIENTS: Record<string, string> = {
 function CourseCard({ course }: { course: CatalogCourse }) {
   const router = useRouter();
   const [enrolling, setEnrolling] = useState(false);
+  const [bookmarked, setBookmarked] = useState(course.isBookmarked);
+  const [bookmarking, setBookmarking] = useState(false);
 
   const cat = course.category ?? "";
   const tagColor = CATEGORY_COLORS[cat] ?? "text-gray-500 dark:text-gray-400";
@@ -162,12 +164,26 @@ function CourseCard({ course }: { course: CatalogCourse }) {
   const progress = course.myProgress;
   const isEnrolled = !!progress;
 
+  async function handleBookmark(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (bookmarking) return;
+    setBookmarking(true);
+    try {
+      const result = bookmarked
+        ? await removeBookmark(course.id)
+        : await bookmarkCourse(course.id);
+      setBookmarked(result.bookmarked);
+    } finally {
+      setBookmarking(false);
+    }
+  }
+
   async function handleWatch() {
     setEnrolling(true);
     try {
       // Idempotent — safe to call even if already enrolled
       await enrollCourse(course.id);
-      router.push("/university/my-learning");
+      router.push(`/university/my-learning?courseId=${course.id}`);
     } catch {
       setEnrolling(false);
     }
@@ -198,13 +214,17 @@ function CourseCard({ course }: { course: CatalogCourse }) {
             {badge.label}
           </span>
         )}
-        {course.isBookmarked && (
-          <span className="absolute top-3 right-3 text-white opacity-80">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M3 2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v13l-5-3-5 3V2z"/>
-            </svg>
-          </span>
-        )}
+        <button
+          onClick={handleBookmark}
+          disabled={bookmarking}
+          className={`absolute top-3 right-3 flex h-7 w-7 items-center justify-center rounded-full transition-all ${
+            bookmarked ? "bg-white/20 text-white" : "bg-black/30 text-white/50 hover:text-white hover:bg-white/20"
+          }`}
+        >
+          <svg width="14" height="14" viewBox="0 0 16 16" fill={bookmarked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.5">
+            <path d="M3 2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v13l-5-3-5 3V2z"/>
+          </svg>
+        </button>
       </div>
 
       <div className="p-4">

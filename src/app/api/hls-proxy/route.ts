@@ -1,55 +1,64 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from 'next/server';
 
-// Local-dev only proxy — bypasses CloudFront CORS by making the HLS request
-// server-side. In production, VideoPlayer uses the manifestUrl directly.
-// Only allowed hosts can be proxied to prevent open-proxy abuse.
+export const runtime = 'nodejs';
 
-const ALLOWED_HOSTS = ["cdn.swiftnine.com", "dplwj98ci797.cloudfront.net"];
+function rewritePlaylist(playlist: string, sourceUrl: string) {
+  const base = new URL(sourceUrl);
+
+  return playlist
+    .split('\n')
+    .map((line) => {
+      const trimmed = line.trim();
+
+      if (!trimmed || trimmed.startsWith('#')) {
+        return line;
+      }
+
+      const absolute = new URL(trimmed, base).toString();
+      return `/api/hls-proxy?url=${encodeURIComponent(absolute)}`;
+    })
+    .join('\n');
+}
 
 export async function GET(req: NextRequest) {
-  const url = req.nextUrl.searchParams.get("url");
-
-  if (!url) {
-    return new NextResponse("Missing url param", { status: 400 });
-  }
-
-  let parsed: URL;
   try {
-    parsed = new URL(url);
-  } catch {
-    return new NextResponse("Invalid url", { status: 400 });
-  }
+    const url = req.nextUrl.searchParams.get('url');
 
-  if (!ALLOWED_HOSTS.includes(parsed.hostname)) {
-    return new NextResponse("Host not allowed", { status: 403 });
-  }
+    if (!url) {
+      return new Response('Missing url', { status: 400 });
+    }
 
-  const upstream = await fetch(url, {
-    headers: { "User-Agent": "Mozilla/5.0" },
-  });
-
-  if (!upstream.ok) {
-    return new NextResponse(`Upstream error: ${upstream.status}`, {
-      status: upstream.status,
+    const upstream = await fetch(url, {
+      headers: { Accept: '*/*' },
+      cache: 'no-store',
     });
+
+    if (!upstream.ok) {
+      return new Response(await upstream.text(), { status: upstream.status });
+    }
+
+    const type = upstream.headers.get('content-type') || '';
+
+    if (type.includes('application/vnd.apple.mpegurl') || url.endsWith('.m3u8')) {
+      const text = await upstream.text();
+      const rewritten = rewritePlaylist(text, url);
+
+      return new Response(rewritten, {
+        headers: {
+          'Content-Type': 'application/vnd.apple.mpegurl',
+          'Access-Control-Allow-Origin': '*',
+        },
+      });
+    }
+
+    return new Response(upstream.body, {
+      headers: {
+        'Content-Type': type,
+        'Access-Control-Allow-Origin': '*',
+      },
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    return new Response(message, { status: 500 });
   }
-
-  const contentType = upstream.headers.get("content-type") ?? "application/octet-stream";
-  const body = await upstream.text();
-
-  // Rewrite any absolute URLs inside .m3u8 playlists so sub-playlists
-  // and segments also flow through this proxy
-  const rewritten = body.replace(
-    /^(https?:\/\/[^\s]+)$/gm,
-    (match) => `/api/hls-proxy?url=${encodeURIComponent(match)}`
-  );
-
-  return new NextResponse(rewritten, {
-    status: 200,
-    headers: {
-      "Content-Type": contentType,
-      "Access-Control-Allow-Origin": "*",
-      "Cache-Control": "no-store",
-    },
-  });
 }

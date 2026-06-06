@@ -29,7 +29,6 @@ const mainItems = [
     label: "My Learning",
     icon: PlayCircleIcon,
     href: "/university/my-learning",
-    badge: "3",
   },
 ];
 
@@ -97,13 +96,13 @@ export default function UniversitySidebar() {
                           <span className="font-['Inter',Helvetica] text-[14.4px] font-medium leading-none tracking-[0]">
                             {item.label}
                           </span>
-                          {item.badge ? (
+                          {/* {item.badge ? (
                             <span className="ml-auto">
                               <Badge className="rounded-xl bg-violet-500 px-2 py-0.5 font-['Inter',Helvetica] text-[11.2px] font-medium leading-none text-white hover:bg-violet-500">
                                 {item.badge}
                               </Badge>
                             </span>
-                          ) : null}
+                          ) : null} */}
                         </span>
                       </Button>
                     </Link>

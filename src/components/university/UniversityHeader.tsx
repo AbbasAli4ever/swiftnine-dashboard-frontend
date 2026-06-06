@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { usePathname } from "next/navigation";
 import { useTheme } from "@/context/ThemeContext";
+import { useUniversityStore } from "@/stores/university.store";
 
 const PAGE_TITLES: Record<string, { title: string; subtitle: string }> = {
   "/university": {
@@ -41,20 +42,34 @@ const PAGE_TITLES: Record<string, { title: string; subtitle: string }> = {
 export default function UniversityHeader() {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
-  const page = PAGE_TITLES[pathname] ?? {
-    title: "University",
-    subtitle: "SwiftNine University",
-  };
+  const { activeCoursTitle, activeCourseDescription } = useUniversityStore();
+
+  const isMyLearning = pathname === "/university/my-learning";
+  const isMyLearningLoading = isMyLearning && !activeCoursTitle;
+  const page = isMyLearning && activeCoursTitle
+    ? { title: activeCoursTitle, subtitle: activeCourseDescription ?? "" }
+    : PAGE_TITLES[pathname] ?? { title: "University", subtitle: "SwiftNine University" };
 
   return (
     <header className="flex w-full flex-col gap-4 lg:flex-row lg:items-start lg:justify-between px-4 pb-4 pt-6 sm:px-6 lg:px-10 bg-[#f5f7fa] dark:bg-gray-900">
       <div className="flex flex-col gap-1">
-        <h1 className="font-['Inter',Helvetica] text-2xl font-bold leading-none tracking-[0] text-gray-800 dark:text-white">
-          {page.title}
-        </h1>
-        <p className="font-['Inter',Helvetica] text-[13.6px] font-normal leading-[normal] tracking-[0] text-gray-500 dark:text-gray-400">
-          {page.subtitle}
-        </p>
+        {isMyLearningLoading ? (
+          <>
+            <div className="h-7 w-48 rounded-md bg-gray-200 dark:bg-gray-700 animate-pulse" />
+            <div className="h-4 w-72 rounded bg-gray-200 dark:bg-gray-700 animate-pulse mt-1" />
+          </>
+        ) : (
+          <>
+            <h1 className="font-['Inter',Helvetica] text-2xl font-bold leading-none tracking-[0] text-gray-800 dark:text-white">
+              {page.title}
+            </h1>
+            {page.subtitle && (
+              <p className="font-['Inter',Helvetica] text-[13.6px] font-normal leading-[normal] tracking-[0] text-gray-500 dark:text-gray-400">
+                {page.subtitle}
+              </p>
+            )}
+          </>
+        )}
       </div>
       <div className="flex w-full flex-col gap-4 lg:w-auto lg:flex-row lg:items-center lg:justify-end lg:gap-6">
         <div className="relative w-full lg:w-[250px]">

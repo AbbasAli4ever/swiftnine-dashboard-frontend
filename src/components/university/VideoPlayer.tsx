@@ -4,14 +4,6 @@ import { useEffect, useRef } from "react";
 import videojs from "video.js";
 import type Player from "video.js/dist/types/player";
 
-// Route HLS through Next.js proxy in dev to bypass CloudFront CORS.
-// In production the manifestUrl is used directly.
-function resolveHlsSrc(manifestUrl: string): string {
-  if (process.env.NODE_ENV === "development") {
-    return `/api/hls-proxy?url=${encodeURIComponent(manifestUrl)}`;
-  }
-  return manifestUrl;
-}
 
 interface VideoPlayerProps {
   manifestUrl: string;
@@ -20,6 +12,10 @@ interface VideoPlayerProps {
   onPause: (currentTime: number, duration: number) => void;
   onSeeked: (currentTime: number, duration: number) => void;
   onEnded: (duration: number) => void;
+}
+
+function toProxiedUrl(manifestUrl: string): string {
+  return `/api/hls-proxy?url=${encodeURIComponent(manifestUrl)}`;
 }
 
 export default function VideoPlayer({
@@ -35,6 +31,8 @@ export default function VideoPlayer({
 
   useEffect(() => {
     if (!videoRef.current) return;
+
+    const proxiedSrc = toProxiedUrl(manifestUrl);
 
     // Create the video element inside the container div
     const videoEl = document.createElement("video-js");
@@ -52,7 +50,7 @@ export default function VideoPlayer({
         nativeAudioTracks: false,
         nativeVideoTracks: false,
       },
-      sources: [{ src: resolveHlsSrc(manifestUrl), type: "application/x-mpegURL" }],
+      sources: [{ src: proxiedSrc, type: "application/x-mpegURL" }],
     });
 
     playerRef.current = player;

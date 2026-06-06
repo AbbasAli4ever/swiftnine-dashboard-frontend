@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card/card";
 import { Progress } from "@/components/ui/progress/progress";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useUniversityDashboard } from "@/hooks/useUniversityDashboard";
 import {
@@ -23,6 +24,7 @@ import {
 export default function UniversityDashboard() {
   const { user } = useAuth();
   const { stats, myCourses, isLoading, error } = useUniversityDashboard();
+  const router = useRouter();
 
   const firstName = user?.fullName?.split(" ")[0] ?? "there";
   const greeting = getGreeting();
@@ -90,6 +92,7 @@ export default function UniversityDashboard() {
               </div>
               <Button
                 type="button"
+                onClick={() => router.push("/university/my-learning")}
                 className="h-auto self-start rounded-lg border border-[#ffffff4c] bg-[#ffffff26] px-5 py-2.5 font-['Inter',Helvetica] text-[14.4px] font-medium tracking-[0] text-white backdrop-blur-[2px] backdrop-brightness-[100%] hover:bg-[#ffffff30] lg:self-center"
               >
                 Continue Learning →
@@ -148,6 +151,7 @@ export default function UniversityDashboard() {
               </h3>
               <button
                 type="button"
+                onClick={() => router.push("/university/course-library")}
                 className="font-['Inter',Helvetica] text-[13.6px] font-medium leading-[normal] tracking-[0] text-[#8920fe]"
               >
                 View Library →
@@ -258,6 +262,7 @@ export default function UniversityDashboard() {
                               <Button
                                 type="button"
                                 variant="ghost"
+                                onClick={() => router.push(`/university/my-learning?courseId=${course.id}`)}
                                 className="h-auto rounded-md bg-[#8b5cf629] px-3 py-1.5 font-['Inter',Helvetica] text-[12.8px] font-normal tracking-[0] text-violet-500 hover:bg-[#8b5cf640] hover:text-violet-500 dark:bg-violet-900/20 dark:hover:bg-violet-900/40"
                               >
                                 Resume →

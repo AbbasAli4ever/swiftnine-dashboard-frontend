@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { useAuthStore } from "@/stores/auth.store";
+import { useUniversityStore } from "@/stores/university.store";
 import {
   getMyCourses,
   getCourseDetail,
@@ -36,6 +38,9 @@ interface State {
 
 export function useMyLearning() {
   const accessToken = useAuthStore((s) => s.accessToken);
+  const searchParams = useSearchParams();
+  const targetCourseId = searchParams.get("courseId");
+  const { setActiveCourse, clearActiveCourse } = useUniversityStore();
 
   const [state, setState] = useState<State>({
     myCourses: [],
@@ -71,11 +76,11 @@ export function useMyLearning() {
       .then((res) => {
         if (cancelled) return;
         const courses = res.data;
-        const first = courses[0] ?? null;
+        const active = (targetCourseId ? courses.find((c) => c.course.id === targetCourseId) : null) ?? courses[0] ?? null;
         setState((p) => ({
           ...p,
           myCourses: courses,
-          activeCourse: first,
+          activeCourse: active,
           isLoadingCourses: false,
         }));
       })
@@ -84,8 +89,8 @@ export function useMyLearning() {
           setState((p) => ({ ...p, isLoadingCourses: false, error: "Failed to load your courses" }));
       });
 
-    return () => { cancelled = true; };
-  }, [accessToken]);
+    return () => { cancelled = true; clearActiveCourse(); };
+  }, [accessToken, targetCourseId, clearActiveCourse]);
 
   // ── Step 2: Load course detail when activeCourse changes ───────────────────
   useEffect(() => {
@@ -110,6 +115,7 @@ export function useMyLearning() {
           }
         }
 
+        setActiveCourse(detail.title, detail.description ?? null);
         setState((p) => ({
           ...p,
           courseDetail: detail,
@@ -140,14 +146,19 @@ export function useMyLearning() {
     // Load playback session only for READY VIDEO lessons
     if (lesson.lessonType === "VIDEO" && lesson.mediaAsset?.status === "READY") {
       setState((p) => ({ ...p, isLoadingPlayback: true, playbackSession: null }));
+      console.log("[playback-session] requesting for lessonId:", lesson.id);
       getPlaybackSession(lesson.id)
         .then((session) => {
+          console.log("[playback-session] success:", session);
           if (!cancelled) {
             setState((p) => ({ ...p, playbackSession: session, isLoadingPlayback: false }));
             watchedFromRef.current = session.lastPositionSeconds;
           }
         })
-        .catch(() => {
+        .catch((err) => {
+          console.error("[playback-session] error status:", err?.response?.status);
+          console.error("[playback-session] error body:", err?.response?.data);
+          console.error("[playback-session] full error:", err);
           if (!cancelled) setState((p) => ({ ...p, isLoadingPlayback: false }));
         });
     } else {
@@ -205,7 +216,24 @@ export function useMyLearning() {
   }, [flushTick]);
 
   const onEnded = useCallback((duration: number) => {
+    // Bypass rate limit for final flush on video end
+    lastTickAtRef.current = 0;
     flushTick(duration, duration);
+
+    // Only RESOURCE lessons use /complete — VIDEO completion is handled server-side via ticks
+    const lesson = activeLessonRef.current;
+    if (!lesson || lesson.lessonType !== "RESOURCE") return;
+    completeLesson(lesson.id)
+      .then((res) => {
+        setState((p) => ({
+          ...p,
+          lessonProgress: { ...p.lessonProgress, [lesson.id]: res },
+          activeCourse: p.activeCourse
+            ? { ...p.activeCourse, myProgress: res.courseProgress }
+            : null,
+        }));
+      })
+      .catch(() => {});
   }, [flushTick]);
 
   // ── Select lesson ───────────────────────────────────────────────────────────

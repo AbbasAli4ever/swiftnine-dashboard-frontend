@@ -41,7 +41,7 @@ export interface MyCourse {
     isMandatory: boolean;
     popular: boolean;
     isNew: boolean;
-    instructor: { name: string; role?: string; avatarUrl?: string | null } | null;
+    instructor: { name: string; role?: string; bio?: string | null; avatarUrl?: string | null } | null;
     totalLessons: number;
     totalDurationSeconds: number | null;
   };
@@ -70,7 +70,7 @@ export interface CatalogCourse {
   totalDurationSeconds: number | null;
   ratingAvg: number | null;
   ratingCount: number | null;
-  instructor: { name: string; role?: string; avatarUrl?: string | null } | null;
+  instructor: { name: string; role?: string; bio?: string | null; avatarUrl?: string | null } | null;
   myProgress: CourseProgress | null;
   isBookmarked: boolean;
 }
@@ -236,4 +236,55 @@ export async function getLessonNote(lessonId: string): Promise<LessonNote> {
 export async function saveLessonNote(lessonId: string, content: string): Promise<LessonNote> {
   const res = await universityApi.put<{ data: LessonNote }>(`/lms/lessons/${lessonId}/notes`, { content });
   return res.data.data;
+}
+
+// ── Bookmarks ─────────────────────────────────────────────────────────────────
+
+export interface BookmarkResult {
+  courseId: string;
+  bookmarked: boolean;
+}
+
+export async function bookmarkCourse(courseId: string): Promise<BookmarkResult> {
+  return uPost<BookmarkResult>(`/lms/courses/${courseId}/bookmark`);
+}
+
+export async function removeBookmark(courseId: string): Promise<BookmarkResult> {
+  const res = await universityApi.delete<{ data: BookmarkResult }>(`/lms/courses/${courseId}/bookmark`);
+  return res.data.data;
+}
+
+// ── Reviews ───────────────────────────────────────────────────────────────────
+
+export interface CourseReview {
+  id: string;
+  userId: string;
+  courseId: string;
+  rating: number;
+  comment: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReviewsPage {
+  data: CourseReview[];
+  meta: { page: number; pageSize: number; total: number; totalPages: number };
+}
+
+export async function getCourseReviews(courseId: string, page = 1, pageSize = 5): Promise<ReviewsPage> {
+  const res = await universityApi.get<ReviewsPage>(`/lms/courses/${courseId}/reviews`, { params: { page, pageSize } });
+  return res.data;
+}
+
+export async function createReview(courseId: string, rating: number, comment?: string): Promise<CourseReview> {
+  return uPost<CourseReview>(`/lms/courses/${courseId}/reviews`, { rating, ...(comment ? { comment } : {}) });
+}
+
+export async function updateReview(courseId: string, rating?: number, comment?: string | null): Promise<CourseReview> {
+  const res = await universityApi.patch<{ data: CourseReview }>(`/lms/courses/${courseId}/reviews/mine`, { rating, comment });
+  return res.data.data;
+}
+
+export async function deleteReview(courseId: string): Promise<void> {
+  await universityApi.delete(`/lms/courses/${courseId}/reviews/mine`);
 }
