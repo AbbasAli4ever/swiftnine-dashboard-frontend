@@ -2,8 +2,8 @@
 
 import { useAuth } from "@/context/AuthContext";
 import { hasSessionExists } from "@/stores/auth.store";
-import UniversitySidebar from "@/components/university/UniversitySidebar";
-import UniversityHeader from "@/components/university/UniversityHeader";
+import AppSidebar from "@/layout/AppSidebar";
+import AppHeader from "@/layout/AppHeader";
 import React, { useEffect } from "react";
 
 export default function UniversityLayoutClient({
@@ -31,9 +31,9 @@ export default function UniversityLayoutClient({
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#f5f7fa] dark:bg-gray-900">
-      <UniversitySidebar />
-      <div className="flex flex-col flex-1 min-w-0 ml-[250px]">
-        <UniversityHeader />
+      <AppSidebar />
+      <div className="flex flex-col flex-1 min-w-0 ml-[320px]">
+        <AppHeader />
         <main className="flex-1 overflow-y-auto bg-[#f5f7fa] dark:bg-gray-900">
           {children}
         </main>

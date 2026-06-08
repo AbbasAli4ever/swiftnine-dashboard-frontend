@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCourseLibrary } from "@/hooks/useCourseLibrary";
+import { useUniversityStore } from "@/stores/university.store";
 import { formatDuration, enrollCourse, bookmarkCourse, removeBookmark, type CatalogCourse } from "@/services/university.service";
 
 // Label → exact backend CourseCategory enum value
@@ -144,6 +145,7 @@ const CATEGORY_GRADIENTS: Record<string, string> = {
 
 function CourseCard({ course }: { course: CatalogCourse }) {
   const router = useRouter();
+  const { invalidateDashboard, invalidateLibrary } = useUniversityStore();
   const [enrolling, setEnrolling] = useState(false);
   const [bookmarked, setBookmarked] = useState(course.isBookmarked);
   const [bookmarking, setBookmarking] = useState(false);
@@ -181,8 +183,9 @@ function CourseCard({ course }: { course: CatalogCourse }) {
   async function handleWatch() {
     setEnrolling(true);
     try {
-      // Idempotent — safe to call even if already enrolled
       await enrollCourse(course.id);
+      invalidateDashboard();
+      invalidateLibrary();
       router.push(`/university/my-learning?courseId=${course.id}`);
     } catch {
       setEnrolling(false);

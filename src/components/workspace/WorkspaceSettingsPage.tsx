@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { useAuth } from "@/context/AuthContext";
@@ -10,7 +10,6 @@ import { toast } from "sonner";
 import {
   LuChevronDown,
   LuEllipsis,
-  LuPencil,
   LuSearch,
   LuShield,
   LuTrash2,
@@ -22,41 +21,23 @@ import { workspaceService, WorkspaceMember } from "@/services/workspace.service"
 import InvitePeopleModal from "@/components/workspace/InvitePeopleModal";
 
 const AVATAR_COLOR_STYLES = [
-  { bg: "#18181b", text: "#ffffff" }, // zinc-900 (black)
-  { bg: "#7c3aed", text: "#ffffff" }, // violet-600 (purple)
-  { bg: "#eab308", text: "#000000" }, // yellow-500
-  { bg: "#0f172a", text: "#ffffff" }, // slate-900
-  { bg: "#6d28d9", text: "#ffffff" }, // violet-700
-  { bg: "#ca8a04", text: "#000000" }, // yellow-600
-  { bg: "#1e1b4b", text: "#ffffff" }, // indigo-950
-  { bg: "#fbbf24", text: "#000000" }, // amber-400
-  { bg: "#3b0764", text: "#ffffff" }, // purple-950
-  { bg: "#292524", text: "#ffffff" }, // stone-800
-  { bg: "#854d0e", text: "#ffffff" }, // yellow-800
-  { bg: "#4c1d95", text: "#ffffff" }, // violet-900
-];
-
-const COLOR_SCHEME = [
-  "#818CF8",
-  "#A78BFA",
-  "#22D3EE",
-  "#F472B6",
-  "#D946EF",
-  "#6366F1",
-  "#F97316",
-  "#14B8A6",
-  "#F59E0B",
-  "#34D399",
+  { bg: "#18181b", text: "#ffffff" },
+  { bg: "#7c3aed", text: "#ffffff" },
+  { bg: "#eab308", text: "#000000" },
+  { bg: "#0f172a", text: "#ffffff" },
+  { bg: "#6d28d9", text: "#ffffff" },
+  { bg: "#ca8a04", text: "#000000" },
+  { bg: "#1e1b4b", text: "#ffffff" },
+  { bg: "#fbbf24", text: "#000000" },
+  { bg: "#3b0764", text: "#ffffff" },
+  { bg: "#292524", text: "#ffffff" },
+  { bg: "#854d0e", text: "#ffffff" },
+  { bg: "#4c1d95", text: "#ffffff" },
 ];
 
 
 function workspaceInitial(name: string) {
   return name.trim().charAt(0).toUpperCase();
-}
-
-function truncateWithDots(value: string, maxChars = 12) {
-  if (value.length <= maxChars) return value;
-  return `${value.slice(0, maxChars)}...`;
 }
 
 function memberAvatarStyle(id: string) {
@@ -67,33 +48,6 @@ function memberAvatarStyle(id: string) {
   return AVATAR_COLOR_STYLES[Math.abs(hash) % AVATAR_COLOR_STYLES.length];
 }
 
-function Toggle({
-  checked,
-  onChange,
-  disabled = false,
-}: {
-  checked: boolean;
-  onChange: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onChange}
-      disabled={disabled}
-      className={`relative h-5 w-9 rounded-full transition-colors ${
-        checked ? "bg-brand-500" : "bg-gray-300 dark:bg-gray-700"
-      } ${disabled ? "cursor-not-allowed opacity-60" : ""}`}
-    >
-      <span
-        className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
-          checked ? "translate-x-[18px]" : "translate-x-0.5"
-        }`}
-      />
-    </button>
-  );
-}
-
 export function WorkspaceSettingsContent({ tab }: { tab: string }) {
   const router = useRouter();
   const { activeWorkspace, updateWorkspace, deleteWorkspace } = useWorkspace();
@@ -101,10 +55,6 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
 
   const [name, setName] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
-  const [showLogoInput, setShowLogoInput] = useState(false);
-  const [customBrandingEnabled, setCustomBrandingEnabled] = useState(false);
-  const [personalLayoutEnabled, setPersonalLayoutEnabled] = useState(false);
-  const [customUrl, setCustomUrl] = useState("app");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -119,12 +69,10 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
   const menuRef = useRef<HTMLDivElement>(null);
   const currentTab = tab;
   const isPeopleTab = currentTab === "people";
-  const isPreferencesTab = false; // preferences handled by /settings page directly
 
   useEffect(() => {
     setName(activeWorkspace?.name ?? "");
     setLogoUrl(activeWorkspace?.logoUrl ?? "");
-    setShowLogoInput(Boolean(activeWorkspace?.logoUrl));
   }, [activeWorkspace]);
 
   useEffect(() => {
@@ -265,24 +213,7 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
     );
   }
 
-  if (isPreferencesTab) {
-    return (
-      <div className="h-full overflow-y-auto bg-white p-5 dark:bg-white/[0.03] lg:px-6 lg:py-4">
-        <div className="mx-auto w-full max-w-[860px]">
-          <h1 className="text-4xl font-normal text-gray-900 dark:text-gray-100 mb-8">
-            My Settings
-          </h1>
-          <div className="space-y-8 pb-10">
-            <ProfileSettingsForm />
-            <hr className="border-gray-200 dark:border-gray-800" />
-            <ChangePasswordForm />
-            <hr className="border-gray-200 dark:border-gray-800" />
-            <DeleteAccountSection />
-          </div>
-        </div>
-      </div>
-    );
-  }
+
 
   if (isPeopleTab) {
     const filteredMembers = members.filter(
@@ -575,106 +506,11 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
               </div>
             </div>
 
-            <div className="mt-8">
-              <div className="mb-2 flex items-center gap-2">
-                <h3 className="text-xl font-normal text-gray-900 dark:text-gray-100">
-                  Custom branding
-                </h3>
-                <span className="rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-normal uppercase tracking-wide text-violet-600 dark:bg-violet-500/20 dark:text-violet-300">
-                  Enterprise
-                </span>
-              </div>
-
-              <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
-                <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-800">
-                  <p className="text-sm text-gray-700 dark:text-gray-300">
-                    Enable custom branding
-                  </p>
-                  <Toggle
-                    checked={customBrandingEnabled}
-                    onChange={() =>
-                      setCustomBrandingEnabled((current) => !current)
-                    }
-                  />
-                </div>
-
-                {[
-                  {
-                    title: "Round logo",
-                    description:
-                      "We recommend a 72 x 72 px PNG file. This logo is used in-app as your Workspace avatar.",
-                  },
-                  {
-                    title: "Rectangle logo",
-                    description:
-                      "We recommend a 232 x 48 px PNG file. This logo appears on emails, your login screen, and public links to items like forms, docs, dashboards, and tasks.",
-                  },
-                  {
-                    title: "Social media graphic",
-                    description:
-                      "We recommend a 500 x 260 px PNG file. This graphic serves as the preview image when links are shared.",
-                  },
-                ].map((item) => (
-                  <div
-                    key={item.title}
-                    className="flex items-start justify-between gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-800"
-                  >
-                    <div>
-                      <p className="text-sm text-gray-900 dark:text-gray-100">
-                        {item.title}
-                      </p>
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        {item.description}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      className="rounded-md bg-gray-100 px-3 py-1 text-xs font-normal text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                    >
-                      Add
-                    </button>
-                  </div>
-                ))}
-
-                <div className="flex items-center justify-between px-4 py-3">
-                  <p className="text-sm text-gray-900 dark:text-gray-100">
-                    Color scheme
-                  </p>
-                  <div className="flex items-center gap-2">
-                    {COLOR_SCHEME.map((color) => (
-                      <span
-                        key={color}
-                        className="h-4 w-4 rounded-full"
-                        style={{ backgroundColor: color }}
-                      />
-                    ))}
-                    <button
-                      type="button"
-                      className="ml-1 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-                    >
-                      <LuPencil className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
             <div className="mt-8 pb-8">
               <h3 className="text-xl font-normal text-gray-900 dark:text-gray-100">
                 Danger zone
               </h3>
               <div className="mt-3 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
-                <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-800">
-                  <p className="text-sm text-gray-700 dark:text-gray-300">
-                    Transfer full ownership to another person
-                  </p>
-                  <button
-                    type="button"
-                    className="rounded-md bg-gray-100 px-3 py-1 text-xs font-normal text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                  >
-                    Select new owner
-                  </button>
-                </div>
                 <div className="flex items-center justify-between px-4 py-3">
                   <p className="text-sm text-gray-700 dark:text-gray-300">
                     Delete this Workspace forever

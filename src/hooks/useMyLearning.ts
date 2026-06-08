@@ -40,7 +40,7 @@ export function useMyLearning() {
   const accessToken = useAuthStore((s) => s.accessToken);
   const searchParams = useSearchParams();
   const targetCourseId = searchParams.get("courseId");
-  const { setActiveCourse, clearActiveCourse } = useUniversityStore();
+  const { setActiveCourse, clearActiveCourse, invalidateDashboard } = useUniversityStore();
 
   const [state, setState] = useState<State>({
     myCourses: [],
@@ -195,6 +195,8 @@ export function useMyLearning() {
             ? { ...p.activeCourse, myProgress: res.courseProgress }
             : null,
         }));
+        // Invalidate so dashboard refetches fresh stats on next visit
+        invalidateDashboard();
       })
       .catch(() => {}); // silent — ticks are best-effort
   }, []);
@@ -232,6 +234,7 @@ export function useMyLearning() {
             ? { ...p.activeCourse, myProgress: res.courseProgress }
             : null,
         }));
+        invalidateDashboard();
       })
       .catch(() => {});
   }, [flushTick]);
@@ -269,6 +272,7 @@ export function useMyLearning() {
   // ── Complete resource lesson ────────────────────────────────────────────────
   const completeResourceLesson = useCallback(async (lessonId: string) => {
     const res = await completeLesson(lessonId);
+    invalidateDashboard();
     setState((p) => ({
       ...p,
       lessonProgress: { ...p.lessonProgress, [lessonId]: res },

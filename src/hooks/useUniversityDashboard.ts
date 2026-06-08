@@ -1,49 +1,42 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useAuthStore } from "@/stores/auth.store";
-import {
-  getDashboardStats,
-  getMyCourses,
-  type DashboardStats,
-  type MyCourse,
-} from "@/services/university.service";
-
-interface State {
-  stats: DashboardStats | null;
-  myCourses: MyCourse[];
-  isLoading: boolean;
-  error: string | null;
-}
+import { useUniversityStore } from "@/stores/university.store";
+import { getDashboardStats, getMyCourses } from "@/services/university.service";
 
 export function useUniversityDashboard() {
   const accessToken = useAuthStore((s) => s.accessToken);
-
-  const [state, setState] = useState<State>({
-    stats: null,
-    myCourses: [],
-    isLoading: true,
-    error: null,
-  });
+  const {
+    dashboardStats,
+    dashboardCourses,
+    dashboardLoaded,
+    dashboardError,
+    setDashboard,
+    setDashboardError,
+  } = useUniversityStore();
 
   useEffect(() => {
-    // Wait until the token is actually in the store — not just isAuthenticated flag
-    if (!accessToken) return;
+    // Skip if already cached or no token yet
+    if (!accessToken || dashboardLoaded) return;
 
     let cancelled = false;
 
     Promise.all([getDashboardStats(), getMyCourses(1, 3)])
       .then(([stats, coursesRes]) => {
-        if (!cancelled)
-          setState({ stats, myCourses: coursesRes.data, isLoading: false, error: null });
+        if (!cancelled) setDashboard(stats, coursesRes.data);
       })
       .catch(() => {
-        if (!cancelled)
-          setState((p) => ({ ...p, isLoading: false, error: "Failed to load dashboard data" }));
+        if (!cancelled) setDashboardError("Failed to load dashboard data");
       });
 
     return () => { cancelled = true; };
-  }, [accessToken]);
+  }, [accessToken, dashboardLoaded, setDashboard, setDashboardError]);
 
-  return state;
+  return {
+    stats: dashboardStats,
+    myCourses: dashboardCourses,
+    isLoading: !dashboardLoaded,
+    error: dashboardError,
+  };
 }

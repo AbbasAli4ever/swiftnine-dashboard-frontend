@@ -29,11 +29,7 @@ import ChannelSidebarSection from "@/components/channels/ChannelSidebarSection";
 import { ICON_MAP } from "@/components/projects/IconColorPicker";
 import { toast } from "sonner";
 import { RiHomeSmileFill } from "react-icons/ri";
-import { BsCalendar2Date, BsStars } from "react-icons/bs";
-import { IoVideocamOutline } from "react-icons/io5";
-import { MdGridOn } from "react-icons/md";
 import { GoPersonAdd } from "react-icons/go";
-import { FaRegArrowAltCircleUp } from "react-icons/fa";
 import {
   LuUsers,
   LuPlus,
@@ -42,19 +38,17 @@ import {
   LuMessageSquare,
   LuCircleCheck,
   LuSettings,
-  LuShield,
-  LuTrash2,
-  LuRocket,
-  LuBrush,
   LuChevronRight,
   LuLogOut,
   LuChevronDown,
   LuSlidersHorizontal,
-  LuCalendarDays,
   LuEllipsis as LuMoreHorizontal,
   LuStar,
   LuArchive,
   LuLock,
+  LuLayoutGrid,
+  LuBookOpen,
+  LuPlay,
 } from "react-icons/lu";
 import { MdChecklist } from "react-icons/md";
 
@@ -63,16 +57,12 @@ type RailItem = {
   id: string;
   label: string;
   icon: React.ReactNode;
-  panel: "home" | "planner" | "ai" | "teams" | "clips" | "more";
+  panel: "home" | "lms" | "ai" | "teams" | "clips" | "more";
 };
 
 const railItems: RailItem[] = [
-  { id: "home",    label: "Home",    icon: <RiHomeSmileFill className="w-5 h-5" />,   panel: "home" },
-  { id: "planner", label: "Planner", icon: <BsCalendar2Date className="w-5 h-5" />,   panel: "planner" },
-  // { id: "ai",      label: "AI",      icon: <BsStars className="w-5 h-5" />,           panel: "ai" },
-  // { id: "teams",   label: "Teams",   icon: <LuUsers className="w-5 h-5" />,           panel: "teams" },
-  // { id: "clips",   label: "Clips",   icon: <IoVideocamOutline className="w-5 h-5" />, panel: "clips" },
-  // { id: "more",    label: "More",    icon: <MdGridOn className="w-5 h-5" />,          panel: "more" },
+  { id: "home", label: "Home", icon: <RiHomeSmileFill className="w-5 h-5" />, panel: "home" },
+  { id: "lms",  label: "LMS",  icon: <LuBookOpen className="w-5 h-5" />,      panel: "lms" },
 ];
 
 // ── Nav link definitions ─────────────────────────────────────────────────────
@@ -96,32 +86,13 @@ type SettingsNavItem = {
   tab?: string;
 };
 
-const adminSettingsItems: SettingsNavItem[] = [
-  { label: "General", icon: LuSettings, tab: "general" },
-  { label: "People", icon: LuUsers, tab: "people" },
-  { label: "Teams", icon: LuUsers },
-  { label: "Upgrade", icon: LuRocket },
-  { label: "AI Usage", icon: LuBrush },
-  { label: "Security & Permissions", icon: LuShield },
-  { label: "Audit Logs", icon: LuCircleCheck },
-  { label: "Trash", icon: LuTrash2 },
+const workspaceSettingsItems: SettingsNavItem[] = [
+  { label: "General",  icon: LuSettings, tab: "general" },
+  { label: "People",   icon: LuUsers,    tab: "people" },
 ];
 
-const featureSettingsItems = [
-  "Custom Field Manager",
-  "Template Center",
-  "Automations Manager",
-  "AI Notetaker",
-  "Spaces",
-  "Task Types",
-  "Work Schedule",
-];
-
-const integrationSettingsItems = [
-  "App Center",
-  "Imports / Exports",
-  "ClickUp API",
-  "Email Integration",
+const mySettingsItems: SettingsNavItem[] = [
+  { label: "Preferences", icon: LuSlidersHorizontal, tab: "preferences" },
 ];
 
 function SidebarListRow({
@@ -1027,98 +998,85 @@ function SettingsPanelContent() {
     router.push(`/settings${query}`);
   };
 
+  const navItem = (item: SettingsNavItem) => {
+    const Icon = item.icon;
+    const isActive = isSettingsRoute && !!item.tab && currentTab === item.tab;
+    return (
+      <button
+        key={item.label}
+        type="button"
+        onClick={() => { if (item.tab) navigateToTab(item.tab); }}
+        className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-colors ${
+          isActive
+            ? "bg-violet-100/80 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300"
+            : "text-gray-600 hover:bg-violet-50 hover:text-violet-700 dark:text-gray-400 dark:hover:bg-violet-500/15 dark:hover:text-violet-300"
+        }`}
+      >
+        <Icon className="h-4 w-4 shrink-0" />
+        <span className="truncate">{item.label}</span>
+      </button>
+    );
+  };
+
   return (
     <div className="flex flex-1 flex-col overflow-y-auto no-scrollbar px-2 py-2 text-[13px]">
-      <h2 className="px-2 py-1 text-sm font-normal text-gray-900 dark:text-gray-100">
-        All settings
+      <h2 className="px-2 py-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
+        Settings
       </h2>
 
       <div className="pt-3">
         <p className="px-2 pb-1 text-[11px] uppercase tracking-wide text-gray-400 font-normal">
-          Admin
+          Workspace
         </p>
-        {adminSettingsItems.map((item) => {
-          const Icon = item.icon;
-          const isActive =
-            isSettingsRoute &&
-            !!item.tab &&
-            currentTab === item.tab;
-
-          return (
-            <button
-              key={item.label}
-              type="button"
-              onClick={() => {
-                if (item.tab) navigateToTab(item.tab);
-              }}
-              className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-colors ${
-                isActive
-                  ? "bg-violet-100/80 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300"
-                  : "text-gray-600 hover:bg-violet-50 hover:text-violet-700 dark:text-gray-400 dark:hover:bg-violet-500/15 dark:hover:text-violet-300"
-              }`}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              <span className="truncate">{item.label}</span>
-            </button>
-          );
-        })}
+        {workspaceSettingsItems.map(navItem)}
       </div>
 
-      <div className="pt-3">
-        <p className="px-2 pb-1 text-[11px] uppercase tracking-wide text-gray-400 font-normal">
-          Features
-        </p>
-        {featureSettingsItems.map((item) => (
-          <button
-            key={item}
-            type="button"
-            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] text-gray-600 transition-colors hover:bg-violet-50 hover:text-violet-700 dark:text-gray-400 dark:hover:bg-violet-500/15 dark:hover:text-violet-300"
-          >
-            <LuChevronRight className="h-4 w-4 shrink-0 text-gray-300 dark:text-gray-600" />
-            <span className="truncate">{item}</span>
-          </button>
-        ))}
-      </div>
-
-      <div className="pt-3">
-        <p className="px-2 pb-1 text-[11px] uppercase tracking-wide text-gray-400 font-normal">
-          Integrations & ClickApps
-        </p>
-        {integrationSettingsItems.map((item) => (
-          <button
-            key={item}
-            type="button"
-            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] text-gray-600 transition-colors hover:bg-violet-50 hover:text-violet-700 dark:text-gray-400 dark:hover:bg-violet-500/15 dark:hover:text-violet-300"
-          >
-            <LuChevronRight className="h-4 w-4 shrink-0 text-gray-300 dark:text-gray-600" />
-            <span className="truncate">{item}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* My Settings — personal profile preferences */}
       <div className="pt-3">
         <p className="px-2 pb-1 text-[11px] uppercase tracking-wide text-gray-400 font-normal">
           My Settings
         </p>
-        {[
-          { label: "Preferences", tab: "preferences", icon: LuSlidersHorizontal },
-          { label: "Notifications", tab: null, icon: LuChevronRight },
-          { label: "Workspaces", tab: null, icon: LuChevronRight },
-          { label: "Chat", tab: null, icon: LuMessageSquare },
-          { label: "Referrals", tab: null, icon: LuChevronRight },
-        ].map((item) => {
+        {mySettingsItems.map(navItem)}
+        <button
+          type="button"
+          onClick={logout}
+          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-500/10"
+        >
+          <LuLogOut className="h-4 w-4 shrink-0" />
+          <span>Log out</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const lmsMainItems = [
+  { label: "Dashboard",     icon: LuLayoutGrid,  href: "/university",                exact: true },
+  { label: "Course Library", icon: LuBookOpen,    href: "/university/course-library", exact: false },
+  { label: "My Learning",   icon: LuPlay,        href: "/university/my-learning",    exact: false },
+];
+
+function LmsPanelContent() {
+  const pathname = usePathname();
+  const router = useRouter();
+
+  return (
+    <div className="flex flex-1 flex-col overflow-y-auto no-scrollbar px-2 py-3 text-[13px]">
+      <p className="px-2 pb-3 text-sm font-semibold text-gray-900 dark:text-gray-100">LMS</p>
+
+      <div className="space-y-0.5">
+        <p className="px-2 pb-1 text-[11px] uppercase tracking-wide text-gray-400 font-normal">Main</p>
+        {lmsMainItems.map((item) => {
           const Icon = item.icon;
-          const isActive = isSettingsRoute && !!item.tab && currentTab === item.tab;
+          const isActive = item.exact ? pathname === item.href : pathname.startsWith(item.href);
           return (
             <button
               key={item.label}
               type="button"
-              onClick={() => { if (item.tab) navigateToTab(item.tab); }}
+              onClick={() => router.push(item.href)}
               className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-colors ${
                 isActive
                   ? "bg-violet-100/80 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300"
-                  : "text-gray-600 hover:bg-violet-50 hover:text-violet-700 dark:text-gray-400 dark:hover:bg-violet-500/15 dark:hover:text-violet-300"
+                  : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
               }`}
             >
               <Icon className="h-4 w-4 shrink-0" />
@@ -1126,14 +1084,6 @@ function SettingsPanelContent() {
             </button>
           );
         })}
-        <button
-          type="button"
-          onClick={logout}
-          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] text-gray-600 transition-colors hover:bg-violet-50 hover:text-violet-700 dark:text-gray-400 dark:hover:bg-violet-500/15 dark:hover:text-violet-300"
-        >
-          <LuLogOut className="h-4 w-4 shrink-0" />
-          <span>Log out</span>
-        </button>
       </div>
     </div>
   );
@@ -1148,6 +1098,22 @@ function PlaceholderPanel({ label }: { label: string }) {
   );
 }
 
+// ── Panel header — workspace name for home/settings, university name for LMS ──
+function LmsPanelHeader() {
+  return (
+    <div className="flex items-center px-6 py-[15.5px] border-b border-gray-100 dark:border-gray-800">
+      <div className="flex items-center gap-1.5">
+        <span className="flex items-center justify-center w-5 h-5 rounded bg-violet-600 text-white text-[10px] font-normal shrink-0">
+          <LuBookOpen className="w-3 h-3" />
+        </span>
+        <span className="font-normal text-gray-800 dark:text-gray-100 truncate max-w-[180px]">
+          SwiftNine University
+        </span>
+      </div>
+    </div>
+  );
+}
+
 // ── Main sidebar ─────────────────────────────────────────────────────────────
 const AppSidebar: React.FC = () => {
   const router = useRouter();
@@ -1155,14 +1121,15 @@ const AppSidebar: React.FC = () => {
   const [activeRail, setActiveRail] = useState<string>("home");
   const [inviteOpen, setInviteOpen] = useState(false);
   const isSettingsRoute = pathname.startsWith("/settings");
-  const isCalendarRoute = pathname.startsWith("/calendar");
+  const isLmsRoute = pathname.startsWith("/university");
 
-  const shownRail =
-    isSettingsRoute && activeRail === "home"
-      ? null
-      : isCalendarRoute && activeRail === "home"
-        ? "planner"
-        : activeRail;
+  // Keep rail in sync with route on first load / direct navigation
+  React.useEffect(() => {
+    if (isLmsRoute) setActiveRail("lms");
+    else if (!isSettingsRoute) setActiveRail("home");
+  }, [isLmsRoute, isSettingsRoute]);
+
+  const isSettingsActive = isSettingsRoute && activeRail !== "lms";
 
   const handleRailClick = (id: string) => {
     if (id === "home") {
@@ -1170,23 +1137,26 @@ const AppSidebar: React.FC = () => {
       router.push("/");
       return;
     }
-
-    if (id === "planner") {
-      setActiveRail("planner");
-      router.push("/calendar");
+    if (id === "lms") {
+      setActiveRail("lms");
+      router.push("/university");
       return;
     }
-
     setActiveRail(id);
+  };
+
+  const handleSettingsClick = () => {
+    setActiveRail("home");
+    router.push("/settings");
   };
 
   return (
     <aside className="fixed top-0 left-0 h-screen flex z-50">
       {/* Left icon rail */}
-      <div className="flex flex-col w-[56px] h-full bg-gray-950 shrink-0">
+      <div className="flex flex-col w-14 h-full bg-gray-950 shrink-0">
         <nav className="flex flex-col items-center gap-3 flex-1 pt-2">
           {railItems.map((item) => {
-            const isActive = shownRail !== null && shownRail === item.id;
+            const isActive = activeRail === item.id && !isSettingsActive;
             return (
               <button
                 key={item.id}
@@ -1216,29 +1186,31 @@ const AppSidebar: React.FC = () => {
             <GoPersonAdd className="w-5 h-5" />
             <span className="text-[9px] mt-0.5 leading-none">Invite</span>
           </button>
-          {/* <button
-            title="Upgrade"
-            className="flex flex-col items-center justify-center w-10 h-10 rounded-xl text-gray-400 hover:bg-white/10 hover:text-white transition-all"
+          <button
+            title="Settings"
+            onClick={handleSettingsClick}
+            className={`flex flex-col items-center justify-center w-10 h-10 rounded-xl transition-all duration-150
+              ${isSettingsActive
+                ? "text-white"
+                : "text-gray-400 hover:bg-white/10 hover:text-white"
+              }`}
+            style={isSettingsActive ? { background: "linear-gradient(180deg, #FB64B6 0%, #AD46FF 50%, #2B7FFF 100%)" } : undefined}
           >
-            <FaRegArrowAltCircleUp className="w-5 h-5" />
-            <span className="text-[9px] mt-0.5 leading-none text-purple-400">Upgrade</span>
-          </button> */}
+            <LuSettings className="w-5 h-5" />
+            <span className="text-[9px] mt-0.5 leading-none">Settings</span>
+          </button>
         </div>
       </div>
 
       {/* Right contextual panel */}
       <div className="w-[264px] h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col overflow-hidden">
-        <WorkspacePanelHeader />
-        {isSettingsRoute && activeRail === "home" ? (
+        {activeRail === "lms" ? <LmsPanelHeader /> : <WorkspacePanelHeader />}
+        {isSettingsActive ? (
           <SettingsPanelContent />
         ) : (
           <>
-            {activeRail === "home"    && <HomePanelContent />}
-            {activeRail === "planner" && <PlaceholderPanel label="Planner" />}
-            {activeRail === "ai"      && <PlaceholderPanel label="AI" />}
-            {activeRail === "teams"   && <PlaceholderPanel label="Teams" />}
-            {activeRail === "clips"   && <PlaceholderPanel label="Clips" />}
-            {activeRail === "more"    && <PlaceholderPanel label="More" />}
+            {activeRail === "home" && <HomePanelContent />}
+            {activeRail === "lms"  && <LmsPanelContent />}
           </>
         )}
       </div>
