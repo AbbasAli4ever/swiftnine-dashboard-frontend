@@ -1,10 +1,5 @@
-import PortalSelectPage from "@/components/portal/PortalSelectPage";
-import { Metadata } from "next";
-
-export const metadata: Metadata = {
-  title: "Select Portal | SwiftNine",
-};
+import { redirect } from "next/navigation";
 
 export default function PortalSelect() {
-  return <PortalSelectPage />;
+  redirect("/");
 }

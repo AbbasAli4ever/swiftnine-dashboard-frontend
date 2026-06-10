@@ -49,7 +49,7 @@ function CallbackHandler() {
           avatarUrl: data.avatarUrl,
           avatarColor: data.avatarColor,
         });
-        window.location.replace("/portal-select");
+        window.location.replace("/");
       })
       .catch(() => {
         // Profile fetch failed — store the token at minimum so the user lands
@@ -61,7 +61,7 @@ function CallbackHandler() {
           avatarUrl: null,
           avatarColor: "#6366f1",
         });
-        window.location.replace("/portal-select");
+        window.location.replace("/");
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
