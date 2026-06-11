@@ -139,6 +139,7 @@ export interface LessonSummary {
   durationSeconds: number | null;
   mediaAsset: { id: string; status: "PENDING" | "READY" | "FAILED"; durationSeconds: number | null } | null;
   resource: { id: string; title: string } | null;
+  isCompleted: boolean;
 }
 
 export interface ModuleSummary {

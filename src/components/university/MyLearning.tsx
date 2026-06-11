@@ -36,7 +36,6 @@ export default function MyLearning() {
     selectCourse,
     saveNote,
     openResource,
-    completeResourceLesson,
     onTimeUpdate,
     onPause,
     onSeeked,
@@ -214,15 +213,8 @@ export default function MyLearning() {
               >
                 Open Resource
               </button>
-              {lessonProgress[activeLesson.id]?.isCompleted ? (
+              {(lessonProgress[activeLesson.id]?.isCompleted ?? activeLesson.isCompleted) && (
                 <p className="text-green-400 text-xs">✓ Completed</p>
-              ) : (
-                <button
-                  onClick={() => completeResourceLesson(activeLesson.id)}
-                  className="text-xs text-white/40 hover:text-white/70 transition-colors"
-                >
-                  Mark as complete
-                </button>
               )}
             </div>
           </div>
@@ -364,7 +356,7 @@ export default function MyLearning() {
                         {mod.lessons.map((lesson) => {
                           const lp = lessonProgress[lesson.id];
                           const isActive = activeLesson?.id === lesson.id;
-                          const isCompleted = lp?.isCompleted ?? false;
+                          const isCompleted = lp?.isCompleted ?? lesson.isCompleted;
                           return (
                             <button
                               key={lesson.id}

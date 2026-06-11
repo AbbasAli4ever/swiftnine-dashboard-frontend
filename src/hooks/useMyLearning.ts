@@ -28,6 +28,8 @@ interface State {
   activeLesson: LessonSummary | null;
   playbackSession: PlaybackSession | null;
   lessonProgress: Record<string, LessonProgressResponse>;
+  // tracks lessonIds where getResourceUrl has been called (precondition for RESOURCE completion)
+  resourceOpened: Record<string, boolean>;
   note: LessonNote | null;
   isLoadingCourses: boolean;
   isLoadingDetail: boolean;
@@ -49,6 +51,7 @@ export function useMyLearning() {
     activeLesson: null,
     playbackSession: null,
     lessonProgress: {},
+    resourceOpened: {},
     note: null,
     isLoadingCourses: true,
     isLoadingDetail: false,
@@ -222,9 +225,11 @@ export function useMyLearning() {
     lastTickAtRef.current = 0;
     flushTick(duration, duration);
 
-    // Only RESOURCE lessons use /complete — VIDEO completion is handled server-side via ticks
     const lesson = activeLessonRef.current;
-    if (!lesson || lesson.lessonType !== "RESOURCE") return;
+    if (!lesson) return;
+
+    // Explicitly complete both VIDEO and RESOURCE lessons when the media ends.
+    // VIDEO also auto-completes server-side at 90% via ticks; the call is idempotent.
     completeLesson(lesson.id)
       .then((res) => {
         setState((p) => ({
@@ -267,9 +272,11 @@ export function useMyLearning() {
   const openResource = useCallback(async (lessonId: string, resourceId: string) => {
     const { url } = await getResourceUrl(lessonId, resourceId);
     window.open(url, "_blank", "noopener,noreferrer");
+    // Record that the resource URL was opened — required precondition before /complete
+    setState((p) => ({ ...p, resourceOpened: { ...p.resourceOpened, [lessonId]: true } }));
   }, []);
 
-  // ── Complete resource lesson ────────────────────────────────────────────────
+  // ── Explicit lesson completion (RESOURCE and VIDEO) ─────────────────────────
   const completeResourceLesson = useCallback(async (lessonId: string) => {
     const res = await completeLesson(lessonId);
     invalidateDashboard();
@@ -280,7 +287,7 @@ export function useMyLearning() {
         ? { ...p.activeCourse, myProgress: res.courseProgress }
         : null,
     }));
-  }, []);
+  }, [invalidateDashboard]);
 
   return {
     ...state,
@@ -293,5 +300,6 @@ export function useMyLearning() {
     onPause,
     onSeeked,
     onEnded,
+    resourceOpened: state.resourceOpened,
   };
 }
