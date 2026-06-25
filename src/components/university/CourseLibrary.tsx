@@ -193,10 +193,10 @@ function CourseCard({ course }: { course: CatalogCourse }) {
   }
 
   return (
-    <div className="rounded-xl overflow-hidden bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md transition-all group">
+    <div className="relative rounded-xl overflow-hidden bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md transition-all group flex flex-col h-[365px]">
       {/* Thumbnail */}
       <div
-        className={`relative h-40 overflow-hidden ${!course.coverImageUrl ? `bg-linear-to-br ${gradient} flex items-center justify-center` : ""}`}
+        className={`relative h-40 shrink-0 overflow-hidden ${!course.coverImageUrl ? `bg-linear-to-br ${gradient} flex items-center justify-center` : ""}`}
       >
         {course.coverImageUrl && (
           <Image
@@ -230,62 +230,60 @@ function CourseCard({ course }: { course: CatalogCourse }) {
         </button>
       </div>
 
-      <div className="p-4">
+      {/* Body */}
+      <div className="p-4 flex flex-col flex-1 min-h-0">
         <p className={`text-[11px] font-bold tracking-widest mb-1.5 uppercase ${tagColor}`}>
           {cat || "Course"}
         </p>
         <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2 line-clamp-2 group-hover:text-[#7C3AED] transition-colors">
           {course.title}
         </h3>
-        {course.description && (
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 line-clamp-2">
-            {course.description}
-          </p>
-        )}
+        <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">
+          {course.description || ""}
+        </p>
 
-        {/* Progress bar if enrolled */}
-        {progress && (
-          <div className="mb-3">
-            <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
-              <span>{progress.completedRequiredLessons} of {progress.totalRequiredLessons} completed</span>
-              <span className="text-[#7C3AED]">{progress.percentage}%</span>
-            </div>
-            <div className="h-1.5 w-full rounded-full bg-gray-100 dark:bg-gray-700">
-              <div
-                className="h-1.5 rounded-full bg-[#7C3AED]"
-                style={{ width: `${progress.percentage}%` }}
-              />
-            </div>
+      </div>
+
+      {/* Pinned progress bar — sits just above footer */}
+      {progress && (
+        <div className="absolute bottom-[52px] left-0 right-0 px-4 pb-2 bg-white dark:bg-gray-800">
+          <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
+            <span>{progress.completedRequiredLessons} of {progress.totalRequiredLessons} completed</span>
+            <span className="text-[#7C3AED]">{progress.percentage}%</span>
           </div>
-        )}
+          <div className="h-1.5 w-full rounded-full bg-gray-100 dark:bg-gray-700">
+            <div className="h-1.5 rounded-full bg-[#7C3AED]" style={{ width: `${progress.percentage}%` }} />
+          </div>
+        </div>
+      )}
 
-        <div className="border-t border-gray-100 dark:border-gray-700 pt-3 flex items-center justify-between">
-          <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+      {/* Pinned footer — always at bottom */}
+      <div className="absolute bottom-0 left-0 right-0 px-4 py-3 border-t border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 flex items-center justify-between">
+        <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+          <span className="flex items-center gap-1">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <rect x="1" y="1" width="10" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
+              <path d="M3 5h6M3 7.5h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+            </svg>
+            {course.totalLessons} lessons
+          </span>
+          {duration && (
             <span className="flex items-center gap-1">
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <rect x="1" y="1" width="10" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
-                <path d="M3 5h6M3 7.5h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.2"/>
+                <path d="M6 3.5v2.5l1.5 1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
               </svg>
-              {course.totalLessons} lessons
+              {duration}
             </span>
-            {duration && (
-              <span className="flex items-center gap-1">
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                  <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.2"/>
-                  <path d="M6 3.5v2.5l1.5 1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-                </svg>
-                {duration}
-              </span>
-            )}
-          </div>
-          <button
-            onClick={handleWatch}
-            disabled={enrolling}
-            className="rounded-lg bg-purple-50 dark:bg-purple-900/30 px-3 py-1.5 text-xs font-medium text-[#7C3AED] hover:bg-[#7C3AED] hover:text-white transition-colors disabled:opacity-60"
-          >
-            {enrolling ? "Loading…" : isEnrolled ? "Continue" : "Watch Now"}
-          </button>
+          )}
         </div>
+        <button
+          onClick={handleWatch}
+          disabled={enrolling}
+          className="rounded-lg bg-purple-50 dark:bg-purple-900/30 px-3 py-1.5 text-xs font-medium text-[#7C3AED] hover:bg-[#7C3AED] hover:text-white transition-colors disabled:opacity-60"
+        >
+          {enrolling ? "Loading…" : isEnrolled ? "Continue" : "Watch Now"}
+        </button>
       </div>
     </div>
   );

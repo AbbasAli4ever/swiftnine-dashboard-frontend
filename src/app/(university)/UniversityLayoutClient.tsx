@@ -35,7 +35,9 @@ export default function UniversityLayoutClient({
       <div className="flex flex-col flex-1 min-w-0 ml-[320px]">
         <AppHeader />
         <main className="flex-1 overflow-y-auto bg-[#f5f7fa] dark:bg-gray-900">
-          {children}
+          <div className="max-w-[1400px] mx-auto">
+            {children}
+          </div>
         </main>
       </div>
     </div>

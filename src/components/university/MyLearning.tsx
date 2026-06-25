@@ -171,10 +171,10 @@ export default function MyLearning() {
   }
 
   return (
-    <div className="flex flex-col lg:flex-row h-full min-h-0 overflow-auto lg:overflow-hidden">
+    <div className="flex flex-col lg:flex-row">
 
       {/* ── Main content ───────────────────────────────────────────────────── */}
-      <div className="flex-1 min-w-0 overflow-y-auto p-6 space-y-6">
+      <div className="flex-1 min-w-0 p-6 space-y-6">
 
         {error && (
           <div className="rounded-lg bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-600 dark:text-red-400">
@@ -396,7 +396,7 @@ export default function MyLearning() {
       </div>
 
       {/* ── Right sidebar ──────────────────────────────────────────────────── */}
-      <div className="lg:w-80 shrink-0 p-6 space-y-5 border-t lg:border-t-0 lg:border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-y-auto">
+      <div className="lg:w-80 shrink-0 p-6 space-y-5 border-t lg:border-t-0 lg:border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 lg:self-start lg:sticky lg:top-0">
 
         {/* My Notes */}
         <div className="rounded-xl bg-gray-50 dark:bg-gray-700/50 p-4">
