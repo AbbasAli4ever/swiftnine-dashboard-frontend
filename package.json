@@ -2,7 +2,7 @@
   "name": "free-nextjs-admin-dashboard",
   "version": "2.2.3",
   "private": true,
-  "scripts": {
+  "scripts": {  
     "dev": "next dev",
     "build": "next build",
     "start": "next start",   
