@@ -1050,8 +1050,8 @@ function SettingsPanelContent() {
 }
 
 const lmsMainItems = [
+    { label: "Course Library", icon: LuBookOpen,    href: "/university/course-library", exact: false },
   { label: "Dashboard",     icon: LuLayoutGrid,  href: "/university",                exact: true },
-  { label: "Course Library", icon: LuBookOpen,    href: "/university/course-library", exact: false },
   { label: "My Learning",   icon: LuPlay,        href: "/university/my-learning",    exact: false },
 ];
 
