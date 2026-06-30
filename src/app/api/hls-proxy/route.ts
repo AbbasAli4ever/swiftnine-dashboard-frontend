@@ -39,7 +39,16 @@ export async function GET(req: NextRequest) {
 
     const type = upstream.headers.get('content-type') || '';
 
-    if (type.includes('application/vnd.apple.mpegurl') || url.endsWith('.m3u8')) {
+    // Check pathname only (ignore query params) — S3/CloudFront often serves
+    // .m3u8 files as binary/octet-stream, so content-type alone is unreliable.
+    const pathname = new URL(url).pathname;
+    const isPlaylist =
+      type.includes('application/vnd.apple.mpegurl') ||
+      type.includes('application/x-mpegurl') ||
+      pathname.endsWith('.m3u8') ||
+      pathname.endsWith('.m3u');
+
+    if (isPlaylist) {
       const text = await upstream.text();
       const rewritten = rewritePlaylist(text, url);
 
@@ -53,7 +62,7 @@ export async function GET(req: NextRequest) {
 
     return new Response(upstream.body, {
       headers: {
-        'Content-Type': type,
+        'Content-Type': type || 'video/MP2T',
         'Access-Control-Allow-Origin': '*',
       },
     });
