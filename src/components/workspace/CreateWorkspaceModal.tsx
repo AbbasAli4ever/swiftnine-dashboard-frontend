@@ -133,7 +133,7 @@ export default function CreateWorkspaceModal({ isOpen, onClose }: Props) {
 
   const modal = (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+      className="fixed inset-0 z-9999 flex items-center justify-center bg-black/40 backdrop-blur-sm"
       onClick={onClose ? () => onClose() : undefined}
     >
       <div
@@ -218,7 +218,7 @@ export default function CreateWorkspaceModal({ isOpen, onClose }: Props) {
                 Invite people to your Workspace:
               </h2>
               <div
-                className="min-h-[48px] w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 flex flex-wrap gap-2 cursor-text"
+                className="min-h-12 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 flex flex-wrap gap-2 cursor-text"
                 onClick={() => emailInputRef.current?.focus()}
               >
                 {emails.map((email) => (

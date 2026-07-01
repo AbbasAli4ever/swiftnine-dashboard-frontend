@@ -38,7 +38,7 @@ export default function TaskScopeHeader({
   return (
     <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-3 dark:border-gray-800">
       <div className="flex items-center gap-2">
-        <span className="inline-flex items-center gap-1.5 rounded-md bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-600 dark:bg-violet-500/10 dark:text-violet-300">
+        <span className="inline-flex items-center gap-1.5 rounded-md bg-violet-50 px-2.5 py-1 text-[12px] font-medium text-violet-600 dark:bg-violet-500/10 dark:text-violet-300">
           {title}
         </span>
       </div>
@@ -124,7 +124,7 @@ export default function TaskScopeHeader({
         <button
           type="button"
           onClick={onAddTask}
-          className="inline-flex h-7 items-center gap-1 rounded-lg bg-brand-500 px-3 text-xs font-medium text-white transition-colors hover:bg-brand-600"
+          className="inline-flex h-7 items-center gap-1 rounded-lg bg-brand-500 dark:bg-gray-000 dark:text-black px-3 text-xs font-medium text-white transition-colors hover:bg-brand-600 dark:hover:bg-gray-200"
         >
           Add Task
           <LuChevronDown className="h-3.5 w-3.5" />

@@ -340,10 +340,10 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
 
       {step === "details" ? (
         /* ───────────── STEP 1: Details ───────────── */
-        <div className="relative z-10 w-full max-w-[760px] mx-4 bg-white dark:bg-gray-950 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+        <div className="relative z-10 w-full max-w-[760px] mx-4 bg-white dark:bg-gray-901 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden">
           <div className="flex items-start justify-between px-6 pt-6 pb-4">
             <div>
-              <h2 className="text-lg font-normal text-gray-900 dark:text-white">Create a Space</h2>
+              <h2 className="text-[16px] font-semibold text-gray-900 dark:text-white">Create a Space</h2>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
                 A Space represents teams, departments, or groups, each with its own Lists, workflows, and settings.
               </p>
@@ -392,7 +392,7 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
                     onChange={(e) => handleNameChange(e.target.value)}
                     placeholder="e.g. Marketing, Engineering, HR"
                     maxLength={100}
-                    className={`flex-1 bg-gray-50 dark:bg-gray-800 border rounded-xl px-4 py-2.5 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none transition-colors text-sm ${nameError ? "border-red-500 focus:ring-1 focus:ring-red-500" : "border-gray-200 dark:border-gray-700 focus:border-brand-500 focus:ring-1 focus:ring-brand-500"}`}
+                    className={`flex-1 bg-gray-50 dark:bg-gray-800 border dark:border-gray-905 dark:focus:border-gray-000 rounded-xl px-4 py-2.5 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none transition-colors text-sm ${nameError ? "border-red-500 focus:ring-1 focus:ring-red-500" : "border-gray-200 dark:border-gray-700 focus:border-brand-500 focus:ring-1 focus:ring-brand-500"}`}
                   />
                 </div>
                 {nameError && <p className="mt-1 text-xs text-red-500 dark:text-red-400">{nameError}</p>}
@@ -409,7 +409,7 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
                   value={prefix}
                   onChange={(e) => handlePrefixChange(e.target.value)}
                   placeholder="e.g. MKT"
-                  className={`w-full bg-gray-50 dark:bg-gray-800 border rounded-xl px-4 py-2.5 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none transition-colors text-sm font-mono ${prefixError ? "border-red-500 focus:ring-1 focus:ring-red-500" : "border-gray-200 dark:border-gray-700 focus:border-brand-500 focus:ring-1 focus:ring-brand-500"}`}
+                  className={`w-full bg-gray-50 dark:bg-gray-800 border  dark:border-gray-905 dark:focus:border-gray-000  rounded-xl px-4 py-2.5 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none transition-colors text-sm font-mono ${prefixError ? "border-red-500 focus:ring-1 focus:ring-red-500" : "border-gray-200 dark:border-gray-700 focus:border-brand-500 focus:ring-1 focus:ring-brand-500"}`}
                 />
                 {prefixError && <p className="mt-1 text-xs text-red-500 dark:text-red-400">{prefixError}</p>}
               </div>
@@ -424,7 +424,7 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
                   onChange={(e) => setDescription(e.target.value)}
                   rows={2}
                   maxLength={500}
-                  className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors text-sm resize-none"
+                  className="w-full bg-gray-50 dark:bg-gray-800 border  dark:border-gray-905 dark:focus:border-gray-000  border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors text-sm resize-none"
                 />
               </div>
 
@@ -451,7 +451,7 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
               <button
                 type="submit"
                 disabled={loading || !isNameValid || prefix.length < 2}
-                className="px-6 py-2 rounded-xl bg-brand-500 text-white text-sm font-normal hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-6 py-2 rounded-xl bg-brand-500 text-white dark:bg-white dark:text-black text-sm font-normal hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Continue
               </button>

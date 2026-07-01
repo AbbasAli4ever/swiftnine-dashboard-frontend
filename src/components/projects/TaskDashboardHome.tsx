@@ -366,7 +366,7 @@ export default function TaskDashboardHome({
       {/* ── Row 1: Recent Activity + Docs ── */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         {/* Recent Activity */}
-        <div className="flex h-72 flex-col rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+        <div className="flex h-72 flex-col rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-901">
           <h3 className="mb-3 shrink-0 text-base font-normal text-gray-800 dark:text-white">Recent</h3>
           {activity.length === 0 ? (
             <div className="flex flex-1 flex-col items-center justify-center text-center">
@@ -376,7 +376,7 @@ export default function TaskDashboardHome({
               <p className="text-sm text-gray-400">No activity yet in this project.</p>
             </div>
           ) : (
-            <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-700">
               {activity.map((item) => (
                 <div key={item.id} className="flex items-start gap-2.5">
                   <span
@@ -412,7 +412,7 @@ export default function TaskDashboardHome({
       </div>
 
       {/* ── Row 2: Lists table ── */}
-      <div className="flex h-80 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+      <div className="flex h-80 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-901">
         <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-gray-800">
           <h3 className="text-base font-normal text-gray-800 dark:text-white">Lists</h3>
           <button
@@ -423,7 +423,7 @@ export default function TaskDashboardHome({
             Create List
           </button>
         </div>
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-700">
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-800/40">
               <tr className="text-left text-xs uppercase tracking-wide text-gray-400">
@@ -540,7 +540,7 @@ export default function TaskDashboardHome({
       {/* ── Row 3: Attachments + Workload by Status ── */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         {/* Attachments */}
-        <div className="flex h-72 flex-col rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+        <div className="flex h-72 flex-col rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-901">
           <h3 className="mb-3 shrink-0 text-base font-normal text-gray-800 dark:text-white">Resources</h3>
           {attachments.length === 0 ? (
             <div className="flex flex-1 flex-col items-center justify-center text-center">
@@ -550,7 +550,7 @@ export default function TaskDashboardHome({
               <p className="text-sm text-gray-400">No attachments in this project yet.</p>
             </div>
           ) : (
-            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-700">
               {attachments.map((att) => (
                 <div key={att.id} className="flex items-center gap-3 rounded-lg border border-gray-100 p-2.5 dark:border-gray-800">
                   <span className="text-xl">{getFileIcon(att.mimeType)}</span>
@@ -579,7 +579,7 @@ export default function TaskDashboardHome({
         </div>
 
         {/* Workload by Status */}
-        <div className="flex h-72 flex-col rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+        <div className="flex h-72 flex-col rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-901">
           <h3 className="mb-3 shrink-0 text-base font-normal text-gray-800 dark:text-white">Workload by Status</h3>
           {totalTasks === 0 ? (
             <div className="flex flex-1 flex-col items-center justify-center text-center">
@@ -589,7 +589,7 @@ export default function TaskDashboardHome({
               <p className="text-sm text-gray-400">No tasks yet in this project.</p>
             </div>
           ) : (
-            <div className="flex flex-1 flex-col items-center overflow-y-auto pr-1">
+            <div className="flex flex-1 flex-col items-center overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-700">
               <ReactApexChart
                 type="pie"
                 width={260}

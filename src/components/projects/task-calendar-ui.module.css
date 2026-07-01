@@ -249,6 +249,97 @@
   color: #4f46e5;
 }
 
+/* ── Dark mode ── */
+:global(.dark) .root {
+  background: #191919;
+  border-color: #374151;
+}
+
+:global(.dark) .toolbar {
+  border-bottom-color: #374151;
+}
+
+:global(.dark) .navButton {
+  background: #313131;
+  border-color: #4b5563;
+  color: #d1d5db;
+}
+
+:global(.dark) .navButton:hover {
+  background: #374151;
+  border-color: #6b7280;
+}
+
+:global(.dark) .todayButton {
+  background: #313131;
+  border-color: #4b5563;
+  color: #d1d5db;
+}
+
+:global(.dark) .todayButton:hover {
+  background: #374151;
+  border-color: #6b7280;
+}
+
+:global(.dark) .selectControl {
+  background: #313131;
+  border-color: #4b5563;
+  color: #f3f4f6;
+}
+
+:global(.dark) .root :global(.fc-theme-standard td),
+:global(.dark) .root :global(.fc-theme-standard th),
+:global(.dark) .root :global(.fc-theme-standard .fc-scrollgrid) {
+  border-color: #374151;
+}
+
+:global(.dark) .root :global(.fc .fc-scrollgrid-section-header th) {
+  background: #1f2937;
+}
+
+:global(.dark) .root :global(.fc .fc-col-header-cell-cushion) {
+  color: #9ca3af;
+}
+
+:global(.dark) .root :global(.fc .fc-daygrid-day-number) {
+  color: #d1d5db;
+}
+
+:global(.dark) .root :global(.fc .fc-day-other) {
+  background: #111827;
+}
+
+:global(.dark) .root :global(.fc .fc-day-other .fc-daygrid-day-number) {
+  color: #6b7280;
+}
+
+:global(.dark) .root :global(.fc .fc-daygrid-day.fc-day-today) {
+  background: #1e1b4b;
+}
+
+:global(.dark) .root :global(.fc .fc-event-main) {
+  color: #e5e7eb;
+}
+
+:global(.dark) .root :global(.fc-task-tone-red .fc-event-main)    { background: #1f2937; border-left: 3px solid #f04438; }
+:global(.dark) .root :global(.fc-task-tone-amber .fc-event-main)  { background: #1f2937; border-left: 3px solid #f79009; }
+:global(.dark) .root :global(.fc-task-tone-blue .fc-event-main)   { background: #1f2937; border-left: 3px solid #2e90fa; }
+:global(.dark) .root :global(.fc-task-tone-purple .fc-event-main) { background: #1f2937; border-left: 3px solid #7a5af8; }
+:global(.dark) .root :global(.fc-task-tone-slate .fc-event-main)  { background: #1f2937; border-left: 3px solid #6b7280; }
+
+:global(.dark) .root :global(.taskEventTitle) {
+  color: #d1d5db;
+}
+
+:global(.dark) .root :global(.fc .fc-daygrid-more-link) {
+  color: #818cf8;
+}
+
+:global(.dark) .root :global(.fc .fc-daygrid-more-link:hover) {
+  background: #312e81;
+  color: #a5b4fc;
+}
+
 @media (max-width: 1024px) {
   .root :global(.fc .fc-daygrid-day-frame) {
     min-height: 78px;

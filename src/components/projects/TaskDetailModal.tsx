@@ -453,7 +453,7 @@ function ActivityFeed({ taskId }: { taskId: string }) {
   }, [nextCursor, loading, load]);
 
   return (
-    <div ref={containerRef} className="flex-1 overflow-y-auto p-4">
+    <div ref={containerRef} className="flex-1 overflow-y-auto p-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-700">
       <div className="space-y-4">
         {[...items].reverse().map((item) => (
           <ActivityRow key={item.id} item={item} />
@@ -641,10 +641,10 @@ export default function TaskDetailModal({ task, statuses, listId, onClose, onMin
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative z-10 flex h-full w-full flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-950" style={{ maxHeight: "calc(100vh - 20px)" }}>
+      <div className="relative z-10 flex h-full w-full flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-900" style={{ maxHeight: "calc(100vh - 20px)" }}>
 
         {/* ── Top bar ── */}
-        <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-4 py-2.5 dark:border-gray-800">
+        <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-4 py-2.5 dark:border-gray-800 dark:bg-gray-901">
           {/* Left: nav + breadcrumb */}
           <div className="flex items-center gap-2">
             <button type="button" className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
@@ -788,7 +788,7 @@ export default function TaskDetailModal({ task, statuses, listId, onClose, onMin
         <div className="flex min-h-0 flex-1 overflow-hidden">
 
           {/* ── Left: main content ── */}
-          <div className="flex flex-1 flex-col overflow-y-auto">
+          <div className="flex flex-1 flex-col overflow-y-auto dark:bg-gray-901 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-700">
             <div className="mx-auto w-full max-w-4xl px-8 py-6">
 
               {/* Parent task pill */}
@@ -977,7 +977,7 @@ export default function TaskDetailModal({ task, statuses, listId, onClose, onMin
                 onClick={() => setRightTab("comments")}
                 className={`flex-1 py-2.5 text-xs font-medium transition-colors ${
                   rightTab === "comments"
-                    ? "border-b-2 border-brand-500 text-brand-600 dark:text-brand-400"
+                    ? "border-b-2 border-brand-500 text-brand-600 dark:text-brand-400 dark:border-gray-400"
                     : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                 }`}
               >
@@ -988,7 +988,7 @@ export default function TaskDetailModal({ task, statuses, listId, onClose, onMin
                 onClick={() => setRightTab("activity")}
                 className={`flex-1 py-2.5 text-xs font-medium transition-colors ${
                   rightTab === "activity"
-                    ? "border-b-2 border-brand-500 text-brand-600 dark:text-brand-400"
+                    ? "border-b-2 border-brand-500 text-brand-600 dark:text-brand-400 dark:border-gray-400"
                     : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                 }`}
               >

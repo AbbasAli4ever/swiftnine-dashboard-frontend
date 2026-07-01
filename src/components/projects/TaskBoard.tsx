@@ -8,6 +8,7 @@ import { WorkspaceMember } from "@/services/workspace.service";
 import { TaskListItem, TaskPriority, BoardColumn as BoardColumnData, taskService } from "@/services/task.service";
 import { TaskList } from "@/services/task-list.service";
 import { useTaskStore } from "@/stores/task.store";
+import { useTheme } from "@/context/ThemeContext";
 import { parseApiError } from "@/lib/api";
 import { toast } from "sonner";
 import StatusIcon from "./StatusIcon";
@@ -262,6 +263,7 @@ function BoardColumn({
   defaultListId?: string;
 }) {
   const { tasksByList, loadingLists, fetchTasks, createTask } = useTaskStore();
+  const { theme } = useTheme();
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
 
   useEffect(() => {
@@ -317,19 +319,32 @@ function BoardColumn({
   return (
     <div
       data-status-id={status.id}
+      style={
+        !isCrossColumnTarget
+          ? ({
+              "--col-color": status.color,
+              backgroundColor: theme === "dark"
+                ? `color-mix(in srgb, ${status.color} 12%, #111827)`
+                : `color-mix(in srgb, ${status.color} 8%, white)`,
+              borderColor: theme === "dark"
+                ? `color-mix(in srgb, ${status.color} 30%, #374151)`
+                : `color-mix(in srgb, ${status.color} 25%, #e4e7ec)`,
+            } as React.CSSProperties)
+          : undefined
+      }
       className={`w-[275px] shrink-0 rounded-xl border p-2.5 transition-colors ${
         isCrossColumnTarget
           ? "border-brand-400 bg-brand-50 dark:border-brand-600 dark:bg-brand-900/20"
-          : "border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900/40"
+          : ""
       }`}
     >
       {/* Column header */}
       <div className="mb-2.5 flex items-center gap-2">
         <span
-          className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[10px] font-normal tracking-wide uppercase text-white"
+          className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[12px] font-normal tracking-wide uppercase text-white"
           style={{ backgroundColor: status.color }}
         >
-          <StatusIcon group={status.group} color="#fff" size={11} />
+          <StatusIcon group={status.group} color="#fff" size={17} />
           {status.name}
         </span>
         <span className="text-xs font-normal text-gray-400">{tasks.length}</span>
@@ -402,9 +417,16 @@ function BoardColumn({
         <button
           type="button"
           onClick={() => setQuickCreateOpen(true)}
-          className="mt-2 inline-flex items-center gap-1.5 text-xs font-normal text-gray-400 transition-colors hover:text-brand-500"
+          style={{ color: status.color }}
+          onMouseEnter={e => {
+            (e.currentTarget as HTMLButtonElement).style.backgroundColor = `color-mix(in srgb, ${status.color} 15%, white)`;
+          }}
+          onMouseLeave={e => {
+            (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent";
+          }}
+          className="mt-2 inline-flex w-full items-center gap-1.5 rounded-[5px] px-2 py-1.5 text-[14px] font-bold transition-colors"
         >
-          <LuPlus className="h-3.5 w-3.5" />
+          <LuPlus className="h-4 w-4" strokeWidth={3} />
           Add Task
         </button>
       )}

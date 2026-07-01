@@ -114,9 +114,9 @@ function CommentCard({ n, actorDisplayName, onClick }: { n: Notification; actorD
 
 function EmptyState() {
   return (
-    <div className="flex flex-col items-center justify-center py-20 text-center">
-      <LuMessageSquare className="mb-3 h-10 w-10 text-gray-200" />
-      <p className="text-sm font-medium text-gray-400">No assigned comments</p>
+    <div className="flex h-full flex-col items-center justify-center text-center">
+      <LuMessageSquare className="mb-3 h-13 w-13 text-gray-200" />
+      <p className="text-[18px] font-bold text-brand-400">No assigned comments</p>
     </div>
   );
 }
@@ -139,64 +139,68 @@ export default function AssignedCommentsPage() {
   };
 
   return (
-    <div className="h-full overflow-hidden bg-white text-gray-900">
-      <header className="border-b border-gray-100">
+    <div className="h-full overflow-hidden bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+      <header className="border-b border-gray-100 dark:border-gray-800">
         <div className="px-6 pt-5">
-          <h1 className="text-base font-semibold text-gray-950">Assigned Comments</h1>
+          <h1 className="text-base font-semibold text-gray-950 dark:text-white">Assigned Comments</h1>
 
           <div className="mt-6 flex items-end justify-between">
             <div className="flex items-center gap-8">
               <button
-                className={`flex h-8 items-center gap-1.5 px-1 text-sm font-semibold ${
+                className={`border-b-2 text-sm font-semibold transition-colors group ${
                   activeTab === "assigned"
-                    ? "border-b-2 border-gray-950 text-gray-950"
-                    : "font-medium text-gray-500"
+                    ? "border-gray-950 dark:border-gray-100 text-gray-950 dark:text-white"
+                    : "border-transparent text-gray-500 dark:text-gray-400"
                 }`}
                 onClick={() => setActiveTab("assigned")}
               >
-                <LuUserRoundCheck className="h-4 w-4 text-gray-600" />
-                Assigned to me
-                {assignedComments.length > 0 && (
-                  <span className="ml-1 rounded-full bg-brand-100 px-1.5 py-0.5 text-[10px] font-medium text-brand-700">
-                    {assignedComments.length}
-                  </span>
-                )}
+                <span className={`flex items-center gap-1.5 px-2 py-1 rounded-lg transition-colors ${activeTab === "assigned" ? "" : "group-hover:bg-gray-100 dark:group-hover:bg-gray-800 group-hover:text-gray-700 dark:group-hover:text-gray-200"}`}>
+                  <LuUserRoundCheck className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                  Assigned to me
+                  {assignedComments.length > 0 && (
+                    <span className="ml-1 rounded-full bg-brand-100 dark:bg-brand-900/40 px-1.5 py-0.5 text-[10px] font-medium text-brand-700 dark:text-brand-400">
+                      {assignedComments.length}
+                    </span>
+                  )}
+                </span>
               </button>
               <button
-                className={`flex h-8 items-center gap-1.5 px-1 text-sm font-semibold ${
+                className={`border-b-2 text-sm font-semibold transition-colors group ${
                   activeTab === "delegated"
-                    ? "border-b-2 border-gray-950 text-gray-950"
-                    : "font-medium text-gray-500"
+                    ? "border-gray-950 dark:border-gray-100 text-gray-950 dark:text-white"
+                    : "border-transparent text-gray-500 dark:text-gray-400"
                 }`}
                 onClick={() => setActiveTab("delegated")}
               >
-                <LuUserRoundCog className="h-4 w-4" />
-                Delegated by me
+                <span className={`flex items-center gap-1.5 px-2 py-1 rounded-lg transition-colors ${activeTab === "delegated" ? "" : "group-hover:bg-gray-100 dark:group-hover:bg-gray-800 group-hover:text-gray-700 dark:group-hover:text-gray-200"}`}>
+                  <LuUserRoundCog className="h-4 w-4 dark:text-gray-400" />
+                  Delegated by me
+                </span>
               </button>
             </div>
           </div>
         </div>
 
-        <div className="flex h-12 items-center justify-between border-t border-gray-100 px-6">
+        <div className="flex h-12 items-center justify-between border-t border-gray-100 dark:border-gray-800 px-6">
           <div className="flex items-center gap-2">
-            <button className="inline-flex h-8 items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 text-[13px] text-gray-600 shadow-[0_1px_2px_rgba(16,24,40,0.14)]">
+            <button className="inline-flex h-8 items-center gap-1.5 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 text-[13px] text-gray-600 dark:text-gray-300 shadow-[0_1px_2px_rgba(16,24,40,0.14)] transition-colors hover:bg-gray-100 dark:hover:bg-gray-700">
               <LuFilter className="h-3.5 w-3.5" />
               Filter
             </button>
-            <button className="inline-flex h-8 items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 text-[13px] text-gray-600 shadow-[0_1px_2px_rgba(16,24,40,0.14)]">
+            <button className="inline-flex h-8 items-center gap-1.5 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 text-[13px] text-gray-600 dark:text-gray-300 shadow-[0_1px_2px_rgba(16,24,40,0.14)] transition-colors hover:bg-gray-100 dark:hover:bg-gray-700">
               <LuCheck className="h-3.5 w-3.5" />
               Resolved
             </button>
           </div>
 
-          <button className="inline-flex items-center gap-1.5 text-[13px] text-gray-400">
+          <button className="inline-flex items-center gap-1.5 text-[13px] text-gray-400 dark:text-gray-500">
             <LuSearch className="h-4 w-4" />
             Search
           </button>
         </div>
       </header>
 
-      <main className="h-[calc(100%-138px)] overflow-auto bg-white pt-9">
+      <main className="h-[calc(100%-138px)] overflow-auto bg-white dark:bg-gray-900 pt-9">
         {list.length === 0 ? (
           <EmptyState />
         ) : (

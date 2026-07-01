@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function Tasks() {
   return (
-    <div className="h-full overflow-y-auto bg-white p-5 dark:bg-white/[0.03] lg:px-6 lg:py-3">
+    <div className="h-full overflow-y-auto bg-white p-5 dark:bg-gray-900 lg:px-6 lg:py-3">
       <TasksPage />
     </div>
   );

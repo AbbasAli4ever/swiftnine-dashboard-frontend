@@ -28,15 +28,16 @@ import DmSidebarSection from "@/components/dm/DmSidebarSection";
 import ChannelSidebarSection from "@/components/channels/ChannelSidebarSection";
 import { ICON_MAP } from "@/components/projects/IconColorPicker";
 import { toast } from "sonner";
-import { RiHomeSmileFill } from "react-icons/ri";
+import { RiHomeSmileFill,RiInbox2Fill } from "react-icons/ri";
+import { BsReply,BsPersonCheck,BsPersonWorkspace  } from "react-icons/bs";
 import { GoPersonAdd } from "react-icons/go";
 import {
   LuUsers,
   LuPlus,
-  LuInbox,
-  LuCornerUpLeft,
-  LuMessageSquare,
-  LuCircleCheck,
+
+
+
+
   LuSettings,
   LuChevronRight,
   LuLogOut,
@@ -69,10 +70,10 @@ const railItems: RailItem[] = [
 type NavLink = { label: string; path: string; icon: React.ReactNode; badge?: number };
 
 const inboxLinks: NavLink[] = [
-  { label: "Inbox",             path: "/",      icon: <LuInbox className="w-4 h-4" /> },
-  { label: "Replies",           path: "/replies",           icon: <LuCornerUpLeft className="w-4 h-4" /> },
-  { label: "Assigned Comments", path: "/assigned-comments", icon: <LuMessageSquare className="w-4 h-4" /> },
-  { label: "My Tasks",          path: "/my-tasks", icon: <LuCircleCheck className="w-4 h-4" /> },
+  { label: "Inbox",             path: "/",      icon: <RiInbox2Fill className="w-4 h-4" /> },
+  { label: "Replies",           path: "/replies",           icon: <BsReply  className="w-4 h-4" /> },
+  { label: "Assigned Comments", path: "/assigned-comments", icon: <BsPersonWorkspace  className="w-4 h-4" /> },
+  { label: "My Tasks",          path: "/my-tasks", icon: <BsPersonCheck className="w-4 h-4" /> },
 ];
 
 const dmUsers = [
@@ -646,7 +647,7 @@ function WorkspacePanelHeader() {
         onClick={() => setSwitcherOpen((v) => !v)}
         className="flex items-center gap-1.5 font-normal text-gray-800 dark:text-gray-100 hover:text-brand-500"
       >
-        <span className="flex items-center justify-center w-5 h-5 rounded bg-brand-500 text-white text-[10px] font-normal shrink-0">
+        <span className="flex items-center justify-center w-5 h-5 rounded bg-[#6366f1] dark:bg-gray-000 dark:text-black text-white text-[10px] font-normal shrink-0">
           {wsInitial}
         </span>
         <span className="truncate max-w-[140px]">{wsName}</span>
@@ -842,11 +843,11 @@ function HomePanelContent() {
   }, [showArchived, getLists, projects]);
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden px-4 py-3 text-[13px]">
+    <div className="flex flex-1 flex-col overflow-hidden px-4 py-3 text-[14px]">
       <div className="flex-1 space-y-0.5 overflow-y-auto no-scrollbar pb-4">
 
         {/* Home links */}
-        <p className="px-2 pb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">Home</p>
+        <p className="px-2 pb-2 text-[16px] font-semibold text-gray-900 dark:text-gray-100">Home</p>
         {inboxLinks.map((item) => {
           const active = item.path === pathname || (item.path === "/" && pathname === "/");
           return (
@@ -855,8 +856,8 @@ function HomePanelContent() {
               href={item.path}
               className={`flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 transition-colors
                 ${active
-                  ? "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100"
-                  : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"}`}
+                  ? "bg-gray-100 text-gray-900 dark:bg-gray-905 dark:text-gray-100"
+                  : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-905"}`}
             >
               <span className={active ? "text-gray-500" : "text-gray-400"}>{item.icon}</span>
               <span className="flex-1">{item.label}</span>
@@ -875,7 +876,7 @@ function HomePanelContent() {
         {/* Spaces */}
         <div className="mt-3 border-t border-gray-100 pt-5 dark:border-gray-800">
           <div className="relative flex items-center justify-between px-2 mb-1">
-            <p className="text-[11px] uppercase tracking-wide text-gray-400 font-normal">Spaces</p>
+            <p className="text-[12px] uppercase tracking-wide text-[#646464] font-semibold">Spaces</p>
             <div className="flex items-center gap-1">
               <button
                 ref={spacesMenuBtnRef}
@@ -935,7 +936,7 @@ function HomePanelContent() {
               <div className="w-4 h-4 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : projects.length === 0 ? (
-            <p className="px-2.5 py-2 text-[12px] text-gray-400 italic">No spaces yet</p>
+            <p className="px-2.5 py-2 text-[14px] text-gray-400 italic">No spaces yet</p>
           ) : (
             <div className="space-y-0.5 mt-0.5">
               {projects
@@ -1008,8 +1009,8 @@ function SettingsPanelContent() {
         onClick={() => { if (item.tab) navigateToTab(item.tab); }}
         className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-colors ${
           isActive
-            ? "bg-violet-100/80 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300"
-            : "text-gray-600 hover:bg-violet-50 hover:text-violet-700 dark:text-gray-400 dark:hover:bg-violet-500/15 dark:hover:text-violet-300"
+            ? "bg-violet-100/80 text-violet-700 dark:bg-gray-905 dark:text-gray-100"
+            : "text-gray-600 hover:bg-violet-50 hover:text-violet-700 dark:text-gray-400 dark:hover:bg-gray-905 dark:hover:text-gray-100"
         }`}
       >
         <Icon className="h-4 w-4 shrink-0" />
@@ -1075,7 +1076,7 @@ function LmsPanelContent() {
               onClick={() => router.push(item.href)}
               className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-colors ${
                 isActive
-                  ? "bg-violet-100/80 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300"
+                  ? "bg-violet-100/80 text-violet-700 dark:bg-gray-905 dark:text-gray-100"
                   : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
               }`}
             >
@@ -1153,7 +1154,7 @@ const AppSidebar: React.FC = () => {
   return (
     <aside className="fixed top-0 left-0 h-screen flex z-50">
       {/* Left icon rail */}
-      <div className="flex flex-col w-14 h-full bg-gray-950 shrink-0">
+      <div className="flex flex-col w-14 h-full mx-1 bg-gray-901 shrink-0">
         <nav className="flex flex-col items-center gap-3 flex-1 pt-2">
           {railItems.map((item) => {
             const isActive = activeRail === item.id && !isSettingsActive;
@@ -1203,7 +1204,7 @@ const AppSidebar: React.FC = () => {
       </div>
 
       {/* Right contextual panel */}
-      <div className="w-[264px] h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col overflow-hidden">
+      <div className="w-[264px] h-full bg-white dark:bg-gray-901 border-r border-gray-200 dark:border-gray-800 flex flex-col overflow-hidden">
         {activeRail === "lms" ? <LmsPanelHeader /> : <WorkspacePanelHeader />}
         {isSettingsActive ? (
           <SettingsPanelContent />

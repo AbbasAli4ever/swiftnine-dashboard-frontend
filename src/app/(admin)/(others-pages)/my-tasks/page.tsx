@@ -303,14 +303,10 @@ export default function MyTasksPage() {
             <div className="w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : tasks.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-3 text-center px-6">
-            <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-gray-100 dark:bg-gray-800">
-              <StatusIcon group="DONE" color="#9ca3af" size={28} />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">No tasks assigned to you</p>
-              <p className="mt-1 text-xs text-gray-400">Tasks assigned to you across all spaces will appear here.</p>
-            </div>
+          <div className="flex h-full flex-col items-center justify-center gap-3 text-center px-6">
+            <StatusIcon group="DONE" color="#d1d5db" size={52} />
+            <p className="text-[18px] font-bold text-brand-400">No tasks assigned to you</p>
+            <p className="text-xs text-gray-400">Tasks assigned to you across all spaces will appear here.</p>
           </div>
         ) : (
           <div className="pb-8">

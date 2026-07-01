@@ -18,6 +18,8 @@ import { taskService, TaskStatusInfo, TaskUserInfo } from "@/services/task.servi
 import { Notification } from "@/types/notification";
 import StatusIcon from "@/components/projects/StatusIcon";
 import SnoozePopover from "./SnoozePopover";
+import { RiInbox2Fill } from "react-icons/ri";
+import { IoCheckmarkOutline } from "react-icons/io5";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Tab = "primary" | "other" | "later" | "cleared";
@@ -109,21 +111,21 @@ function ActorAvatar({ actorId, userInfo, size = 28 }: ActorAvatarProps) {
 // ── Empty state ───────────────────────────────────────────────────────────────
 function EmptyState({ message = "Congratulations! You cleared your important notifications" }: { message?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center flex-1 py-24 select-none">
+    <div className="flex flex-col items-center justify-center flex-1 h-full select-none">
       <div className="relative mb-6">
-        <div className="w-24 h-24 rounded-2xl bg-brand-100 dark:bg-brand-900/30 flex items-center justify-center">
-          <svg className="w-12 h-12 text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div className="w-24 h-24 rounded-2xl bg-brand-100 dark:bg-brand-400 flex items-center justify-center">
+          <svg className="w-12 h-12 text-brand-501" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.4} d="M21.75 9v.906a2.25 2.25 0 01-1.183 1.981l-6.478 3.488M2.25 9v.906a2.25 2.25 0 001.183 1.981l6.478 3.488m8.839 2.51l-4.66-2.51m0 0l-1.023-.55a2.25 2.25 0 00-2.134 0l-1.022.55m0 0l-4.661 2.51m16.5 1.615a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V8.844a2.25 2.25 0 011.183-1.98l7.5-4.04a2.25 2.25 0 012.134 0l7.5 4.04a2.25 2.25 0 011.183 1.98V19.5z" />
           </svg>
         </div>
-        <div className="absolute -top-1 -right-1 w-8 h-8 rounded-lg bg-brand-500 flex items-center justify-center shadow-md">
+        <div className="absolute -top-1 -right-1 w-8 h-8 rounded-lg bg-brand-501 flex items-center justify-center shadow-md">
           <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
             <path d="M1.5 8.67v8.58a3 3 0 003 3h15a3 3 0 003-3V8.67l-8.928 5.493a3 3 0 01-3.144 0L1.5 8.67z" />
             <path d="M22.5 6.908V6.75a3 3 0 00-3-3h-15a3 3 0 00-3 3v.158l9.714 5.978a1.5 1.5 0 001.572 0L22.5 6.908z" />
           </svg>
         </div>
       </div>
-      <h3 className="text-base font-normal text-gray-800 dark:text-gray-100 mb-1">Inbox Zero</h3>
+      <h3 className="text-[18px] font-bold text-gray-800 dark:text-gray-100 mb-1">Inbox Zero</h3>
       <p className="text-sm text-gray-400">{message}</p>
       <div className="mt-10 flex flex-col items-center gap-3">
         <span className="text-[11px] font-normal uppercase tracking-widest text-gray-300 dark:text-gray-600 border border-gray-200 dark:border-gray-700 rounded-full px-3 py-0.5">ClickTip</span>
@@ -389,9 +391,7 @@ const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
   {
     id: "primary", label: "Primary",
     icon: (
-      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M2.25 13.5h3.86a2.25 2.25 0 012.012 1.244l.256.512a2.25 2.25 0 002.013 1.244h3.218a2.25 2.25 0 002.013-1.244l.256-.512a2.25 2.25 0 012.013-1.244h3.859m-19.5.338V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18v-4.162c0-.224-.034-.447-.1-.661L19.24 5.338a2.25 2.25 0 00-2.15-1.588H6.911a2.25 2.25 0 00-2.15 1.588L2.35 13.177a2.25 2.25 0 00-.1.661z" />
-      </svg>
+      <RiInbox2Fill className="w-4 h-4" />
     ),
   },
   {
@@ -400,6 +400,10 @@ const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
       </svg>
+
+      // <svg className="w-4 h-4" fill _ngcontent-ng-c3229594917="" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" data-test="icon" class="svg ng-star-inserted"><use _ngcontent-ng-c3229594917="" href="#cu3-icon-activityView" xlink:href="#cu3-icon-activityView"></use></svg>
+
+
     ),
   },
   {
@@ -413,9 +417,10 @@ const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
   {
     id: "cleared", label: "Cleared",
     icon: (
-      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
+      // <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      //   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      // </svg>
+      <IoCheckmarkOutline className="w-4 h-4 " />
     ),
   },
 ];
@@ -576,27 +581,41 @@ export default function InboxPage() {
     <div className="flex flex-col h-full min-h-0">
       {/* Tab bar */}
       <div className="flex border-b border-gray-200 dark:border-gray-800 shrink-0">
-        {tabs.map((tab) => {
+        {tabs.map((tab, index) => {
           const isActive = activeTab === tab.id;
           const count = tab.id === "primary" && unreadCount > 0 ? `${unreadCount} unread` : undefined;
+          const showDivider = index < tabs.length - 1;
           return (
-            <button
+            <div
               key={tab.id}
-              onClick={() => handleTabChange(tab.id)}
-              className={`flex flex-1 flex-col items-center justify-center gap-0.5 py-3.5 px-2 text-sm transition-colors border-b-2
-                ${isActive
-                  ? "border-brand-500 text-brand-600 dark:text-brand-400"
-                  : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-                }`}
+              className="relative flex flex-1 items-center"
             >
-              <span className={`${isActive ? "text-brand-500" : "text-gray-400"}`}>{tab.icon}</span>
-              <span className="font-normal leading-none">{tab.label}</span>
-              {count && (
-                <span className={`text-[11px] leading-none ${isActive ? "text-brand-400" : "text-gray-400"}`}>
-                  {count}
-                </span>
+              {showDivider && (
+                <span className="absolute right-0 top-2 bottom-2 w-px bg-gray-200 dark:bg-gray-700" />
               )}
-            </button>
+              <button
+                onClick={() => handleTabChange(tab.id)}
+                className="flex flex-1 flex-row items-center gap-2 px-1 py-3.5 text-sm transition-colors group"
+              >
+                <div className={`flex w-full flex-row items-center gap-2 px-3 py-4 rounded-[5px] transition-colors
+                  ${isActive
+                    ? "text-brand-501 dark:text-brand-400"
+                    : "text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200 group-hover:bg-gray-100 dark:group-hover:bg-gray-800"
+                  }`}
+                >
+                  <span className={`${isActive ? "text-brand-501 dark:text-brand-400" : "text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300"}`}>{tab.icon}</span>
+                  <span className="font-semibold leading-none">{tab.label}</span>
+                  {count && (
+                    <span className={`text-[11px] leading-none ${isActive ? "text-brand-400" : "text-gray-400"}`}>
+                      {count}
+                    </span>
+                  )}
+                </div>
+              </button>
+              {isActive && (
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-brand-501 dark:bg-brand-400" />
+              )}
+            </div>
           );
         })}
       </div>

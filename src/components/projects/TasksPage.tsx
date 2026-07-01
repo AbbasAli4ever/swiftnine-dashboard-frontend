@@ -55,11 +55,11 @@ const VIEW_TABS: Array<{
   icon: ReactElement;
   projectOnly?: boolean;
 }> = [
-  { id: "overview", label: "Overview", icon: <LuLayoutDashboard className="h-4 w-4" />, projectOnly: true },
+  { id: "overview", label: "Overview", icon: <LuLayoutDashboard className="h-4 w-4 " />, projectOnly: true },
   { id: "list", label: "List", icon: <LuList className="h-4 w-4" /> },
-  { id: "board", label: "Board", icon: <LuSquareKanban className="h-4 w-4" /> },
-  { id: "calendar", label: "Calendar", icon: <LuCalendarDays className="h-4 w-4" /> },
-  { id: "attachments", label: "Attachments", icon: <LuPaperclip className="h-4 w-4" /> },
+  { id: "board", label: "Board", icon: <LuSquareKanban className="h-4 w-4 text-blue-500" /> },
+  { id: "calendar", label: "Calendar", icon: <LuCalendarDays className="h-4 w-4 text-orange-400" /> },
+  { id: "attachments", label: "Attachments", icon: <LuPaperclip className="h-4 w-4 text-red-400" /> },
 ];
 
 export default function TasksPage() {
@@ -418,7 +418,7 @@ export default function TasksPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="mb-4 border-b border-gray-100 dark:border-gray-800">
+      <div className="mb-4 border-b border-gray-100 dark:bg-gray-901 dark:border-gray-800">
         <div className="mb-1 flex items-center gap-2 pt-1">
           <span
             className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white"
@@ -458,14 +458,20 @@ export default function TasksPage() {
             <button
               key={tab.id}
               onClick={() => updateQuery({ view: tab.id })}
-              className={`inline-flex items-center gap-1.5 border-b-2 pb-2 text-sm font-normal transition-colors ${
+              className={`border-b-2 pb-2 text-sm font-semibold transition-colors group ${
                 currentView === tab.id
                   ? "border-gray-900 text-gray-900 dark:border-white dark:text-white"
-                  : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  : "border-transparent text-gray-500 dark:text-gray-400"
               }`}
             >
-              {tab.icon}
-              {tab.label}
+              <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg transition-colors ${
+                currentView === tab.id
+                  ? ""
+                  : "group-hover:bg-gray-100 dark:group-hover:bg-gray-800 group-hover:text-gray-700 dark:group-hover:text-gray-200"
+              }`}>
+                {tab.icon}
+                {tab.label}
+              </span>
             </button>
           ))}
         </div>
@@ -488,7 +494,7 @@ export default function TasksPage() {
 
       {currentView !== "overview" && scopeHeader}
 
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div className="min-h-0 flex-1 overflow-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-700">
         {isLoadingTasks ? (
           <div className="flex h-full items-center justify-center">
             <div className="h-10 w-10 animate-spin rounded-full border-4 border-brand-500 border-t-transparent" />

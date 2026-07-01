@@ -20,7 +20,7 @@ export default function DocsListSidebarSection() {
   return (
     <div className="pt-3">
       <div className="flex items-center justify-between px-2 mb-1">
-        <p className="text-[11px] uppercase tracking-wide text-gray-400 font-normal">
+        <p className="text-[12px] uppercase tracking-wide text-[#646464] font-semibold">
           Docs
         </p>
         <button

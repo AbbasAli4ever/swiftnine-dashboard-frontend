@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { useAuth } from "@/context/AuthContext";
 import { parseApiError } from "@/lib/api";
+import { PiExport } from "react-icons/pi";
 import ConfirmActionModal from "@/components/common/ConfirmActionModal";
 import { toast } from "sonner";
 import {
@@ -193,7 +194,7 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
 
   if (!activeWorkspace) {
     return (
-      <div className="h-full overflow-y-auto bg-white p-5 dark:bg-white/[0.03] lg:px-6 lg:py-4">
+      <div className="h-full overflow-y-auto bg-white p-5 dark:bg-white/3 lg:px-6 lg:py-4">
         <div className="mx-auto max-w-[900px] rounded-2xl border border-gray-200 bg-white p-8 dark:border-gray-800 dark:bg-gray-900">
           <h1 className="text-2xl font-normal text-gray-900 dark:text-white">
             Workspace Settings
@@ -236,40 +237,41 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
       name.split(" ").map((p) => p[0]).join("").toUpperCase().slice(0, 2);
 
     return (
-      <div className="h-full overflow-y-auto bg-white p-5 dark:bg-white/[0.03] lg:px-6 lg:py-4">
+      <div className="h-full overflow-y-auto bg-white p-5 dark:bg-gray-900 lg:px-10 lg:py-4">
         <div className="mx-auto w-full max-w-full">
           <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-normal text-gray-900 dark:text-gray-100">Manage people</h1>
+            <h1 className="text-[20px] font-medium text-gray-900 dark:text-gray-100">Manage people</h1>
             <button
               type="button"
-              className="rounded-lg border border-gray-200 bg-white px-3.5 py-1.5 text-sm font-normal text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+              className="flex gap-1 items-center justify-center rounded-lg border border-gray-200 bg-white px-3.5 py-1.5 text-sm font-normal text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
             >
+              <PiExport className="w-4 h-4 "/>
               Export
             </button>
-          </div>
+          </div> 
 
-          <div className="mt-5 flex items-center gap-3">
-            <div className="relative flex-1">
+          <div className="mt-5">
+            <div className="relative">
               <LuSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
                 value={peopleQuery}
                 onChange={(e) => setPeopleQuery(e.target.value)}
                 placeholder="Search by name or email"
-                className="h-10 w-full rounded-lg border border-violet-300 bg-white pl-9 pr-3 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-500 focus:outline-none dark:border-violet-500/40 dark:bg-gray-900 dark:text-gray-100"
+                className="h-[48px] w-full rounded-lg border border-violet-300  bg-white pl-9 pr-36 text-sm text-gray-800 placeholder:text-gray-400 focus:border-blue-600 focus:outline-none dark:border-gray-905 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-gray-000"
               />
+              <button
+                type="button"
+                onClick={() => setInviteOpen(true)}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md bg-violet-500 px-3 py-1 text-sm font-normal text-white hover:bg-violet-600 dark:bg-white dark:text-black dark:hover:bg-gray-100"
+              >
+                + Invite people
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setInviteOpen(true)}
-              className="h-10 rounded-lg bg-violet-500 px-4 text-sm font-normal text-white hover:bg-violet-600"
-            >
-              + Invite people
-            </button>
           </div>
 
           <div className="mt-4">
-            <button type="button" className="inline-flex items-center gap-1.5 rounded-full bg-violet-100 px-3 py-1.5 text-xs font-normal text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">
+            <button type="button" className="inline-flex items-center gap-1.5 rounded-full bg-violet-100 px-3 py-1.5 text-xs font-normal text-violet-700 dark:bg-gray-905 dark:text-gray-100">
               All Users ({members.length}) <LuChevronDown className="h-3.5 w-3.5" />
             </button>
           </div>
@@ -328,7 +330,7 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
                                 <p className="truncate text-sm font-normal text-gray-900 dark:text-gray-100">
                                   {member.fullName}
                                   {isMe && (
-                                    <span className="ml-2 rounded px-1.5 py-0.5 text-[10px] font-normal bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">
+                                    <span className="ml-2 rounded px-1.5 py-0.5 text-[10px] font-normal bg-violet-100 text-violet-700 dark:bg-gray-905 dark:text-gray-100">
                                       You
                                     </span>
                                   )}
@@ -344,7 +346,7 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
                           <td className="px-4 py-3">
                             <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-normal ${
                               isOwner
-                                ? "bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300"
+                                ? "bg-violet-100 text-violet-700 dark:bg-gray-905 dark:text-gray-100"
                                 : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
                             }`}>
                               {isOwner ? "Owner" : "Member"}
@@ -403,7 +405,7 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
           return (
             <div
               ref={menuRef}
-              className="fixed z-[9999] w-62 rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900"
+              className="fixed z-9999 w-62 rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900"
               style={{ top: menuPos.top, right: menuPos.right }}
             >
               <button
@@ -446,16 +448,16 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
   }
 
   return (
-    <div className="h-full overflow-y-auto bg-white p-5 dark:bg-white/[0.03] lg:px-6 lg:py-4">
+    <div className="h-full overflow-y-auto bg-white p-5 dark:bg-[#111111] lg:pl-[100px] lg:py-8">
       <div className="mx-auto w-full max-w-[860px]">
         <section className="min-w-0">
-          <div className="max-w-[760px]">
-            <h1 className="text-4xl font-normal text-gray-900 dark:text-gray-100">
+          <div className="max-w-[760px] lg:px-6">
+            <h1 className="text-[24px] font-semibold text-gray-900 dark:text-gray-100">
               Workspace Settings
             </h1>
 
             <div className="mt-8">
-              <h3 className="text-xl font-normal text-gray-900 dark:text-gray-100">
+              <h3 className="text-[16px] font-medium text-gray-900 dark:text-gray-100">
                 General
               </h3>
               <div className="mt-3 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
@@ -488,7 +490,7 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       maxLength={100}
-                      className="h-9 w-full max-w-[260px] rounded-md border border-gray-200 bg-gray-50 px-3 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500"
+                      className="h-9 w-full max-w-[260px] rounded-md border border-gray-200 bg-gray-50 px-3 text-sm text-gray-800 placeholder:text-gray-400 focus:border-blue-600 focus:outline-none dark:border-gray-905 dark:focus:border-gray-000 dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500"
                     />
                   </div>
                 </div>
@@ -499,7 +501,7 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
                   type="button"
                   onClick={handleSave}
                   disabled={saving || !isDirty}
-                  className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-normal text-white transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-lg bg-blue-500 px-4 py-2 text-sm font-normal dark:bg-gray-000 dark:text-black dark:hover:bg-gray-200 text-white transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {saving ? "Saving..." : "Save changes"}
                 </button>
@@ -507,7 +509,7 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
             </div>
 
             <div className="mt-8 pb-8">
-              <h3 className="text-xl font-normal text-gray-900 dark:text-gray-100">
+              <h3 className="text-[16px] font-medium text-gray-900 dark:text-gray-100">
                 Danger zone
               </h3>
               <div className="mt-3 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
@@ -525,7 +527,7 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
                       setDeleteModalOpen(true);
                     }}
                     disabled={!isOwner || deleting}
-                    className="rounded-md border border-red-300 px-3 py-1 text-xs font-normal text-red-500 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-500/50 dark:text-red-400 dark:hover:bg-red-500/10"
+                    className="rounded-md border border-red-300 px-3 py-1 text-xs font-medium text-red-500 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-500/50 dark:text-red-400 dark:hover:bg-red-500/10"
                   >
                     {deleting ? "Deleting..." : "Delete Workspace"}
                   </button>
