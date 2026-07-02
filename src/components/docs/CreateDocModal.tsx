@@ -75,7 +75,7 @@ export default function CreateDocModal({
     <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40 px-4">
       <div
         ref={containerRef}
-        className="w-full max-w-md rounded-xl bg-white shadow-xl dark:bg-gray-900"
+        className="w-full max-w-md rounded-xl bg-white shadow-xl dark:bg-gray-901"
       >
         <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3 dark:border-gray-800">
           <h2 className="text-base font-semibold text-gray-900 dark:text-white">
@@ -100,7 +100,7 @@ export default function CreateDocModal({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Untitled"
-              className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+              className="w-full rounded-md border border-gray-200  bg-white px-3 py-2 text-sm outline-none focus:border-brand-500 dark:border-gray-905 dark:focus:border-gray-000 dark:bg-gray-800 dark:text-white"
             />
           </div>
 
@@ -146,7 +146,7 @@ export default function CreateDocModal({
             <button
               type="submit"
               disabled={loading || !activeWorkspace}
-              className="rounded-md bg-brand-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-50"
+              className="rounded-md bg-brand-500 px-3 py-1.5 text-sm font-medium text-white dark:bg-gray-000 dark:text-black hover:bg-brand-600 disabled:opacity-50"
             >
               {loading ? "Creating…" : "Create"}
             </button>
@@ -177,7 +177,7 @@ function ScopeOption({
       onClick={onClick}
       className={`flex flex-col items-start gap-1 rounded-md border p-3 text-left transition-colors ${
         active
-          ? "border-brand-500 bg-brand-50 dark:bg-brand-900/30"
+          ? "border-brand-500 dark:border-gray-000 bg-brand-50 dark:bg-brand-900/30"
           : "border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
       }`}
     >

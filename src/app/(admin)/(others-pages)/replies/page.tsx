@@ -103,9 +103,9 @@ function ReplyCard({ n, actorDisplayName, onClick }: { n: Notification; actorDis
 
 function EmptyState({ label }: { label: string }) {
   return (
-    <div className="flex flex-col items-center justify-center py-20 text-center">
-      <LuCheckCheck className="mb-3 h-10 w-10 text-gray-200" />
-      <p className="text-sm font-medium text-gray-400">No {label} replies</p>
+    <div className="flex h-full flex-col items-center justify-center text-center">
+      <LuCheckCheck className="mb-3 h-13 w-13 text-gray-200" />
+      <p className="text-[18px] font-bold text-brand-400">No {label} replies</p>
     </div>
   );
 }
@@ -130,36 +130,40 @@ export default function RepliesPage() {
   };
 
   return (
-    <div className="h-full overflow-hidden bg-white text-gray-900">
-      <header className="border-b border-gray-200">
+    <div className="h-full overflow-hidden bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+      <header className="border-b border-gray-200 dark:border-gray-800">
         <div className="flex h-16 items-center justify-between px-6">
           <div className="flex items-center gap-3">
-            <LuChevronLeft className="h-5 w-5 text-gray-500" />
-            <h1 className="text-lg font-semibold text-gray-950">Replies</h1>
+            {/* <LuChevronLeft className="h-5 w-5 text-gray-500 dark:text-gray-400" /> */}
+            <h1 className="text-lg font-semibold text-gray-950 dark:text-white">Replies</h1>
           </div>
-          <LuCheckCheck className="h-5 w-5 text-gray-500" />
+          {/* <LuCheckCheck className="h-5 w-5 text-gray-500 dark:text-gray-400" /> */}
         </div>
 
-        <div className="flex h-8 items-end gap-8 px-6">
+        <div className="flex items-end gap-2 px-6">
           <button
-            className={`h-8 text-sm font-semibold ${activeTab === "unread" ? "border-b-2 border-gray-950 text-gray-950" : "font-medium text-gray-500"}`}
+            className={`text-sm font-semibold border-b-2 transition-colors group ${activeTab === "unread" ? "border-gray-950 dark:border-gray-100 text-gray-950 dark:text-white" : "border-transparent text-gray-500 dark:text-gray-400"}`}
             onClick={() => setActiveTab("unread")}
           >
-            Unread{" "}
-            {unread.length > 0 && (
-              <span className={activeTab === "unread" ? "font-medium text-gray-500" : ""}>{unread.length}</span>
-            )}
+            <span className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-colors ${activeTab === "unread" ? "" : "group-hover:bg-gray-100 dark:group-hover:bg-gray-800 group-hover:text-gray-700 dark:group-hover:text-gray-200"}`}>
+              Unread{" "}
+              {unread.length > 0 && (
+                <span className={activeTab === "unread" ? "font-medium text-gray-500 dark:text-gray-400" : ""}>{unread.length}</span>
+              )}
+            </span>
           </button>
           <button
-            className={`h-8 text-sm font-semibold ${activeTab === "read" ? "border-b-2 border-gray-950 text-gray-950" : "font-medium text-gray-500"}`}
+            className={`text-sm font-semibold border-b-2 transition-colors group ${activeTab === "read" ? "border-gray-950 dark:border-gray-100 text-gray-950 dark:text-white" : "border-transparent text-gray-500 dark:text-gray-400"}`}
             onClick={() => setActiveTab("read")}
           >
-            Read <span>{read.length}</span>
+            <span className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-colors ${activeTab === "read" ? "" : "group-hover:bg-gray-100 dark:group-hover:bg-gray-800 group-hover:text-gray-700 dark:group-hover:text-gray-200"}`}>
+              Read <span>{read.length}</span>
+            </span>
           </button>
         </div>
       </header>
 
-      <main className="h-[calc(100%-96px)] overflow-auto bg-white px-6 pt-6">
+      <main className="h-[calc(100%-96px)] overflow-auto bg-white dark:bg-gray-900 px-6 pt-6">
         {list.length === 0 ? (
           <EmptyState label={activeTab} />
         ) : (

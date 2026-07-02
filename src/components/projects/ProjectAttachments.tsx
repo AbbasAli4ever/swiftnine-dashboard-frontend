@@ -104,7 +104,7 @@ function ImageLightbox({ url, fileName, onClose }: { url: string; fileName: stri
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-200 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div className="relative max-h-full max-w-5xl" onClick={(e) => e.stopPropagation()}>
@@ -436,11 +436,11 @@ export default function ProjectAttachments({ projectId, currentUserId, onLockedE
             ))}
           </div>
 
-          <div className="ml-auto flex items-center gap-2">
+          {/* <div className="ml-auto flex items-center gap-2">
             <button
               type="button"
               onClick={() => setAddLinkOpen(true)}
-              className="flex items-center gap-1.5 rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-2 text-xs font-medium text-gray-600 dark:text-gray-300 hover:border-brand-400 hover:text-brand-600 dark:hover:border-brand-500 dark:hover:text-brand-400 transition-colors"
+              className="flex items-center gap-1.5 rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-2 text-xs font-medium text-gray-600 dark:text-gray-300 hover:border-brand-400 hover:text-brand-600 dark:hover:border-gray-000 dark:hover:text-brand-400 transition-colors"
             >
               <LuLink2 className="h-3.5 w-3.5" />
               Add Link
@@ -448,12 +448,12 @@ export default function ProjectAttachments({ projectId, currentUserId, onLockedE
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
-              className="flex items-center gap-1.5 rounded-xl bg-brand-500 px-3 py-2 text-xs font-medium text-white hover:bg-brand-600 transition-colors"
+              className="flex items-center gap-1.5 rounded-xl bg-brand-500 px-3 py-2 text-xs font-medium text-white dark:bg-gray-000 dark:text-black hover:bg-brand-600 transition-colors dark:hover:bg-gray-200"
             >
               <LuUpload className="h-3.5 w-3.5" />
               Upload File
             </button>
-          </div>
+          </div> */}
         </div>
 
         {/* ── Drop zone + content ──────────────────────────────────────── */}
@@ -494,7 +494,7 @@ export default function ProjectAttachments({ projectId, currentUserId, onLockedE
           {isEmpty && (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-linear-to-br from-brand-50 to-brand-100 dark:from-brand-950 dark:to-brand-900">
-                <LuPaperclip className="h-7 w-7 text-brand-400" />
+                <LuPaperclip className="h-7 w-7 text-brand-500 dark:text-brand-400" />
               </div>
               <h3 className="text-base font-semibold text-gray-700 dark:text-gray-300">No attachments yet</h3>
               <p className="mt-1.5 max-w-xs text-sm text-gray-400">
@@ -504,7 +504,7 @@ export default function ProjectAttachments({ projectId, currentUserId, onLockedE
                 <button
                   type="button"
                   onClick={() => inputRef.current?.click()}
-                  className="flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600 transition-colors"
+                  className="flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2 text-sm font-medium text-white dark:bg-gray-000 dark:text-black hover:bg-brand-600 transition-colors dark:hover:bg-gray-200"
                 >
                   <LuUpload className="h-4 w-4" />
                   Upload File
@@ -512,7 +512,7 @@ export default function ProjectAttachments({ projectId, currentUserId, onLockedE
                 <button
                   type="button"
                   onClick={() => setAddLinkOpen(true)}
-                  className="flex items-center gap-2 rounded-xl border border-gray-200 dark:border-gray-700 px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:border-brand-400 hover:text-brand-600 transition-colors"
+                  className="flex items-center gap-2 rounded-xl border border-gray-200 dark:border-gray-700 px-4 py-2 text-sm font-medium text-gray-600  dark:text-gray-300 hover:border-brand-400 dark:hover:border-gray-000 hover:text-brand-600 transition-colors"
                 >
                   <LuLink2 className="h-4 w-4" />
                   Add Link

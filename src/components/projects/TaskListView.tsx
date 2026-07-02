@@ -175,10 +175,10 @@ function StatusGroup({
             className={`h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform ${collapsed ? "-rotate-90" : ""}`}
           />
           <span
-            className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium tracking-wider uppercase text-white"
+            className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[12px] font-medium tracking-wider uppercase text-white"
             style={{ backgroundColor: status.color }}
           >
-            <StatusIcon group={status.group} color="#fff" size={11} />
+            <StatusIcon group={status.group} color="#fff" size={16} />
             {status.name}
           </span>
           <span className="text-xs text-gray-400">{tasks.length}</span>

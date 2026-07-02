@@ -368,7 +368,7 @@ export default function ListAttachments({ listId }: ListAttachmentsProps) {
             <button
               type="button"
               onClick={() => setAddLinkOpen(true)}
-              className="flex items-center gap-1.5 rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-2 text-xs font-medium text-gray-600 dark:text-gray-300 hover:border-brand-400 hover:text-brand-600 dark:hover:border-brand-500 dark:hover:text-brand-400 transition-colors"
+              className="flex items-center gap-1.5 rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-2 text-xs font-medium text-gray-600 dark:text-gray-300 hover:border-brand-600 hover:text-brand-600 dark:hover:border-gray-000 dark:hover:text-brand-400 transition-colors"
             >
               <LuLink2 className="h-3.5 w-3.5" />
               Add Link
@@ -376,7 +376,7 @@ export default function ListAttachments({ listId }: ListAttachmentsProps) {
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
-              className="flex items-center gap-1.5 rounded-xl bg-brand-500 px-3 py-2 text-xs font-medium text-white hover:bg-brand-600 transition-colors"
+              className="flex items-center gap-1.5 rounded-xl bg-brand-500 dark:bg-gray-000 dark:text-black px-3 py-2 text-xs font-medium text-white hover:bg-brand-600 transition-colors"
             >
               <LuUpload className="h-3.5 w-3.5" />
               Upload File
@@ -432,7 +432,7 @@ export default function ListAttachments({ listId }: ListAttachmentsProps) {
                 <button
                   type="button"
                   onClick={() => inputRef.current?.click()}
-                  className="flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600 transition-colors"
+                  className="flex items-center gap-2 rounded-xl bg-brand-500 dark:bg-gray-000 dark:text-black  px-4 py-2 text-sm font-medium text-white hover:bg-brand-600 transition-colors"
                 >
                   <LuUpload className="h-4 w-4" />
                   Upload File
@@ -440,7 +440,7 @@ export default function ListAttachments({ listId }: ListAttachmentsProps) {
                 <button
                   type="button"
                   onClick={() => setAddLinkOpen(true)}
-                  className="flex items-center gap-2 rounded-xl border border-gray-200 dark:border-gray-700 px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:border-brand-400 hover:text-brand-600 transition-colors"
+                  className="flex items-center gap-2 rounded-xl border border-gray-200 dark:border-gray-700 px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:border-brand-600 dark:hover:border-gray-000 hover:text-brand-600 transition-colors"
                 >
                   <LuLink2 className="h-4 w-4" />
                   Add Link

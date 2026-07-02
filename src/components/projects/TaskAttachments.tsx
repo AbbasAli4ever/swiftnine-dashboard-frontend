@@ -251,7 +251,7 @@ export default function TaskAttachments({ taskId, userId, refreshKey }: TaskAtta
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
-            className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-500 hover:border-brand-400 hover:bg-brand-50 hover:text-brand-600 dark:border-gray-700 dark:hover:border-brand-500 dark:hover:bg-brand-950 dark:hover:text-brand-400 transition-colors"
+            className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-500 hover:border-brand-400 hover:bg-brand-50  hover:text-brand-600 dark:border-gray-700 dark:hover:border-gray-500 dark:hover:bg-brand-950 dark:hover:text-brand-400 transition-colors"
           >
             <LuUpload className="h-3 w-3" />
             Upload
@@ -281,7 +281,7 @@ export default function TaskAttachments({ taskId, userId, refreshKey }: TaskAtta
             dragOver
               ? "border-brand-400 bg-brand-50 dark:border-brand-500 dark:bg-brand-950/40"
               : attachments.length === 0 && uploading.length === 0
-              ? "cursor-pointer border-gray-200 hover:border-brand-300 hover:bg-gray-50/80 dark:border-gray-700 dark:hover:border-brand-600 dark:hover:bg-gray-800/40"
+              ? "cursor-pointer border-gray-200 hover:border-brand-300 hover:bg-gray-50/80 dark:border-gray-700 dark:hover:border-gray-000 dark:hover:bg-gray-800/40"
               : "border-gray-200 dark:border-gray-700"
           }`}
         >

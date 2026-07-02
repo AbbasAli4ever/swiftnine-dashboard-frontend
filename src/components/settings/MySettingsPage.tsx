@@ -13,7 +13,7 @@ function SectionRow({ label, description, children }: { label: string; descripti
   return (
     <div className="flex gap-0 border-b border-gray-100 dark:border-gray-800 last:border-0">
       <div className="w-[200px] shrink-0 py-5 pr-6">
-        <p className="text-sm font-normal text-gray-800 dark:text-white/90">{label}</p>
+        <p className="text-[14px] font-semibold text-gray-800 dark:text-white/90">{label}</p>
         {description && <p className="mt-1 text-xs text-gray-400 dark:text-gray-500 leading-relaxed">{description}</p>}
       </div>
       <div className="flex-1 py-5 min-w-0">{children}</div>
@@ -152,9 +152,9 @@ export default function MySettingsPage() {
   };
 
   return (
-    <div className="h-full overflow-y-auto bg-white dark:bg-gray-950">
+    <div className="h-full overflow-y-auto bg-white dark:bg-gray-900">
       <div className="mx-auto max-w-full px-8 py-6">
-        <h1 className="text-2xl font-normal text-gray-900 dark:text-gray-100 mb-1">My Settings</h1>
+        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-1">My Settings</h1>
 
         {/* ── Profile ─────────────────────────────────────────── */}
         <SectionRow label="Profile" description="Your personal information and account security settings.">
@@ -200,12 +200,13 @@ export default function MySettingsPage() {
             </div>
 
             <FieldRow label="Full Name">
-              <div className="relative flex items-center rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 h-10">
+              <div className="relative flex items-center rounded-lg border border-gray-200 dark:border-gray-700 focus-within:border-gray-905 dark:focus-within:border-gray-000 bg-white dark:bg-gray-800 px-3 h-10">
                 <svg className="w-4 h-4 text-gray-300 dark:text-gray-600 mr-2 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0" />
                 </svg>
                 <input
                   type="text"
+                  autoComplete=".."
                   value={fullName}
                   onChange={e => setFullName(e.target.value)}
                   className="flex-1 text-sm text-gray-800 dark:text-gray-100 bg-transparent outline-none"
@@ -228,12 +229,13 @@ export default function MySettingsPage() {
             </FieldRow>
 
             <FieldRow label="Current Password">
-              <div className={`relative flex items-center rounded-lg border bg-white dark:bg-gray-800 px-3 h-10 ${passwordError && !currentPassword ? "border-red-400" : "border-gray-200 dark:border-gray-700"}`}>
+              <div className={`relative flex items-center rounded-lg border bg-white dark:bg-gray-800 px-3 h-10 focus-within:border-gray-905 dark:focus-within:border-gray-000 ${passwordError && !currentPassword ? "border-red-400" : "border-gray-200 dark:border-gray-700"}`}>
                 <svg className="w-4 h-4 text-gray-300 dark:text-gray-600 mr-2 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
                 </svg>
                 <input
                   type="password"
+                  autoComplete="current-password"
                   value={currentPassword}
                   onChange={e => { setCurrentPassword(e.target.value); setPasswordError(""); }}
                   placeholder="Enter current password"
@@ -243,12 +245,13 @@ export default function MySettingsPage() {
             </FieldRow>
 
             <FieldRow label="New Password">
-              <div className="relative flex items-center rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 h-10">
+              <div className="relative flex items-center rounded-lg border border-gray-200 dark:border-gray-700 focus-within:border-gray-905 dark:focus-within:border-gray-000 bg-white dark:bg-gray-800 px-3 h-10">
                 <svg className="w-4 h-4 text-gray-300 dark:text-gray-600 mr-2 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
                 </svg>
                 <input
                   type="password"
+                  autoComplete="new-password"
                   value={newPassword}
                   onChange={e => { setNewPassword(e.target.value); setPasswordError(""); }}
                   placeholder="Enter new password"
@@ -258,12 +261,13 @@ export default function MySettingsPage() {
             </FieldRow>
 
             <FieldRow label="Confirm New Password">
-              <div className={`relative flex items-center rounded-lg border bg-white dark:bg-gray-800 px-3 h-10 ${passwordError === "Passwords do not match" ? "border-red-400" : "border-gray-200 dark:border-gray-700"}`}>
+              <div className={`relative flex items-center rounded-lg border bg-white dark:bg-gray-800 px-3 h-10 focus-within:border-gray-905 dark:focus-within:border-gray-000 ${passwordError === "Passwords do not match" ? "border-red-400" : "border-gray-200 dark:border-gray-700"}`}>
                 <svg className="w-4 h-4 text-gray-300 dark:text-gray-600 mr-2 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
                 </svg>
                 <input
                   type="password"
+                  autoComplete="new-password"
                   value={confirmPassword}
                   onChange={e => { setConfirmPassword(e.target.value); setPasswordError(""); }}
                   placeholder="Confirm new password"
@@ -319,7 +323,7 @@ export default function MySettingsPage() {
               <select
                 value={timezone}
                 onChange={e => setTimezone(e.target.value)}
-                className="w-full h-10 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 pr-8 text-sm text-gray-800 dark:text-gray-100 appearance-none outline-none"
+                className="w-full h-10 rounded-lg border border-gray-200 dark:border-gray-700 focus:border-gray-905 dark:focus:border-gray-905 bg-white dark:bg-gray-800 px-3 pr-8 text-sm text-gray-800 dark:text-gray-100 appearance-none outline-none"
               >
                 <option value="Asia/Karachi">Asia/Karachi</option>
                 <option value="America/New_York">America/New_York</option>
@@ -361,7 +365,7 @@ export default function MySettingsPage() {
               type="button"
               onClick={handleSave}
               disabled={saving}
-              className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-normal text-white hover:bg-brand-600 transition-colors disabled:opacity-50"
+              className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-normal text-white dark:bg-gray-000 dark:text-black hover:bg-brand-600 dark:hover:bg-gray-200 transition-colors duration-200 transition-colors disabled:opacity-50"
             >
               {saving ? "Saving..." : "Save changes"}
             </button>

@@ -248,7 +248,7 @@ export default function TaskForm({
               type="button"
               onClick={() => void handleSubmit()}
               disabled={!title.trim() || saving}
-              className="rounded-lg bg-brand-500 px-5 py-2 text-sm font-normal text-white hover:bg-brand-600 disabled:opacity-50 transition-colors"
+              className="rounded-lg bg-brand-500 px-5 py-2 text-sm font-normal text-white dark:bg-gray-000 dark:text-black dark:hover:bg-gray-200 hover:bg-brand-600 disabled:opacity-50 transition-colors"
             >
               {saving ? "Creating..." : "Create Task"}
             </button>

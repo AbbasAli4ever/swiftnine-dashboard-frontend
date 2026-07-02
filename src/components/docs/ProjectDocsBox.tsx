@@ -54,7 +54,7 @@ export default function ProjectDocsBox({ projectId }: { projectId: string }) {
   }, [activeWorkspace, creating, projectId, router]);
 
   return (
-    <div className="flex h-72 flex-col rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+    <div className="flex h-72 flex-col rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-901">
       <div className="mb-3 flex shrink-0 items-center justify-between">
         <h3 className="text-base font-normal text-gray-800 dark:text-white">Docs</h3>
         <button

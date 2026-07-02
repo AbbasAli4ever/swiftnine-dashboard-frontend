@@ -54,7 +54,7 @@ export default function ChannelSidebarSection() {
 
   return (
     <div className="mt-4">
-      <p className="px-3 pb-1 text-[11px] font-normal text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+      <p className="px-3 pb-1 text-[12px] font-semibold text-[#646464] dark:text-gray-500 uppercase tracking-wider">
         Channels
       </p>
 
@@ -91,7 +91,7 @@ export default function ChannelSidebarSection() {
 
       <button
         onClick={handleAddChannel}
-        className="flex items-center gap-2 w-full px-2.5 py-1.5 mt-1 rounded-lg text-[13px] text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+        className="flex items-center gap-2 w-full px-2.5 py-1.5 mt-1 rounded-lg text-[14px] text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
       >
         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
