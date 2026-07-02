@@ -1,13 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { LuChevronDown, LuRefreshCcw } from "react-icons/lu";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { taskService, TaskListItem, TaskPriority } from "@/services/task.service";
 import { StatusItem } from "@/services/status.service";
-import { WorkspaceMember, workspaceService } from "@/services/workspace.service";
+import { WorkspaceMember } from "@/services/workspace.service";
 import { useWorkspaceStore } from "@/stores/workspace.store";
+import { useWorkspaceMembers } from "@/hooks/useWorkspaceMembers";
 import { useTaskStore } from "@/stores/task.store";
 import { parseApiError } from "@/lib/api";
+import { queryKeys } from "@/queries/keys";
 import { toast } from "sonner";
 import TaskRow from "@/components/projects/TaskRow";
 import StatusIcon from "@/components/projects/StatusIcon";
@@ -204,69 +207,64 @@ function MyStatusGroup({
   );
 }
 
+async function fetchMyTasks(): Promise<{ items: TaskListItem[]; total: number }> {
+  const allItems: TaskListItem[] = [];
+  let page = 1;
+  const limit = 100;
+  let total = 0;
+  while (page <= 5) {
+    const result = await taskService.searchWorkspace({
+      me: true,
+      include_closed: true,
+      include_archived: false,
+      include_subtasks: false,
+      limit,
+      page,
+    });
+    allItems.push(...result.items);
+    total = result.meta.total;
+    if (!result.meta.has_next || page === 5) break;
+    page++;
+  }
+  return { items: allItems, total };
+}
+
 export default function MyTasksPage() {
   const { activeWorkspaceId } = useWorkspaceStore();
   const { setTasksForLists } = useTaskStore();
-  const [tasks, setTasks] = useState<TaskListItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [members, setMembers] = useState<WorkspaceMember[]>([]);
-  const [totalCount, setTotalCount] = useState(0);
-  const fetchRef = useRef(0);
+  const { members } = useWorkspaceMembers();
+  const queryClient = useQueryClient();
+  const queryKey = useMemo(() => queryKeys.myTasks(activeWorkspaceId), [activeWorkspaceId]);
 
-  const fetchTasks = useCallback(async () => {
-    const id = ++fetchRef.current;
-    setLoading(true);
-    try {
-      const allItems: TaskListItem[] = [];
-      let page = 1;
-      const limit = 100;
-      while (page <= 5) {
-        const result = await taskService.searchWorkspace({
-          me: true,
-          include_closed: true,
-          include_archived: false,
-          include_subtasks: false,
-          limit,
-          page,
-        });
-        if (id !== fetchRef.current) return;
-        allItems.push(...result.items);
-        if (!result.meta.has_next) {
-          setTotalCount(result.meta.total);
-          break;
-        }
-        if (page === 5) {
-          setTotalCount(result.meta.total);
-          break;
-        }
-        page++;
-      }
-      if (id !== fetchRef.current) return;
+  const query = useQuery({
+    queryKey,
+    queryFn: fetchMyTasks,
+    enabled: !!activeWorkspaceId,
+  });
 
-      setTasks(allItems);
-
-      // Inject into store so TaskRow mutation callbacks work
-      const byList: Record<string, TaskListItem[]> = {};
-      allItems.forEach((t) => {
-        (byList[t.list.id] ??= []).push(t);
-      });
-      setTasksForLists(byList);
-    } catch (err) {
-      if (id !== fetchRef.current) return;
-      toast.error(parseApiError(err).message);
-    } finally {
-      if (id === fetchRef.current) setLoading(false);
-    }
-  }, [setTasksForLists]);
+  const tasks = useMemo(() => query.data?.items ?? [], [query.data]);
+  const totalCount = query.data?.total ?? 0;
+  const loading = query.isLoading;
 
   useEffect(() => {
-    void fetchTasks();
-  }, [fetchTasks]);
+    if (query.error) toast.error(parseApiError(query.error).message);
+  }, [query.error]);
 
+  // Bridge: keep task.store.ts as the single read model TaskRow's mutation
+  // callbacks consume, exactly like before, just fed by React Query now.
   useEffect(() => {
-    if (!activeWorkspaceId) return;
-    workspaceService.getMembers(activeWorkspaceId).then(setMembers).catch(() => setMembers([]));
-  }, [activeWorkspaceId]);
+    if (!query.data) return;
+    const byList: Record<string, TaskListItem[]> = {};
+    query.data.items.forEach((t) => {
+      (byList[t.list.id] ??= []).push(t);
+    });
+    setTasksForLists(byList);
+  }, [query.data, setTasksForLists]);
+
+  const refetch = useCallback(
+    () => queryClient.invalidateQueries({ queryKey }),
+    [queryClient, queryKey]
+  );
 
   const statuses = useMemo(() => deriveStatuses(tasks), [tasks]);
 
@@ -288,7 +286,7 @@ export default function MyTasksPage() {
         </div>
         <button
           type="button"
-          onClick={() => void fetchTasks()}
+          onClick={() => void refetch()}
           title="Refresh"
           className="flex h-7 w-7 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800"
         >
@@ -317,7 +315,7 @@ export default function MyTasksPage() {
                 listIds={listIds}
                 allStatuses={statuses}
                 members={members}
-                onRefresh={fetchTasks}
+                onRefresh={refetch}
               />
             ))}
           </div>

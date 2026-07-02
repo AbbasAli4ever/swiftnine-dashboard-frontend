@@ -4,9 +4,9 @@ import React, {
   createContext,
   useCallback,
   useContext,
-  useEffect,
-  useState,
+  useMemo,
 } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Doc,
   CreateDocPayload,
@@ -14,6 +14,7 @@ import {
   docsService,
 } from "@/services/docs.service";
 import { useWorkspace } from "@/context/WorkspaceContext";
+import { queryKeys } from "@/queries/keys";
 
 interface DocsContextValue {
   docs: Doc[];
@@ -29,35 +30,41 @@ const DocsContext = createContext<DocsContextValue | null>(null);
 
 export function DocsProvider({ children }: { children: React.ReactNode }) {
   const { activeWorkspace } = useWorkspace();
-  const [docs, setDocs] = useState<Doc[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const queryClient = useQueryClient();
+  const workspaceId = activeWorkspace?.id ?? null;
+  // Memoized so it's referentially stable across renders — queryKeys.docs()
+  // returns a fresh array literal every call, which would otherwise cascade
+  // into a new `setDocs`/`upsertLocal` identity every render and re-trigger
+  // any effect (e.g. DocEditorPage's initial load) that depends on them.
+  const queryKey = useMemo(() => queryKeys.docs(workspaceId), [workspaceId]);
+
+  const query = useQuery({
+    queryKey,
+    queryFn: () => docsService.list({ workspaceId: workspaceId! }),
+    enabled: !!workspaceId,
+  });
+  const docs = useMemo(() => query.data ?? [], [query.data]);
+
+  const setDocs = useCallback(
+    (updater: (prev: Doc[]) => Doc[]) => {
+      queryClient.setQueryData<Doc[]>(queryKey, (prev) => updater(prev ?? []));
+    },
+    [queryClient, queryKey]
+  );
 
   const fetchDocs = useCallback(async () => {
-    if (!activeWorkspace) return;
-    setIsLoading(true);
-    try {
-      const data = await docsService.list({ workspaceId: activeWorkspace.id });
-      setDocs(data);
-    } catch {
-      setDocs([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [activeWorkspace]);
+    if (!workspaceId) return;
+    await queryClient.invalidateQueries({ queryKey });
+  }, [queryClient, queryKey, workspaceId]);
 
-  useEffect(() => {
-    if (!activeWorkspace) {
-      setDocs([]);
-      return;
-    }
-    fetchDocs();
-  }, [activeWorkspace, fetchDocs]);
-
-  const createDoc = useCallback(async (payload: CreateDocPayload) => {
-    const doc = await docsService.create(payload);
-    setDocs((prev) => [doc, ...prev]);
-    return doc;
-  }, []);
+  const createDoc = useCallback(
+    async (payload: CreateDocPayload) => {
+      const doc = await docsService.create(payload);
+      setDocs((prev) => [doc, ...prev]);
+      return doc;
+    },
+    [setDocs]
+  );
 
   const updateDoc = useCallback(
     async (id: string, payload: UpdateDocPayload) => {
@@ -65,36 +72,45 @@ export function DocsProvider({ children }: { children: React.ReactNode }) {
       setDocs((prev) => prev.map((d) => (d.id === id ? doc : d)));
       return doc;
     },
-    []
+    [setDocs]
   );
 
-  const deleteDoc = useCallback(async (id: string) => {
-    await docsService.delete(id);
-    setDocs((prev) => prev.filter((d) => d.id !== id));
-  }, []);
+  const deleteDoc = useCallback(
+    async (id: string) => {
+      await docsService.delete(id);
+      setDocs((prev) => prev.filter((d) => d.id !== id));
+    },
+    [setDocs]
+  );
 
-  const upsertLocal = useCallback((doc: Doc) => {
-    setDocs((prev) => {
-      const idx = prev.findIndex((d) => d.id === doc.id);
-      if (idx === -1) return [doc, ...prev];
-      const next = prev.slice();
-      next[idx] = doc;
-      return next;
-    });
-  }, []);
+  const upsertLocal = useCallback(
+    (doc: Doc) => {
+      setDocs((prev) => {
+        const idx = prev.findIndex((d) => d.id === doc.id);
+        if (idx === -1) return [doc, ...prev];
+        const next = prev.slice();
+        next[idx] = doc;
+        return next;
+      });
+    },
+    [setDocs]
+  );
+
+  const value = useMemo<DocsContextValue>(
+    () => ({
+      docs,
+      isLoading: query.isLoading,
+      createDoc,
+      updateDoc,
+      deleteDoc,
+      refetch: fetchDocs,
+      upsertLocal,
+    }),
+    [docs, query.isLoading, createDoc, updateDoc, deleteDoc, fetchDocs, upsertLocal]
+  );
 
   return (
-    <DocsContext.Provider
-      value={{
-        docs,
-        isLoading,
-        createDoc,
-        updateDoc,
-        deleteDoc,
-        refetch: fetchDocs,
-        upsertLocal,
-      }}
-    >
+    <DocsContext.Provider value={value}>
       {children}
     </DocsContext.Provider>
   );

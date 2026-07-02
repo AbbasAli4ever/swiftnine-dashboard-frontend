@@ -1,42 +1,29 @@
 "use client";
 
-import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "@/stores/auth.store";
-import { useUniversityStore } from "@/stores/university.store";
 import { getDashboardStats, getMyCourses } from "@/services/university.service";
+import { queryKeys } from "@/queries/keys";
 
 export function useUniversityDashboard() {
   const accessToken = useAuthStore((s) => s.accessToken);
-  const {
-    dashboardStats,
-    dashboardCourses,
-    dashboardLoaded,
-    dashboardError,
-    setDashboard,
-    setDashboardError,
-  } = useUniversityStore();
 
-  useEffect(() => {
-    // Skip if already cached or no token yet
-    if (!accessToken || dashboardLoaded) return;
-
-    let cancelled = false;
-
-    Promise.all([getDashboardStats(), getMyCourses(1, 3)])
-      .then(([stats, coursesRes]) => {
-        if (!cancelled) setDashboard(stats, coursesRes.data);
-      })
-      .catch(() => {
-        if (!cancelled) setDashboardError("Failed to load dashboard data");
-      });
-
-    return () => { cancelled = true; };
-  }, [accessToken, dashboardLoaded, setDashboard, setDashboardError]);
+  const query = useQuery({
+    queryKey: queryKeys.universityDashboard(),
+    queryFn: async () => {
+      const [stats, coursesRes] = await Promise.all([
+        getDashboardStats(),
+        getMyCourses(1, 3),
+      ]);
+      return { stats, myCourses: coursesRes.data };
+    },
+    enabled: !!accessToken,
+  });
 
   return {
-    stats: dashboardStats,
-    myCourses: dashboardCourses,
-    isLoading: !dashboardLoaded,
-    error: dashboardError,
+    stats: query.data?.stats ?? null,
+    myCourses: query.data?.myCourses ?? [],
+    isLoading: query.isLoading,
+    error: query.error ? "Failed to load dashboard data" : null,
   };
 }

@@ -9,7 +9,7 @@ import { useTaskLists } from "@/context/TaskListContext";
 import { parseApiError } from "@/lib/api";
 import { StatusItem, flattenGroupedStatuses, statusService } from "@/services/status.service";
 import { TaskList } from "@/services/task-list.service";
-import { WorkspaceTag, tagService } from "@/services/tag.service";
+import { useWorkspaceTags } from "@/hooks/useWorkspaceTags";
 import { TaskListItem } from "@/services/task.service";
 import { useWorkspaceMembers } from "@/hooks/useWorkspaceMembers";
 import { getTaskSearchCacheKey, useTaskSearchStore } from "@/stores/task-search.store";
@@ -78,7 +78,7 @@ export default function TasksPage() {
     setTasksForLists,
   } = useTaskStore();
   const { searchProject, searchList } = useTaskSearchStore();
-  const [tags, setTags] = useState<WorkspaceTag[]>([]);
+  const { tags } = useWorkspaceTags();
   const [statuses, setStatuses] = useState<StatusItem[]>([]);
   const [pendingDefaults, setPendingDefaults] = useState<PendingCreateDefaults>({});
   const [createListOpen, setCreateListOpen] = useState(false);
@@ -152,10 +152,6 @@ export default function TasksPage() {
       router.replace(`/projects?projectId=${projectId}`);
     }
   }, [activeLists.length, listId, projectId, router, selectedList]);
-
-  useEffect(() => {
-    tagService.list().then(setTags).catch(() => setTags([]));
-  }, []);
 
   const taskScope = useMemo(() => {
     if (!projectId || isProjectLocked) return null;

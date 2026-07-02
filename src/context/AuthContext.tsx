@@ -3,6 +3,7 @@
 import { api, refreshSession } from "@/lib/api";
 import { AuthUser, useAuthStore, hasSessionExists } from "@/stores/auth.store";
 import { usePathname } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import React, {
   createContext,
   useCallback,
@@ -35,6 +36,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { accessToken, user, setAuth, clearAuth } = useAuthStore();
   const pathname = usePathname();
   const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     // On auth pages (signin, signup) there is no session to restore — skip entirely
@@ -130,12 +132,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Swallow errors — we always clear local state regardless
     } finally {
       clearAuth();
+      // Defensive: the hard navigation below already drops the in-memory
+      // QueryClient today, but clear explicitly so a future switch to
+      // client-side redirect can't leak cached data into the next session.
+      queryClient.clear();
       // Hard navigation so the middleware re-evaluates with the cleared cookie
       // and no RSC prefetch races occur. router.replace would trigger an RSC
       // fetch against the protected route before the redirect completes.
       window.location.replace("/signin");
     }
-  }, [clearAuth]);
+  }, [clearAuth, queryClient]);
 
   return (
     <AuthContext.Provider

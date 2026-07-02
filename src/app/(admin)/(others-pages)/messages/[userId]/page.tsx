@@ -8,7 +8,7 @@ import { chatService } from "@/services/chat.service";
 import { parseApiError } from "@/lib/api";
 import { toast } from "sonner";
 import DmChatView from "@/components/dm/DmChatView";
-import { useWorkspaceStore } from "@/stores/workspace.store";
+import { useWorkspaceMembers } from "@/hooks/useWorkspaceMembers";
 
 interface Props {
   params: Promise<{ userId: string }>;
@@ -19,7 +19,7 @@ export default function MessageThreadPage({ params }: Props) {
   const { openDmThread } = useUiStore();
   const router = useRouter();
   const { userToChannelId, setUserToChannelId, setDmChannels, dmChannels } = useDmStore();
-  const members = useWorkspaceStore((s) => s.members);
+  const { members } = useWorkspaceMembers();
 
   const [channelId, setChannelId] = useState<string | null>(
     userToChannelId[userId] ?? null

@@ -2,8 +2,11 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/stores/auth.store";
 import { useUniversityStore } from "@/stores/university.store";
+import { useInvalidateUniversityCache } from "@/hooks/useInvalidateUniversityCache";
+import { queryKeys } from "@/queries/keys";
 import {
   getMyCourses,
   getCourseDetail,
@@ -14,195 +17,150 @@ import {
   getResourceUrl,
   completeLesson,
   type MyCourse,
-  type CourseDetail,
   type LessonSummary,
-  type PlaybackSession,
   type LessonProgressResponse,
-  type LessonNote,
 } from "@/services/university.service";
-
-interface State {
-  myCourses: MyCourse[];
-  activeCourse: MyCourse | null;
-  courseDetail: CourseDetail | null;
-  activeLesson: LessonSummary | null;
-  playbackSession: PlaybackSession | null;
-  lessonProgress: Record<string, LessonProgressResponse>;
-  // tracks lessonIds where getResourceUrl has been called (precondition for RESOURCE completion)
-  resourceOpened: Record<string, boolean>;
-  note: LessonNote | null;
-  isLoadingCourses: boolean;
-  isLoadingDetail: boolean;
-  isLoadingPlayback: boolean;
-  isSavingNote: boolean;
-  error: string | null;
-}
 
 export function useMyLearning() {
   const accessToken = useAuthStore((s) => s.accessToken);
   const searchParams = useSearchParams();
   const targetCourseId = searchParams.get("courseId");
-  const { setActiveCourse, clearActiveCourse, invalidateDashboard } = useUniversityStore();
+  const { setActiveCourse, clearActiveCourse } = useUniversityStore();
+  const { invalidateDashboard } = useInvalidateUniversityCache();
+  const queryClient = useQueryClient();
 
-  const [state, setState] = useState<State>({
-    myCourses: [],
-    activeCourse: null,
-    courseDetail: null,
-    activeLesson: null,
-    playbackSession: null,
-    lessonProgress: {},
-    resourceOpened: {},
-    note: null,
-    isLoadingCourses: true,
-    isLoadingDetail: false,
-    isLoadingPlayback: false,
-    isSavingNote: false,
-    error: null,
+  const [activeCourseId, setActiveCourseId] = useState<string | null>(null);
+  const [activeLesson, setActiveLesson] = useState<LessonSummary | null>(null);
+  const [lessonProgress, setLessonProgress] = useState<Record<string, LessonProgressResponse>>({});
+  const [resourceOpened, setResourceOpened] = useState<Record<string, boolean>>({});
+  const [isSavingNote, setIsSavingNote] = useState(false);
+
+  // ── Step 1: Enrolled courses ─────────────────────────────────────────────────
+  const coursesQuery = useQuery({
+    queryKey: queryKeys.universityMyCourses(),
+    queryFn: () => getMyCourses(1, 20),
+    enabled: !!accessToken,
   });
+  const myCourses = coursesQuery.data?.data ?? [];
 
-  // Progress tick refs — avoid stale closures in event handlers
+  useEffect(() => {
+    if (!coursesQuery.data || activeCourseId) return;
+    const courses = coursesQuery.data.data;
+    const active =
+      (targetCourseId ? courses.find((c) => c.course.id === targetCourseId) : null) ??
+      courses[0] ??
+      null;
+    if (active) setActiveCourseId(active.course.id);
+  }, [coursesQuery.data, targetCourseId, activeCourseId]);
+
+  useEffect(() => clearActiveCourse, [clearActiveCourse]);
+
+  const activeCourse: MyCourse | null =
+    myCourses.find((c) => c.course.id === activeCourseId) ?? null;
+
+  // ── Step 2: Course detail for the active course ─────────────────────────────
+  const courseDetailQuery = useQuery({
+    queryKey: queryKeys.universityCourseDetail(activeCourseId ?? ""),
+    queryFn: () => getCourseDetail(activeCourseId!),
+    enabled: !!activeCourseId,
+  });
+  const courseDetail = courseDetailQuery.data ?? null;
+
+  // Pick the default lesson (lastPlayedLesson, or first lesson) whenever the
+  // course detail changes to a new course.
+  useEffect(() => {
+    if (!courseDetail) return;
+    setActiveCourse(courseDetail.title, courseDetail.description ?? null);
+
+    const lastId = activeCourse?.lastPlayedLesson?.id;
+    let defaultLesson: LessonSummary | null = null;
+    for (const mod of courseDetail.modules) {
+      for (const lesson of mod.lessons) {
+        if (!defaultLesson) defaultLesson = lesson;
+        if (lesson.id === lastId) {
+          defaultLesson = lesson;
+          break;
+        }
+      }
+    }
+    setActiveLesson(defaultLesson);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [courseDetail]);
+
+  // ── Step 3: Playback session + note for the active lesson ──────────────────
+  const isVideoReady =
+    activeLesson?.lessonType === "VIDEO" && activeLesson.mediaAsset?.status === "READY";
+
+  const playbackQuery = useQuery({
+    queryKey: queryKeys.universityPlaybackSession(activeLesson?.id ?? ""),
+    queryFn: () => getPlaybackSession(activeLesson!.id),
+    enabled: !!activeLesson && isVideoReady,
+  });
+  const playbackSession = isVideoReady ? playbackQuery.data ?? null : null;
+
+  const noteQuery = useQuery({
+    queryKey: queryKeys.universityLessonNote(activeLesson?.id ?? ""),
+    queryFn: () => getLessonNote(activeLesson!.id),
+    enabled: !!activeLesson,
+  });
+  const note = noteQuery.data ?? null;
+
+  // Progress ticks read from `watchedFromRef.current`, which must reflect the
+  // server's last known position as soon as a fresh playback session loads.
   const watchedFromRef = useRef<number>(0);
   const lastTickAtRef = useRef<number>(0);
   const activeLessonRef = useRef<LessonSummary | null>(null);
-
-  // Keep activeLessonRef in sync
   useEffect(() => {
-    activeLessonRef.current = state.activeLesson;
-  }, [state.activeLesson]);
-
-  // ── Step 1: Load enrolled courses on mount ──────────────────────────────────
+    activeLessonRef.current = activeLesson;
+  }, [activeLesson]);
   useEffect(() => {
-    if (!accessToken) return;
-    let cancelled = false;
+    if (playbackQuery.data) watchedFromRef.current = playbackQuery.data.lastPositionSeconds;
+  }, [playbackQuery.data]);
 
-    getMyCourses(1, 20)
-      .then((res) => {
-        if (cancelled) return;
-        const courses = res.data;
-        const active = (targetCourseId ? courses.find((c) => c.course.id === targetCourseId) : null) ?? courses[0] ?? null;
-        setState((p) => ({
-          ...p,
-          myCourses: courses,
-          activeCourse: active,
-          isLoadingCourses: false,
-        }));
-      })
-      .catch(() => {
-        if (!cancelled)
-          setState((p) => ({ ...p, isLoadingCourses: false, error: "Failed to load your courses" }));
-      });
-
-    return () => { cancelled = true; clearActiveCourse(); };
-  }, [accessToken, targetCourseId, clearActiveCourse]);
-
-  // ── Step 2: Load course detail when activeCourse changes ───────────────────
-  useEffect(() => {
-    if (!state.activeCourse) return;
-    let cancelled = false;
-    const courseId = state.activeCourse.course.id;
-
-    setState((p) => ({ ...p, isLoadingDetail: true, courseDetail: null, activeLesson: null, playbackSession: null }));
-
-    getCourseDetail(courseId)
-      .then((detail) => {
-        if (cancelled) return;
-
-        // Pick the default lesson: lastPlayedLesson or first lesson of first module
-        const lastId = state.activeCourse?.lastPlayedLesson?.id;
-        let defaultLesson: LessonSummary | null = null;
-
-        for (const mod of detail.modules) {
-          for (const lesson of mod.lessons) {
-            if (!defaultLesson) defaultLesson = lesson;
-            if (lesson.id === lastId) { defaultLesson = lesson; break; }
-          }
-        }
-
-        setActiveCourse(detail.title, detail.description ?? null);
-        setState((p) => ({
-          ...p,
-          courseDetail: detail,
-          activeLesson: defaultLesson,
-          isLoadingDetail: false,
-        }));
-      })
-      .catch(() => {
-        if (!cancelled)
-          setState((p) => ({ ...p, isLoadingDetail: false, error: "Failed to load course details" }));
-      });
-
-    return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.activeCourse?.course.id]);
-
-  // ── Step 3: Load playback session + note when activeLesson changes ──────────
-  useEffect(() => {
-    if (!state.activeLesson) return;
-    let cancelled = false;
-    const lesson = state.activeLesson;
-
-    // Load note for any lesson type
-    getLessonNote(lesson.id)
-      .then((note) => { if (!cancelled) setState((p) => ({ ...p, note })); })
-      .catch(() => {});
-
-    // Load playback session only for READY VIDEO lessons
-    if (lesson.lessonType === "VIDEO" && lesson.mediaAsset?.status === "READY") {
-      setState((p) => ({ ...p, isLoadingPlayback: true, playbackSession: null }));
-      console.log("[playback-session] requesting for lessonId:", lesson.id);
-      getPlaybackSession(lesson.id)
-        .then((session) => {
-          console.log("[playback-session] success:", session);
-          if (!cancelled) {
-            setState((p) => ({ ...p, playbackSession: session, isLoadingPlayback: false }));
-            watchedFromRef.current = session.lastPositionSeconds;
-          }
-        })
-        .catch((err) => {
-          console.error("[playback-session] error status:", err?.response?.status);
-          console.error("[playback-session] error body:", err?.response?.data);
-          console.error("[playback-session] full error:", err);
-          if (!cancelled) setState((p) => ({ ...p, isLoadingPlayback: false }));
-        });
-    } else {
-      setState((p) => ({ ...p, playbackSession: null, isLoadingPlayback: false }));
-    }
-
-    return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.activeLesson?.id]);
+  const applyProgressResult = useCallback(
+    (lessonId: string, res: LessonProgressResponse) => {
+      setLessonProgress((p) => ({ ...p, [lessonId]: res }));
+      if (activeCourseId) {
+        queryClient.setQueryData(
+          queryKeys.universityMyCourses(),
+          (prev: Awaited<ReturnType<typeof getMyCourses>> | undefined) =>
+            prev && {
+              ...prev,
+              data: prev.data.map((c) =>
+                c.course.id === activeCourseId ? { ...c, myProgress: res.courseProgress } : c
+              ),
+            }
+        );
+      }
+      invalidateDashboard();
+    },
+    [activeCourseId, invalidateDashboard, queryClient]
+  );
 
   // ── Progress tick flush ─────────────────────────────────────────────────────
-  const flushTick = useCallback((currentTime: number, duration: number) => {
-    const lesson = activeLessonRef.current;
-    if (!lesson || lesson.lessonType !== "VIDEO") return;
+  const flushTick = useCallback(
+    (currentTime: number, duration: number) => {
+      const lesson = activeLessonRef.current;
+      if (!lesson || lesson.lessonType !== "VIDEO") return;
 
-    const watchedFrom = watchedFromRef.current;
-    const watchedTo = Math.min(currentTime, watchedFrom + 60); // max 60s per interval
+      const watchedFrom = watchedFromRef.current;
+      const watchedTo = Math.min(currentTime, watchedFrom + 60); // max 60s per interval
 
-    if (watchedTo <= watchedFrom) return;
+      if (watchedTo <= watchedFrom) return;
 
-    // Rate limit: skip if last tick was < 5s ago
-    const now = Date.now();
-    if (now - lastTickAtRef.current < 5000) return;
-    lastTickAtRef.current = now;
+      // Rate limit: skip if last tick was < 5s ago
+      const now = Date.now();
+      if (now - lastTickAtRef.current < 5000) return;
+      lastTickAtRef.current = now;
 
-    watchedFromRef.current = currentTime;
+      watchedFromRef.current = currentTime;
 
-    sendProgressTick(lesson.id, { currentTime, duration, watchedFrom, watchedTo })
-      .then((res) => {
-        setState((p) => ({
-          ...p,
-          lessonProgress: { ...p.lessonProgress, [lesson.id]: res },
-          activeCourse: p.activeCourse
-            ? { ...p.activeCourse, myProgress: res.courseProgress }
-            : null,
-        }));
-        // Invalidate so dashboard refetches fresh stats on next visit
-        invalidateDashboard();
-      })
-      .catch(() => {}); // silent — ticks are best-effort
-  }, []);
+      sendProgressTick(lesson.id, { currentTime, duration, watchedFrom, watchedTo })
+        .then((res) => applyProgressResult(lesson.id, res))
+        .catch(() => {}); // silent — ticks are best-effort
+    },
+    [applyProgressResult]
+  );
 
   // ── Player event handlers (passed to VideoPlayer) ───────────────────────────
   const onTimeUpdate = useCallback((currentTime: number, duration: number) => {
@@ -231,66 +189,77 @@ export function useMyLearning() {
     // Explicitly complete both VIDEO and RESOURCE lessons when the media ends.
     // VIDEO also auto-completes server-side at 90% via ticks; the call is idempotent.
     completeLesson(lesson.id)
-      .then((res) => {
-        setState((p) => ({
-          ...p,
-          lessonProgress: { ...p.lessonProgress, [lesson.id]: res },
-          activeCourse: p.activeCourse
-            ? { ...p.activeCourse, myProgress: res.courseProgress }
-            : null,
-        }));
-        invalidateDashboard();
-      })
+      .then((res) => applyProgressResult(lesson.id, res))
       .catch(() => {});
-  }, [flushTick]);
+  }, [flushTick, applyProgressResult]);
 
   // ── Select lesson ───────────────────────────────────────────────────────────
   const selectLesson = useCallback((lesson: LessonSummary) => {
-    setState((p) => ({ ...p, activeLesson: lesson }));
+    setActiveLesson(lesson);
     watchedFromRef.current = 0;
   }, []);
 
   // ── Select course ───────────────────────────────────────────────────────────
   const selectCourse = useCallback((course: MyCourse) => {
-    setState((p) => ({ ...p, activeCourse: course }));
+    setActiveCourseId(course.course.id);
   }, []);
 
   // ── Save note ───────────────────────────────────────────────────────────────
-  const saveNote = useCallback(async (content: string) => {
-    if (!state.activeLesson) return;
-    setState((p) => ({ ...p, isSavingNote: true }));
-    try {
-      const note = await saveLessonNote(state.activeLesson.id, content);
-      setState((p) => ({ ...p, note, isSavingNote: false }));
-    } catch {
-      setState((p) => ({ ...p, isSavingNote: false }));
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.activeLesson?.id]);
+  const saveNote = useCallback(
+    async (content: string) => {
+      if (!activeLesson) return;
+      setIsSavingNote(true);
+      try {
+        const updated = await saveLessonNote(activeLesson.id, content);
+        queryClient.setQueryData(queryKeys.universityLessonNote(activeLesson.id), updated);
+      } finally {
+        setIsSavingNote(false);
+      }
+    },
+    [activeLesson, queryClient]
+  );
 
   // ── Open resource ───────────────────────────────────────────────────────────
   const openResource = useCallback(async (lessonId: string, resourceId: string) => {
     const { url } = await getResourceUrl(lessonId, resourceId);
     window.open(url, "_blank", "noopener,noreferrer");
     // Record that the resource URL was opened — required precondition before /complete
-    setState((p) => ({ ...p, resourceOpened: { ...p.resourceOpened, [lessonId]: true } }));
+    setResourceOpened((p) => ({ ...p, [lessonId]: true }));
   }, []);
 
   // ── Explicit lesson completion (RESOURCE and VIDEO) ─────────────────────────
-  const completeResourceLesson = useCallback(async (lessonId: string) => {
-    const res = await completeLesson(lessonId);
-    invalidateDashboard();
-    setState((p) => ({
-      ...p,
-      lessonProgress: { ...p.lessonProgress, [lessonId]: res },
-      activeCourse: p.activeCourse
-        ? { ...p.activeCourse, myProgress: res.courseProgress }
-        : null,
-    }));
-  }, [invalidateDashboard]);
+  const completeResourceLesson = useCallback(
+    async (lessonId: string) => {
+      const res = await completeLesson(lessonId);
+      applyProgressResult(lessonId, res);
+    },
+    [applyProgressResult]
+  );
+
+  const isLoadingCourses = coursesQuery.isLoading;
+  const isLoadingDetail = courseDetailQuery.isLoading;
+  const isLoadingPlayback = isVideoReady && playbackQuery.isLoading;
+  const error =
+    coursesQuery.error
+      ? "Failed to load your courses"
+      : courseDetailQuery.error
+      ? "Failed to load course details"
+      : null;
 
   return {
-    ...state,
+    myCourses,
+    activeCourse,
+    courseDetail,
+    activeLesson,
+    playbackSession,
+    lessonProgress,
+    resourceOpened,
+    note,
+    isLoadingCourses,
+    isLoadingDetail,
+    isLoadingPlayback,
+    isSavingNote,
+    error,
     selectLesson,
     selectCourse,
     saveNote,
@@ -300,6 +269,5 @@ export function useMyLearning() {
     onPause,
     onSeeked,
     onEnded,
-    resourceOpened: state.resourceOpened,
   };
 }

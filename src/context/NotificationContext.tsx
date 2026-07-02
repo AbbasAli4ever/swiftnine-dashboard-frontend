@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useWorkspaceStore } from "@/stores/workspace.store";
+import { useWorkspaceMembers } from "@/hooks/useWorkspaceMembers";
 import { notificationService } from "@/services/notification.service";
 import { useSystemNotifications } from "@/hooks/useSystemNotifications";
 import { Notification } from "@/types/notification";
@@ -42,7 +43,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const { user, isAuthenticated } = useAuth();
   const router = useRouter();
   const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
-  const storeMembers = useWorkspaceStore((s) => s.members);
+  const { members: storeMembers } = useWorkspaceMembers();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const notificationsRef = useRef(notifications);

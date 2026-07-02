@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { getInitials } from "@/lib/getInitials";
 import { useAuth } from "@/context/AuthContext";
 import { useChannelStore } from "@/stores/channel.store";
-import { useWorkspaceStore } from "@/stores/workspace.store";
+import { useWorkspaceMembers } from "@/hooks/useWorkspaceMembers";
 import { chatService, buildContentJson } from "@/services/chat.service";
 import { channelService } from "@/services/channel.service";
 import { useChatSocket } from "@/hooks/useChatSocket";
@@ -266,8 +266,7 @@ export default function ChannelChatView({ channelId, channelName, members, priva
     clearChannelUnread,
   } = useChannelStore();
 
-  const workspaceMembers = useWorkspaceStore((s) => s.members);
-  const fetchWorkspaceMembers = useWorkspaceStore((s) => s.fetchMembers);
+  const { members: workspaceMembers, refetch: fetchWorkspaceMembers } = useWorkspaceMembers();
 
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);

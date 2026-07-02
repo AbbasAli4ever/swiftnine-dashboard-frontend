@@ -1,44 +1,34 @@
 "use client";
 
-import { useEffect, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/stores/auth.store";
-import { useUniversityStore } from "@/stores/university.store";
 import { getCourses, type CoursesParams } from "@/services/university.service";
+import { queryKeys } from "@/queries/keys";
 
 export function useCourseLibrary(params: CoursesParams) {
   const accessToken = useAuthStore((s) => s.accessToken);
-  const { libraryCache, setLibraryCache } = useUniversityStore();
+  const queryClient = useQueryClient();
+  const queryKey = queryKeys.universityCourses(params);
 
-  const cacheKey = JSON.stringify(params);
-  const cached = libraryCache[cacheKey];
-
-  const fetch = useCallback(() => {
-    if (!accessToken) return;
-
-    getCourses(params)
-      .then((res) => {
-        setLibraryCache(cacheKey, {
-          courses: res.data,
-          total: res.meta.total,
-          totalPages: res.meta.totalPages,
-        });
-      })
-      .catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accessToken, cacheKey]);
-
-  useEffect(() => {
-    // Skip fetch if we already have this page/filter cached
-    if (cached) return;
-    fetch();
-  }, [cached, fetch]);
+  const query = useQuery({
+    queryKey,
+    queryFn: async () => {
+      const res = await getCourses(params);
+      return {
+        courses: res.data,
+        total: res.meta.total,
+        totalPages: res.meta.totalPages,
+      };
+    },
+    enabled: !!accessToken,
+  });
 
   return {
-    courses: cached?.courses ?? [],
-    total: cached?.total ?? 0,
-    totalPages: cached?.totalPages ?? 1,
-    isLoading: !cached,
-    error: null,
-    refetch: fetch,
+    courses: query.data?.courses ?? [],
+    total: query.data?.total ?? 0,
+    totalPages: query.data?.totalPages ?? 1,
+    isLoading: query.isLoading,
+    error: query.error ? "Failed to load courses" : null,
+    refetch: () => queryClient.invalidateQueries({ queryKey }),
   };
 }

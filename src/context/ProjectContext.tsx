@@ -4,9 +4,9 @@ import React, {
   createContext,
   useCallback,
   useContext,
-  useEffect,
-  useState,
+  useMemo,
 } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Project,
   CreateProjectPayload,
@@ -14,6 +14,7 @@ import {
   projectService,
 } from "@/services/project.service";
 import { useWorkspace } from "@/context/WorkspaceContext";
+import { queryKeys } from "@/queries/keys";
 
 interface ProjectContextValue {
   projects: Project[];
@@ -30,30 +31,31 @@ const ProjectContext = createContext<ProjectContextValue | null>(null);
 
 export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const { activeWorkspace } = useWorkspace();
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const queryClient = useQueryClient();
+  const workspaceId = activeWorkspace?.id ?? null;
+  // Memoized so it's referentially stable across renders — queryKeys.projects()
+  // returns a fresh array literal every call, which would otherwise cascade
+  // into a new callback identity every render for anything depending on it.
+  const queryKey = useMemo(() => queryKeys.projects(workspaceId), [workspaceId]);
+
+  const query = useQuery({
+    queryKey,
+    queryFn: () => projectService.list(),
+    enabled: !!workspaceId,
+  });
+  const projects = useMemo(() => query.data ?? [], [query.data]);
+
+  const setProjects = useCallback(
+    (updater: (prev: Project[]) => Project[]) => {
+      queryClient.setQueryData<Project[]>(queryKey, (prev) => updater(prev ?? []));
+    },
+    [queryClient, queryKey]
+  );
 
   const fetchProjects = useCallback(async () => {
-    if (!activeWorkspace) return;
-    setIsLoading(true);
-    try {
-      const data = await projectService.list();
-      setProjects(data);
-    } catch {
-      setProjects([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [activeWorkspace]);
-
-  // Re-fetch whenever the active workspace changes
-  useEffect(() => {
-    if (!activeWorkspace) {
-      setProjects([]);
-      return;
-    }
-    fetchProjects();
-  }, [activeWorkspace, fetchProjects]);
+    if (!workspaceId) return;
+    await queryClient.invalidateQueries({ queryKey });
+  }, [queryClient, queryKey, workspaceId]);
 
   const createProject = useCallback(
     async (payload: CreateProjectPayload) => {
@@ -61,7 +63,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       setProjects((prev) => [...prev, project]);
       return project;
     },
-    []
+    [setProjects]
   );
 
   const updateProject = useCallback(
@@ -69,20 +71,26 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       const updated = await projectService.update(id, payload);
       setProjects((prev) => prev.map((p) => (p.id === id ? updated : p)));
     },
-    []
+    [setProjects]
   );
 
-  const patchLocalProject = useCallback((id: string, patch: Partial<Project>) => {
-    setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
-  }, []);
+  const patchLocalProject = useCallback(
+    (id: string, patch: Partial<Project>) => {
+      setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+    },
+    [setProjects]
+  );
 
-  const deleteProject = useCallback(async (id: string) => {
-    await projectService.delete(id);
-    setProjects((prev) => prev.filter((p) => p.id !== id));
-  }, []);
+  const deleteProject = useCallback(
+    async (id: string) => {
+      await projectService.delete(id);
+      setProjects((prev) => prev.filter((p) => p.id !== id));
+    },
+    [setProjects]
+  );
 
   const fetchArchivedProjects = useCallback(async () => {
-    if (!activeWorkspace) return;
+    if (!workspaceId) return;
     try {
       const archived = await projectService.listArchived();
       setProjects((prev) => {
@@ -96,21 +104,33 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // silently fail — archived projects are optional display
     }
-  }, [activeWorkspace]);
+  }, [workspaceId, setProjects]);
+
+  const value = useMemo<ProjectContextValue>(
+    () => ({
+      projects,
+      isLoading: query.isLoading,
+      createProject,
+      updateProject,
+      patchLocalProject,
+      deleteProject,
+      refetch: fetchProjects,
+      fetchArchivedProjects,
+    }),
+    [
+      projects,
+      query.isLoading,
+      createProject,
+      updateProject,
+      patchLocalProject,
+      deleteProject,
+      fetchProjects,
+      fetchArchivedProjects,
+    ]
+  );
 
   return (
-    <ProjectContext.Provider
-      value={{
-        projects,
-        isLoading,
-        createProject,
-        updateProject,
-        patchLocalProject,
-        deleteProject,
-        refetch: fetchProjects,
-        fetchArchivedProjects,
-      }}
-    >
+    <ProjectContext.Provider value={value}>
       {children}
     </ProjectContext.Provider>
   );

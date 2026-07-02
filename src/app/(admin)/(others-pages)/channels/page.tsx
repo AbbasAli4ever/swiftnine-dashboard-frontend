@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useWorkspaceStore } from "@/stores/workspace.store";
+import { useQueryClient } from "@tanstack/react-query";
 import { useChannelStore } from "@/stores/channel.store";
-import { channelService } from "@/services/channel.service";
+import { useWorkspaceStore } from "@/stores/workspace.store";
+import { useChannelList } from "@/hooks/useChannelList";
+import { queryKeys } from "@/queries/keys";
 import { parseApiError } from "@/lib/api";
 import { toast } from "sonner";
 import CreateChannelModal from "@/components/channels/CreateChannelModal";
@@ -13,33 +15,26 @@ import type { Channel } from "@/types/channel";
 
 export default function AllChannelsPage() {
   const router = useRouter();
-  const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
   const setChannels = useChannelStore((s) => s.setChannels);
   const setActiveChannelId = useChannelStore((s) => s.setActiveChannelId);
+  const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
+  const queryClient = useQueryClient();
 
-  const [allChannels, setAllChannels] = useState<Channel[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { channels, isLoading: loading, error } = useChannelList();
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [newChannel, setNewChannel] = useState<Channel | null>(null);
 
+  const allChannels = channels.filter((c) => c.kind === "CHANNEL");
+
   useEffect(() => {
-    if (!activeWorkspaceId) return;
-    setLoading(true);
-    channelService
-      .getChannels(activeWorkspaceId)
-      .then((channels) => {
-        const onlyChannels = channels.filter((c) => c.kind === "CHANNEL");
-        setAllChannels(onlyChannels);
-        setChannels(onlyChannels.filter((c) => c.isMember));
-      })
-      .catch((err) => {
-        const { message } = parseApiError(err);
-        toast.error(message || "Failed to load channels");
-      })
-      .finally(() => setLoading(false));
+    setChannels(allChannels.filter((c) => c.isMember));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeWorkspaceId]);
+  }, [channels]);
+
+  useEffect(() => {
+    if (error) toast.error(parseApiError(error).message || "Failed to load channels");
+  }, [error]);
 
   const filtered = allChannels.filter((ch) =>
     (ch.name ?? "").toLowerCase().includes(search.toLowerCase()) ||
@@ -52,8 +47,9 @@ export default function AllChannelsPage() {
   };
 
   const handleChannelCreated = (ch: Channel) => {
-    setAllChannels((prev) =>
-      prev.some((c) => c.id === ch.id) ? prev : [ch, ...prev]
+    queryClient.setQueryData<Channel[]>(
+      queryKeys.channels(activeWorkspaceId),
+      (prev) => (prev?.some((c) => c.id === ch.id) ? prev : [ch, ...(prev ?? [])])
     );
     setNewChannel(ch);
     setShowCreate(false);

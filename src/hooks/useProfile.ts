@@ -1,7 +1,9 @@
 "use client";
 
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, parseApiError } from "@/lib/api";
-import { create } from "zustand";
+import { useAuthStore } from "@/stores/auth.store";
+import { queryKeys } from "@/queries/keys";
 
 export interface UserProfile {
   id: string;
@@ -22,42 +24,39 @@ export type UpdateProfilePayload = Partial<
   Pick<UserProfile, "fullName" | "designation" | "bio" | "timezone" | "showLocalTime" | "status">
 >;
 
-interface ProfileState {
-  profile: UserProfile | null;
-  isLoading: boolean;
-  error: string | null;
-  fetch: () => Promise<void>;
-  update: (data: UpdateProfilePayload) => Promise<void>;
-  reset: () => void;
-}
-
-export const useProfileStore = create<ProfileState>((set, get) => ({
-  profile: null,
-  isLoading: false,
-  error: null,
-
-  fetch: async () => {
-    if (get().isLoading) return;
-    set({ isLoading: true, error: null });
-    try {
-      const { data } = await api.get<UserProfile>("/user/profile");
-      set({ profile: data });
-    } catch (err) {
-      const { message } = parseApiError(err);
-      set({ error: message });
-    } finally {
-      set({ isLoading: false });
-    }
-  },
-
-  update: async (payload: UpdateProfilePayload) => {
-    const { data } = await api.patch<UserProfile>("/user/profile", payload);
-    set({ profile: data });
-  },
-
-  reset: () => set({ profile: null, isLoading: false, error: null }),
-}));
-
 export function useProfile() {
-  return useProfileStore();
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const queryClient = useQueryClient();
+
+  const query = useQuery({
+    queryKey: queryKeys.profile(),
+    queryFn: async () => {
+      const { data } = await api.get<UserProfile>("/user/profile");
+      return data;
+    },
+    enabled: !!accessToken,
+  });
+
+  const fetch = async () => {
+    await queryClient.invalidateQueries({ queryKey: queryKeys.profile() });
+  };
+
+  const update = async (payload: UpdateProfilePayload) => {
+    const { data } = await api.patch<UserProfile>("/user/profile", payload);
+    queryClient.setQueryData(queryKeys.profile(), data);
+  };
+
+  const reset = () => queryClient.removeQueries({ queryKey: queryKeys.profile() });
+
+  return {
+    profile: query.data ?? null,
+    isLoading: query.isLoading,
+    error: query.error ? parseApiError(query.error).message : null,
+    fetch,
+    update,
+    reset,
+  };
 }
+
+// Preserved alias — some call sites import useProfileStore directly.
+export const useProfileStore = useProfile;

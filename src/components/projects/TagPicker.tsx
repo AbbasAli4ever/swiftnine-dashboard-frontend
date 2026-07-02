@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { LuTag, LuPlus, LuCheck, LuLoader, LuX, LuPencil, LuTrash2 } from "react-icons/lu";
-import { tagService, WorkspaceTag } from "@/services/tag.service";
+import { WorkspaceTag } from "@/services/tag.service";
 import { TaskTagInfo } from "@/services/task.service";
 import { useTaskStore } from "@/stores/task.store";
+import { useWorkspaceTags } from "@/hooks/useWorkspaceTags";
 import { toast } from "sonner";
 import { parseApiError } from "@/lib/api";
 import { useDropdownPosition } from "@/hooks/useDropdownPosition";
@@ -114,8 +115,7 @@ export default function TagPicker({
   variant = "compact",
 }: TagPickerProps) {
   const [open, setOpen] = useState(false);
-  const [tags, setTags] = useState<WorkspaceTag[]>([]);
-  const [loading, setLoading] = useState(false);
+  const { tags, isLoading: loading, createTag, updateTag, deleteTag } = useWorkspaceTags();
   const [search, setSearch] = useState("");
   const [mode, setMode] = useState<Mode>("list");
   const [editTarget, setEditTarget] = useState<WorkspaceTag | null>(null);
@@ -132,8 +132,6 @@ export default function TagPicker({
 
   useEffect(() => {
     if (!open) return;
-    setLoading(true);
-    tagService.list().then(setTags).catch(() => {}).finally(() => setLoading(false));
     setTimeout(() => searchRef.current?.focus(), 50);
   }, [open]);
 
@@ -204,8 +202,7 @@ export default function TagPicker({
     if (!name) return;
     setBusy("creating");
     try {
-      const created = await tagService.create({ name, color: formColor });
-      setTags((prev) => [...prev, created]);
+      const created = await createTag({ name, color: formColor });
       onTagCreated?.(created);
       await onAdd(created.id);
       setFormName("");
@@ -224,8 +221,7 @@ export default function TagPicker({
     if (!name) return;
     setBusy("editing");
     try {
-      const updated = await tagService.update(editTarget.id, { name, color: formColor });
-      setTags((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      const updated = await updateTag(editTarget.id, { name, color: formColor });
       updateTagInStore({ id: updated.id, name: updated.name, color: updated.color });
       toast.success("Tag updated");
       setMode("list");
@@ -241,8 +237,7 @@ export default function TagPicker({
     e.stopPropagation();
     setBusy(tag.id + "-del");
     try {
-      await tagService.delete(tag.id);
-      setTags((prev) => prev.filter((t) => t.id !== tag.id));
+      await deleteTag(tag.id);
       purgeTag(tag.id);
       toast.success("Tag deleted");
     } catch (err) {

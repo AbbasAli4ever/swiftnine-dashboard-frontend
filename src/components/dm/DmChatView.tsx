@@ -5,7 +5,7 @@ import { getInitials } from "@/lib/getInitials";
 import { useAuth } from "@/context/AuthContext";
 import { useUiStore } from "@/stores/ui.store";
 import { useDmStore } from "@/stores/dm.store";
-import { useWorkspaceStore } from "@/stores/workspace.store";
+import { useWorkspaceMembers } from "@/hooks/useWorkspaceMembers";
 import { chatService, buildContentJson } from "@/services/chat.service";
 import { useChatSocket } from "@/hooks/useChatSocket";
 import { parseApiError } from "@/lib/api";
@@ -270,7 +270,7 @@ function MessageBubble({
 export default function DmChatView({ userId, channelId, otherUserName, otherUserId }: Props) {
   const { user } = useAuth();
   const { openUserPanel } = useUiStore();
-  const workspaceMembers = useWorkspaceStore((s) => s.members);
+  const { members: workspaceMembers } = useWorkspaceMembers();
   const {
     messagesByChannel,
     messagesLoadingByChannel,

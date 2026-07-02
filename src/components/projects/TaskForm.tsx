@@ -7,7 +7,7 @@ import { StatusItem } from "@/services/status.service";
 import { TaskList } from "@/services/task-list.service";
 import { useTaskStore } from "@/stores/task.store";
 import { useWorkspaceMembers } from "@/hooks/useWorkspaceMembers";
-import { tagService, WorkspaceTag } from "@/services/tag.service";
+import { useWorkspaceTags } from "@/hooks/useWorkspaceTags";
 import TagPicker from "./TagPicker";
 import { TaskPriority } from "@/services/task.service";
 import { parseApiError } from "@/lib/api";
@@ -50,7 +50,7 @@ export default function TaskForm({
   const [priority, setPriority] = useState<TaskPriority>("NONE");
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [currentTags, setCurrentTags] = useState<{ tag: { id: string; name: string; color: string } }[]>([]);
-  const [allTags, setAllTags] = useState<WorkspaceTag[]>([]);
+  const { tags: allTags } = useWorkspaceTags();
   const [saving, setSaving] = useState(false);
 
   const titleRef = useRef<HTMLInputElement>(null);
@@ -68,11 +68,6 @@ export default function TaskForm({
     setTagIds([]);
     setTimeout(() => titleRef.current?.focus(), 50);
   }, [isOpen, defaultStatusId, statuses]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    tagService.list().then(setAllTags).catch(() => {});
-  }, [isOpen]);
 
   const resolvedListId = defaultListId ?? availableLists[0]?.id ?? "";
   const currentStatus = statuses.find((s) => s.id === statusId) ?? statuses[0];
@@ -96,10 +91,6 @@ export default function TaskForm({
     if (!tag) return;
     setTagIds((p) => [...p, tagId]);
     setCurrentTags((p) => [...p, { tag: { id: tag.id, name: tag.name, color: tag.color } }]);
-  };
-
-  const handleTagCreated = (tag: import("@/services/tag.service").WorkspaceTag) => {
-    setAllTags((p) => [...p, tag]);
   };
 
   const handleRemoveTag = async (tagId: string) => {
@@ -224,7 +215,6 @@ export default function TaskForm({
               currentTags={currentTags}
               onAdd={handleAddTag}
               onRemove={handleRemoveTag}
-              onTagCreated={handleTagCreated}
             />
           </div>
 

@@ -7,6 +7,7 @@ import { WorkspaceProvider } from "@/context/WorkspaceContext";
 import { ProjectProvider } from "@/context/ProjectContext";
 import { TaskListProvider } from "@/context/TaskListContext";
 import { DocsProvider } from "@/context/DocsContext";
+import { QueryProvider } from "@/app/providers/QueryProvider";
 import "./globals.css";
 import "flatpickr/dist/flatpickr.css";
 
@@ -18,21 +19,23 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="dark:bg-gray-900" suppressHydrationWarning>
-        <ThemeProvider>
-          <AuthProvider>
-            <WorkspaceProvider>
-              <ProjectProvider>
-                <TaskListProvider>
-                  <DocsProvider>
-                    <SidebarProvider>
-                      <TaskProvider>{children}</TaskProvider>
-                    </SidebarProvider>
-                  </DocsProvider>
-                </TaskListProvider>
-              </ProjectProvider>
-            </WorkspaceProvider>
-          </AuthProvider>
-        </ThemeProvider>
+        <QueryProvider>
+          <ThemeProvider>
+            <AuthProvider>
+              <WorkspaceProvider>
+                <ProjectProvider>
+                  <TaskListProvider>
+                    <DocsProvider>
+                      <SidebarProvider>
+                        <TaskProvider>{children}</TaskProvider>
+                      </SidebarProvider>
+                    </DocsProvider>
+                  </TaskListProvider>
+                </ProjectProvider>
+              </WorkspaceProvider>
+            </AuthProvider>
+          </ThemeProvider>
+        </QueryProvider>
         <Toaster />
       </body>
     </html>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useWorkspaceStore } from "@/stores/workspace.store";
+import { useWorkspaceMembers } from "@/hooks/useWorkspaceMembers";
 import { channelService } from "@/services/channel.service";
 import { getInitials } from "@/lib/getInitials";
 import { parseApiError } from "@/lib/api";
@@ -16,8 +16,7 @@ interface Props {
 }
 
 export default function AddMembersModal({ channelId, channelName, onClose, onDone }: Props) {
-  const members = useWorkspaceStore((s) => s.members);
-  const fetchMembers = useWorkspaceStore((s) => s.fetchMembers);
+  const { members, refetch: fetchMembers } = useWorkspaceMembers();
 
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());

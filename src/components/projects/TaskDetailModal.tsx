@@ -32,7 +32,7 @@ import { taskService, TaskDetail, TaskPriority, TaskAssignee, UpdateTaskPayload 
 import { StatusItem } from "@/services/status.service";
 import { WorkspaceMember } from "@/services/workspace.service";
 import { useTaskStore } from "@/stores/task.store";
-import { useWorkspaceStore } from "@/stores/workspace.store";
+import { useWorkspaceMembers } from "@/hooks/useWorkspaceMembers";
 import StatusIcon from "./StatusIcon";
 import StatusPicker from "./StatusPicker";
 import PriorityPicker from "./PriorityPicker";
@@ -495,8 +495,7 @@ function ActivityRow({ item }: { item: ActivityItem }) {
 }
 
 export default function TaskDetailModal({ task, statuses, listId, onClose, onMinimize }: TaskDetailModalProps) {
-  const members = useWorkspaceStore((s) => s.members);
-  const fetchMembers = useWorkspaceStore((s) => s.fetchMembers);
+  const { members, refetch: fetchMembers } = useWorkspaceMembers();
   const { updateTask, addAssignee, removeAssignee, addTag, removeTag, openTaskDetail, refreshOpenTask, deleteTask } = useTaskStore();
   const liveChildren = useTaskStore(s => s.openTask?.id === task.id ? s.openTask.children : task.children);
   const currentUser = useAuthStore(s => s.user);

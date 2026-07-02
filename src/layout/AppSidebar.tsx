@@ -10,6 +10,7 @@ import { useTaskLists } from "@/context/TaskListContext";
 import { Project, projectService } from "@/services/project.service";
 import { taskService } from "@/services/task.service";
 import { useUiStore } from "@/stores/ui.store";
+import { useFavorites } from "@/hooks/useFavorites";
 import { TaskList } from "@/services/task-list.service";
 import { parseApiError } from "@/lib/api";
 import WorkspaceSwitcher from "@/components/workspace/WorkspaceSwitcher";
@@ -680,22 +681,14 @@ function WorkspacePanelHeader() {
 // ── Favorites section ────────────────────────────────────────────────────────
 function FavoritesSidebarSection() {
   const router = useRouter();
-  const { favoritesRefreshKey } = useUiStore();
   const { patchLocalProject } = useProjects();
   const [expanded, setExpanded] = useState(true);
-  const [favProjects, setFavProjects] = useState<Project[]>([]);
-  const [favTasks, setFavTasks] = useState<import("@/services/task.service").TaskListItem[]>([]);
-
-  useEffect(() => {
-    import("@/services/favorite.service").then(({ favoriteService }) => {
-      Promise.all([favoriteService.listProjects(), favoriteService.listTasks()])
-        .then(([projs, tasks]) => {
-          setFavProjects(projs);
-          setFavTasks(tasks);
-        })
-        .catch(() => {});
-    });
-  }, [favoritesRefreshKey]);
+  const {
+    favoriteProjects: favProjects,
+    favoriteTasks: favTasks,
+    removeFavoriteProject,
+    removeFavoriteTask,
+  } = useFavorites();
 
   const hasAny = favProjects.length > 0 || favTasks.length > 0;
 
@@ -748,7 +741,7 @@ function FavoritesSidebarSection() {
                 onClick={async () => {
                   try {
                     await projectService.unfavorite(p.id);
-                    setFavProjects((prev) => prev.filter((x) => x.id !== p.id));
+                    removeFavoriteProject(p.id);
                     patchLocalProject(p.id, { isFavorite: false });
                     useUiStore.getState().invalidateFavorites();
                   } catch {
@@ -782,7 +775,7 @@ function FavoritesSidebarSection() {
                 onClick={async () => {
                   try {
                     await taskService.unfavorite(t.id);
-                    setFavTasks((prev) => prev.filter((x) => x.id !== t.id));
+                    removeFavoriteTask(t.id);
                     useUiStore.getState().setTaskFavoriteOverride(t.id, false);
                     useUiStore.getState().invalidateFavorites();
                   } catch {

@@ -1,35 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useParams } from "next/navigation";
 import { useChannelStore } from "@/stores/channel.store";
-import { useWorkspaceStore } from "@/stores/workspace.store";
-import { channelService } from "@/services/channel.service";
-import { parseApiError } from "@/lib/api";
+import { useChannelList } from "@/hooks/useChannelList";
 import ChannelChatView from "@/components/channels/ChannelChatView";
-import type { Channel } from "@/types/channel";
 
 export default function ChannelPage() {
   const params = useParams();
   const channelId = params.channelId as string;
 
-  const channels = useChannelStore((s) => s.channels);
   const setActiveChannelId = useChannelStore((s) => s.setActiveChannelId);
   const addChannel = useChannelStore((s) => s.addChannel);
-  const activeWorkspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
 
-  const [channel, setChannel] = useState<Channel | null>(
-    channels.find((c) => c.id === channelId) ?? null
-  );
-  const [error, setError] = useState<string | null>(null);
+  const { channels, isLoading, error: listError, refetch } = useChannelList();
 
-  const refreshChannel = () => {
-    if (!activeWorkspaceId) return;
-    channelService.getChannels(activeWorkspaceId).then((all) => {
-      const ch = all.find((c) => c.id === channelId);
-      if (ch) { addChannel(ch); setChannel(ch); }
-    }).catch(() => {});
-  };
+  const channel = channels.find((c) => c.id === channelId) ?? null;
+  const error = listError
+    ? "Failed to load channel"
+    : !isLoading && !channel
+    ? "Channel not found or you don't have access."
+    : null;
 
   useEffect(() => {
     setActiveChannelId(channelId);
@@ -37,27 +28,12 @@ export default function ChannelPage() {
   }, [channelId, setActiveChannelId]);
 
   useEffect(() => {
-    const found = channels.find((c) => c.id === channelId);
-    if (found) { setChannel(found); return; }
+    if (channel) addChannel(channel);
+  }, [channel, addChannel]);
 
-    if (!activeWorkspaceId) return;
-    channelService
-      .getChannels(activeWorkspaceId)
-      .then((all) => {
-        const ch = all.find((c) => c.id === channelId);
-        if (ch) {
-          addChannel(ch);
-          setChannel(ch);
-        } else {
-          setError("Channel not found or you don't have access.");
-        }
-      })
-      .catch((err) => {
-        const { message } = parseApiError(err);
-        setError(message || "Failed to load channel");
-      });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channelId, activeWorkspaceId]);
+  const refreshChannel = () => {
+    void refetch();
+  };
 
   if (error) {
     return (

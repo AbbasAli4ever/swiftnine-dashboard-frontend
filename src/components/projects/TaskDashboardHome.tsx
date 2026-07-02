@@ -16,10 +16,12 @@ import {
   LuUser,
   LuX,
 } from "react-icons/lu";
-import { dashboardService, DashboardData, DashboardList, DashboardPriority } from "@/services/dashboard.service";
+import { useQuery } from "@tanstack/react-query";
+import { dashboardService, DashboardList, DashboardPriority } from "@/services/dashboard.service";
 import { activityService, ActivityItem } from "@/services/activity.service";
 import { WorkspaceMember } from "@/services/workspace.service";
 import { parseApiError } from "@/lib/api";
+import { queryKeys } from "@/queries/keys";
 import ProjectDocsBox from "@/components/docs/ProjectDocsBox";
 import DatePicker from "./DatePicker";
 
@@ -270,30 +272,36 @@ export default function TaskDashboardHome({
   members,
   onCreateList,
 }: TaskDashboardHomeProps) {
-  const [data, setData] = useState<DashboardData | null>(null);
+  const dashboardQueryKey = queryKeys.projectDashboard(projectId);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const [activityLoading, setActivityLoading] = useState(false);
   const [lists, setLists] = useState<DashboardList[]>([]);
 
+  const dashboardQuery = useQuery({
+    queryKey: dashboardQueryKey,
+    queryFn: () => dashboardService.get(projectId),
+    enabled: !!projectId,
+  });
+  const data = dashboardQuery.data ?? null;
+  const loading = dashboardQuery.isLoading;
+
+  useEffect(() => {
+    if (dashboardQuery.data) setLists(dashboardQuery.data.lists);
+  }, [dashboardQuery.data]);
+
   useEffect(() => {
     if (!projectId) return;
-    setLoading(true);
-    Promise.all([
-      dashboardService.get(projectId),
-      activityService.getProjectActivity(projectId, { limit: 10 }),
-    ])
-      .then(([dash, act]) => {
-        setData(dash);
-        setLists(dash.lists);
+    setActivity([]);
+    activityService
+      .getProjectActivity(projectId, { limit: 10 })
+      .then((act) => {
         setActivity(act.items);
         setNextCursor(act.nextCursor);
       })
       .catch(() => {
         toast.error("Failed to load project overview");
-      })
-      .finally(() => setLoading(false));
+      });
   }, [projectId]);
 
   const loadMoreActivity = useCallback(async () => {

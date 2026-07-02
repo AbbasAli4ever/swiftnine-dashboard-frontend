@@ -6,9 +6,9 @@ import React, {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   CreateTaskListPayload,
   taskListService,
@@ -17,13 +17,7 @@ import {
 } from "@/services/task-list.service";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { useProjects } from "@/context/ProjectContext";
-
-type CacheEntry = {
-  items: TaskList[];
-  loaded: boolean;
-  includesArchived: boolean;
-  isLoading: boolean;
-};
+import { queryKeys } from "@/queries/keys";
 
 type GetListsOptions = {
   includeArchived?: boolean;
@@ -53,234 +47,177 @@ function sortLists(items: TaskList[]) {
   return [...items].sort((a, b) => a.position - b.position);
 }
 
-function upsertList(items: TaskList[], next: TaskList) {
-  const existingIndex = items.findIndex((item) => item.id === next.id);
-  if (existingIndex === -1) {
-    return sortLists([...items, next]);
-  }
-
-  const updated = [...items];
-  updated[existingIndex] = next;
-  return sortLists(updated);
-}
-
 export function TaskListProvider({ children }: { children: React.ReactNode }) {
   const { activeWorkspace } = useWorkspace();
   const { refetch: refetchProjects } = useProjects();
-  const [cache, setCache] = useState<Record<string, CacheEntry>>({});
-  const cacheRef = useRef(cache);
-  cacheRef.current = cache;
+  const queryClient = useQueryClient();
+
+  // Mirrors the query cache for synchronous reads in render (getProjectLists/
+  // isProjectLoading are called directly during render across the app, so we
+  // need a subscribed snapshot rather than reaching into the cache each render).
+  const [, forceRerender] = useState(0);
+  useEffect(() => {
+    const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
+      if (event.query.queryKey[0] === "task-lists") {
+        forceRerender((n) => n + 1);
+      }
+    });
+    return unsubscribe;
+  }, [queryClient]);
 
   const clearLists = useCallback(() => {
-    setCache({});
-  }, []);
+    queryClient.removeQueries({ queryKey: ["task-lists"] });
+  }, [queryClient]);
 
+  // Previously a setTimeout(0) full-wipe; now scoped removal is safe to run
+  // synchronously since queries are keyed per-project, but we keep clearing
+  // on workspace switch since project ids aren't guaranteed unique across
+  // workspaces in every backend implementation.
   useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      clearLists();
-    }, 0);
-    return () => window.clearTimeout(timeout);
+    clearLists();
   }, [activeWorkspace?.id, clearLists]);
-
-  const setLoading = useCallback((projectId: string, isLoading: boolean) => {
-    setCache((prev) => ({
-      ...prev,
-      [projectId]: {
-        items: prev[projectId]?.items ?? [],
-        loaded: prev[projectId]?.loaded ?? false,
-        includesArchived: prev[projectId]?.includesArchived ?? false,
-        isLoading,
-      },
-    }));
-  }, []);
 
   const getLists = useCallback(
     async (projectId: string, options?: GetListsOptions) => {
       const includeArchived = options?.includeArchived ?? false;
       const force = options?.force ?? false;
-      const existing = cacheRef.current[projectId];
-      const canUseCache =
-        !force &&
-        existing?.loaded &&
-        (!includeArchived || existing.includesArchived);
+      const key = queryKeys.taskLists(projectId, includeArchived);
 
-      if (canUseCache) {
-        return includeArchived
-          ? existing.items
-          : existing.items.filter((item) => !item.isArchived);
+      if (force) {
+        await queryClient.invalidateQueries({ queryKey: key });
       }
 
-      if (existing?.isLoading) {
-        return existing.items;
-      }
-
-      setLoading(projectId, true);
-      try {
-        const items = await taskListService.list(projectId, includeArchived);
-        setCache((prev) => ({
-          ...prev,
-          [projectId]: {
-            items: sortLists(items),
-            loaded: true,
-            includesArchived: includeArchived,
-            isLoading: false,
-          },
-        }));
-        return items;
-      } catch (error) {
-        setLoading(projectId, false);
-        throw error;
-      }
+      const items = await queryClient.fetchQuery({
+        queryKey: key,
+        queryFn: () => taskListService.list(projectId, includeArchived),
+      });
+      return sortLists(items);
     },
-    [setLoading]
+    [queryClient]
   );
 
   const getProjectLists = useCallback(
     (projectId: string, options?: { includeArchived?: boolean }) => {
-      const items = cache[projectId]?.items ?? [];
-      if (options?.includeArchived) return items;
-      return items.filter((item) => !item.isArchived);
+      const includeArchived = options?.includeArchived ?? false;
+      const key = queryKeys.taskLists(projectId, includeArchived);
+      const items = queryClient.getQueryData<TaskList[]>(key) ?? [];
+      const sorted = sortLists(items);
+      return includeArchived ? sorted : sorted.filter((item) => !item.isArchived);
     },
-    [cache]
+    [queryClient]
   );
 
   const isProjectLoading = useCallback(
-    (projectId: string) => Boolean(cache[projectId]?.isLoading),
-    [cache]
+    (projectId: string) => {
+      return (
+        queryClient.isFetching({
+          queryKey: ["task-lists", projectId],
+        }) > 0
+      );
+    },
+    [queryClient]
+  );
+
+  const setListsData = useCallback(
+    (projectId: string, updater: (items: TaskList[]) => TaskList[]) => {
+      for (const includeArchived of [false, true]) {
+        const key = queryKeys.taskLists(projectId, includeArchived);
+        if (queryClient.getQueryData<TaskList[]>(key) === undefined) continue;
+        queryClient.setQueryData<TaskList[]>(key, (prev) =>
+          sortLists(updater(prev ?? []))
+        );
+      }
+    },
+    [queryClient]
   );
 
   const createList = useCallback(
     async (projectId: string, payload: CreateTaskListPayload) => {
       const created = await taskListService.create(projectId, payload);
-      setCache((prev) => {
-        const existing = prev[projectId];
-        return {
-          ...prev,
-          [projectId]: {
-            items: upsertList(existing?.items ?? [], created),
-            loaded: true,
-            includesArchived: existing?.includesArchived ?? false,
-            isLoading: false,
-          },
-        };
-      });
+      setListsData(projectId, (items) => [...items, created]);
       await refetchProjects();
       return created;
     },
-    [refetchProjects]
+    [refetchProjects, setListsData]
   );
 
   const renameList = useCallback(
     async (projectId: string, listId: string, payload: UpdateTaskListPayload) => {
       const updated = await taskListService.update(projectId, listId, payload);
-      setCache((prev) => {
-        const existing = prev[projectId];
-        return existing
-          ? {
-              ...prev,
-              [projectId]: {
-                ...existing,
-                items: upsertList(existing.items, updated),
-              },
-            }
-          : prev;
-      });
+      setListsData(projectId, (items) =>
+        items.map((item) => (item.id === listId ? updated : item))
+      );
       return updated;
     },
-    []
+    [setListsData]
   );
 
   const archiveList = useCallback(
     async (projectId: string, listId: string) => {
       const archived = await taskListService.archive(projectId, listId);
-      setCache((prev) => {
-        const existing = prev[projectId];
-        if (!existing) return prev;
-
-        const items = existing.includesArchived
-          ? upsertList(existing.items, archived)
-          : existing.items.filter((item) => item.id !== listId);
-
-        return {
-          ...prev,
-          [projectId]: {
-            ...existing,
-            items,
-          },
-        };
-      });
+      // Non-archived view loses the item; archived-inclusive view keeps it updated.
+      const nonArchivedKey = queryKeys.taskLists(projectId, false);
+      queryClient.setQueryData<TaskList[]>(nonArchivedKey, (prev) =>
+        (prev ?? []).filter((item) => item.id !== listId)
+      );
+      const archivedKey = queryKeys.taskLists(projectId, true);
+      if (queryClient.getQueryData<TaskList[]>(archivedKey) !== undefined) {
+        queryClient.setQueryData<TaskList[]>(archivedKey, (prev) =>
+          sortLists(
+            (prev ?? []).map((item) => (item.id === listId ? archived : item))
+          )
+        );
+      }
       await refetchProjects();
       return archived;
     },
-    [refetchProjects]
+    [queryClient, refetchProjects]
   );
 
   const restoreList = useCallback(
     async (projectId: string, listId: string) => {
       const restored = await taskListService.restore(projectId, listId);
-      setCache((prev) => {
-        const existing = prev[projectId];
-        return {
-          ...prev,
-          [projectId]: {
-            items: upsertList(existing?.items ?? [], restored),
-            loaded: true,
-            includesArchived: existing?.includesArchived ?? true,
-            isLoading: false,
-          },
-        };
+      setListsData(projectId, (items) => {
+        const existingIndex = items.findIndex((item) => item.id === listId);
+        if (existingIndex === -1) return [...items, restored];
+        const updated = [...items];
+        updated[existingIndex] = restored;
+        return updated;
       });
       await refetchProjects();
       return restored;
     },
-    [refetchProjects]
+    [refetchProjects, setListsData]
   );
 
-  const reorderLists = useCallback(async (projectId: string, listIds: string[]) => {
-    const reordered = await taskListService.reorder(projectId, listIds);
-    setCache((prev) => {
-      const existing = prev[projectId];
-      if (!existing) {
-        return {
-          ...prev,
-          [projectId]: {
-            items: sortLists(reordered),
-            loaded: true,
-            includesArchived: false,
-            isLoading: false,
-          },
-        };
+  const reorderLists = useCallback(
+    async (projectId: string, listIds: string[]) => {
+      const reordered = await taskListService.reorder(projectId, listIds);
+      const nonArchivedKey = queryKeys.taskLists(projectId, false);
+      queryClient.setQueryData<TaskList[]>(nonArchivedKey, sortLists(reordered));
+      const archivedKey = queryKeys.taskLists(projectId, true);
+      const archivedCache = queryClient.getQueryData<TaskList[]>(archivedKey);
+      if (archivedCache !== undefined) {
+        const archivedOnly = archivedCache.filter((item) => item.isArchived);
+        queryClient.setQueryData<TaskList[]>(
+          archivedKey,
+          sortLists([...reordered, ...archivedOnly])
+        );
       }
-
-      const archived = existing.items.filter((item) => item.isArchived);
-      return {
-        ...prev,
-        [projectId]: {
-          ...existing,
-          items: sortLists([...reordered, ...archived]),
-        },
-      };
-    });
-    return reordered;
-  }, []);
+      return reordered;
+    },
+    [queryClient]
+  );
 
   const deleteList = useCallback(
     async (projectId: string, listId: string) => {
       await taskListService.delete(projectId, listId);
-      setCache((prev) => {
-        const existing = prev[projectId];
-        if (!existing) return prev;
-        return {
-          ...prev,
-          [projectId]: {
-            ...existing,
-            items: existing.items.filter((item) => item.id !== listId),
-          },
-        };
-      });
+      setListsData(projectId, (items) =>
+        items.filter((item) => item.id !== listId)
+      );
       await refetchProjects();
     },
-    [refetchProjects]
+    [refetchProjects, setListsData]
   );
 
   const value = useMemo<TaskListContextValue>(

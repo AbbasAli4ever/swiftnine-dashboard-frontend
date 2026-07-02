@@ -6,9 +6,7 @@ import { LuSearch, LuLoader, LuX, LuChevronRight } from "react-icons/lu";
 import { useTaskStore } from "@/stores/task.store";
 import { useTaskSearchStore } from "@/stores/task-search.store";
 import { TaskListItem, TaskSearchParams } from "@/services/task.service";
-import { workspaceService } from "@/services/workspace.service";
-import { tagService } from "@/services/tag.service";
-import { useWorkspaceStore } from "@/stores/workspace.store";
+import { useWorkspaceTags } from "@/hooks/useWorkspaceTags";
 
 interface GlobalTaskSearchModalProps {
   isOpen: boolean;
@@ -53,9 +51,9 @@ export default function GlobalTaskSearchModal({
   onClose,
   anchorRect,
 }: GlobalTaskSearchModalProps) {
-  const { activeWorkspaceId } = useWorkspaceStore();
   const { openTaskDetail } = useTaskStore();
   const { searchWorkspace } = useTaskSearchStore();
+  useWorkspaceTags();
 
   const [mounted, setMounted] = useState(false);
   const [query, setQuery] = useState("");
@@ -82,12 +80,6 @@ export default function GlobalTaskSearchModal({
       setTimeout(() => inputRef.current?.focus(), 30);
     }
   }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen || !activeWorkspaceId) return;
-    workspaceService.getMembers(activeWorkspaceId).catch(() => {});
-    tagService.list().catch(() => {});
-  }, [activeWorkspaceId, isOpen]);
 
   // Debounced search
   useEffect(() => {

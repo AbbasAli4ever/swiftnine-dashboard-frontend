@@ -4,7 +4,7 @@ import { useState } from "react";
 import { getInitials } from "@/lib/getInitials";
 import { useUiStore } from "@/stores/ui.store";
 import { useRouter } from "next/navigation";
-import { useWorkspaceStore } from "@/stores/workspace.store";
+import { useWorkspaceMembers } from "@/hooks/useWorkspaceMembers";
 import { useAuth } from "@/context/AuthContext";
 import { chatService } from "@/services/chat.service";
 import { useDmStore } from "@/stores/dm.store";
@@ -18,7 +18,7 @@ export default function MessagesPage() {
   const { setUserToChannelId, setDmChannels, dmChannels } = useDmStore();
   const router = useRouter();
   const { user } = useAuth();
-  const members = useWorkspaceStore((s) => s.members);
+  const { members } = useWorkspaceMembers();
 
   // Filter out self and match query
   const filtered = members.filter(

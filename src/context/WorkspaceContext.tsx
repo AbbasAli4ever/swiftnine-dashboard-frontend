@@ -42,7 +42,6 @@ export function WorkspaceProvider({
     removeWorkspace,
     setActiveWorkspaceId,
     clearWorkspaces,
-    fetchMembers,
   } = useWorkspaceStore();
 
   const [isLoading, setIsLoading] = useState(false);
@@ -71,15 +70,6 @@ export function WorkspaceProvider({
     }
     fetchWorkspaces();
   }, [isAuthenticated, authLoading, fetchWorkspaces, clearWorkspaces]);
-
-  // Fetch members once per active workspace (on load or workspace switch).
-  // Must wait for auth to finish restoring — otherwise the request fires
-  // without an access token, hits 401, and the axios interceptor redirects
-  // to /signin even though the user has a valid refresh_token cookie.
-  useEffect(() => {
-    if (authLoading || !isAuthenticated) return;
-    if (activeWorkspaceId) fetchMembers();
-  }, [activeWorkspaceId, fetchMembers, authLoading, isAuthenticated]);
 
   const switchWorkspace = useCallback(
     (id: string) => {
