@@ -27,7 +27,9 @@ export interface ProjectUnlockResult {
 }
 
 export function getApiErrorCode(error: unknown): string | null {
-  const payload = (error as { response?: { data?: unknown } })?.response?.data ?? error;
+  const err = error as { response?: { status?: number; data?: unknown } } | null;
+  if (err?.response?.status === 429) return "RESET_REQUEST_RATE_LIMITED";
+  const payload = err?.response?.data ?? error;
   const p = payload as { message?: { code?: string }; code?: string } | null;
   return p?.message?.code ?? p?.code ?? null;
 }
@@ -76,11 +78,11 @@ export const projectPasswordService = {
       )
       .then((r) => r.data.data),
 
-  confirmReset: (projectId: string, token: string, newPassword: string) =>
+  confirmReset: (projectId: string, otp: string, newPassword: string) =>
     api
       .post<ApiWrapper<{ projectId: string; passwordUpdatedAt: string }>>(
         `/projects/${projectId}/password/reset-confirm`,
-        { token, newPassword }
+        { otp, newPassword }
       )
       .then((r) => r.data.data),
 };
