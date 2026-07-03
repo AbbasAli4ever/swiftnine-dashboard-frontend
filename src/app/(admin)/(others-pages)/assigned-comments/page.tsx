@@ -140,14 +140,14 @@ export default function AssignedCommentsPage() {
 
   return (
     <div className="h-full overflow-hidden bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-      <header className="border-b border-gray-100 dark:border-gray-800">
-        <div className="px-6 pt-5">
-          <h1 className="text-base font-semibold text-gray-950 dark:text-white">Assigned Comments</h1>
+      <header className="  border-gray-100 dark:border-gray-800">
+        <div className="px-6 pt-2">
+          <h1 className="text-[14px] font-semibold text-gray-950 dark:text-white pl-2">Assigned Comments</h1>
 
           <div className="mt-6 flex items-end justify-between">
-            <div className="flex items-center gap-8">
+            <div className="flex items-center gap-0.5">
               <button
-                className={`border-b-2 text-sm font-semibold transition-colors group ${
+                className={`border-b-2 text-[12px] font-normal transition-colors group ${
                   activeTab === "assigned"
                     ? "border-gray-950 dark:border-gray-100 text-gray-950 dark:text-white"
                     : "border-transparent text-gray-500 dark:text-gray-400"
@@ -165,7 +165,7 @@ export default function AssignedCommentsPage() {
                 </span>
               </button>
               <button
-                className={`border-b-2 text-sm font-semibold transition-colors group ${
+                className={`border-b-2 text-[12px] font-normal transition-colors group ${
                   activeTab === "delegated"
                     ? "border-gray-950 dark:border-gray-100 text-gray-950 dark:text-white"
                     : "border-transparent text-gray-500 dark:text-gray-400"
@@ -181,13 +181,13 @@ export default function AssignedCommentsPage() {
           </div>
         </div>
 
-        <div className="flex h-12 items-center justify-between border-t border-gray-100 dark:border-gray-800 px-6">
+        <div className="flex h-12 items-center justify-between bg-gray-910 dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 px-6">
           <div className="flex items-center gap-2">
-            <button className="inline-flex h-8 items-center gap-1.5 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 text-[13px] text-gray-600 dark:text-gray-300 shadow-[0_1px_2px_rgba(16,24,40,0.14)] transition-colors hover:bg-gray-100 dark:hover:bg-gray-700">
+            <button className="inline-flex font-semibold h-8 items-center gap-1.5 rounded-full border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-2 py-1 text-[12px] text-gray-600 dark:text-gray-300 shadow-[0_1px_2px_rgba(16,24,40,0.14)] transition-colors hover:bg-gray-100 dark:hover:bg-gray-800">
               <LuFilter className="h-3.5 w-3.5" />
               Filter
             </button>
-            <button className="inline-flex h-8 items-center gap-1.5 rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 text-[13px] text-gray-600 dark:text-gray-300 shadow-[0_1px_2px_rgba(16,24,40,0.14)] transition-colors hover:bg-gray-100 dark:hover:bg-gray-700">
+            <button className="inline-flex font-semibold h-8 items-center gap-1.5 rounded-full border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-2 py-0.5 text-[12px] text-gray-600 dark:text-gray-300 shadow-[0_1px_2px_rgba(16,24,40,0.14)] transition-colors hover:bg-gray-100 dark:hover:bg-gray-800">
               <LuCheck className="h-3.5 w-3.5" />
               Resolved
             </button>
@@ -200,7 +200,7 @@ export default function AssignedCommentsPage() {
         </div>
       </header>
 
-      <main className="h-[calc(100%-138px)] overflow-auto bg-white dark:bg-gray-900 pt-9">
+      <main className="h-[calc(100%-138px)] overflow-auto bg-gray-910 dark:bg-gray-900 pt-9">
         {list.length === 0 ? (
           <EmptyState />
         ) : (

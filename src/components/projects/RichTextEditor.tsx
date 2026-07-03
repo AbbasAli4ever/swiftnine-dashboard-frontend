@@ -186,7 +186,7 @@ export default function RichTextEditor({
   };
 
   return (
-    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white  shadow-sm transition-all focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-100 dark:border-gray-700 dark:bg-gray-901 dark:focus-within:border-gray-000 dark:focus-within:ring-brand-900/40">
+    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white  shadow-sm transition-all focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-100 dark:border-gray-800 dark:bg-gray-901 dark:focus-within:border-gray-000 dark:focus-within:ring-brand-900/40">
 
       {/* ── Toolbar ── */}
       <div className="flex flex-wrap items-center gap-0.5 border-b border-gray-100 bg-gray-50/80 px-2 py-1.5 dark:border-gray-800 dark:bg-gray-800/50">

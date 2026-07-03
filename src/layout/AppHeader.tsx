@@ -4,17 +4,27 @@ import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useProfileStore } from "@/hooks/useProfile";
 import { useUiStore } from "@/stores/ui.store";
+import { useWorkspace } from "@/context/WorkspaceContext";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useRef, useState } from "react";
 import { getInitials } from "@/lib/getInitials";
 import GlobalTaskSearchModal from "@/components/header/GlobalTaskSearchModal";
+import WorkspaceSwitcher from "@/components/workspace/WorkspaceSwitcher";
+import CreateWorkspaceModal from "@/components/workspace/CreateWorkspaceModal";
+import { LuChevronDown } from "react-icons/lu";
 
 const AppHeader: React.FC = () => {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { openProfilePanel } = useUiStore();
   const { profile, fetch: fetchProfile } = useProfileStore();
+  const { activeWorkspace } = useWorkspace();
   const status = profile?.status ?? "OFFLINE";
+  const [switcherOpen, setSwitcherOpen] = useState(false);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const switcherTriggerRef = useRef<HTMLButtonElement>(null);
+  const wsName = activeWorkspace?.name ?? "Workspace";
+  const wsInitial = wsName.charAt(0).toUpperCase();
 
   useEffect(() => {
     fetchProfile();
@@ -55,9 +65,37 @@ const AppHeader: React.FC = () => {
   const avatarColor = user?.avatarColor ?? "#6366f1";
 
   return (
-    <header className="sticky top-0 z-40 flex items-center h-14 px-4 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
-      {/* Centered search */}
-      <div className="flex-1 flex justify-center">
+    <header className="sticky top-0 z-40 flex items-center h-10 bg-white dark:bg-gray-907  border-gray-200 dark:border-gray-800">
+      {/* Left: workspace switcher — matches sidebar width (56px rail + 264px panel) */}
+      <div className="relative flex items-center w-[320px] shrink-0 ml-1 h-full">
+        <button
+          ref={switcherTriggerRef}
+          onClick={() => setSwitcherOpen((v) => !v)}
+          className="flex items-center gap-1.5 px-2 py-1 ml-0 border border-transparent rounded-lg font-bold bg-gray-100 dark:bg-white/10 text-gray-800 dark:text-[#EEEEEE] hover:bg-gray-200 dark:hover:bg-white/10 hover:gray-600 dark:hover:text-gray-300 transition-colors"
+        >
+          <span className="flex items-center justify-center w-5 h-5 rounded bg-[#6366f1] dark:bg-gray-000 dark:text-black text-white text-[10px] font-normal shrink-0">
+            {wsInitial}
+          </span>
+          <span className="truncate max-w-[180px] text-sm">{wsName}</span>
+          <LuChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+        </button>
+        <WorkspaceSwitcher
+          isOpen={switcherOpen}
+          onClose={() => setSwitcherOpen(false)}
+          onCreateWorkspace={() => { setSwitcherOpen(false); setCreateModalOpen(true); }}
+          anchorRef={switcherTriggerRef}
+        />
+        <CreateWorkspaceModal
+          isOpen={createModalOpen}
+          onClose={() => setCreateModalOpen(false)}
+        />
+      </div>
+
+      {/* Center + Right: border-b only on content area (not over sidebar) */}
+      <div className="flex flex-1 items-center h-full pr-4">
+
+      {/* Center: search */}
+      <div className="flex-1 flex justify-center px-4">
         <div ref={searchBarRef} className="relative w-full max-w-[400px]">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -77,16 +115,16 @@ const AppHeader: React.FC = () => {
               setSearchAnchor(searchBarRef.current?.getBoundingClientRect() ?? null);
               setSearchOpen(true);
             }}
-            className="w-full h-9 rounded-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 pl-9 pr-20 text-sm text-gray-800 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-500/10 transition-colors"
+            className="w-full h-7 rounded-full border font-semibold border-gray-200 dark:border-transparent bg-white dark:bg-gray-800 pl-9 pr-20 text-sm text-gray-800 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-500/10 transition-colors"
           />
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-0.5 text-[11px] text-gray-400 font-normal bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full px-1.5 py-0.5 pointer-events-none">
+          <span className="absolute right-3 top-1/2 font-semibold -translate-y-1/2 flex items-center gap-0.5 text-[11px] text-gray-400 font-normal bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-500 rounded-full px-2 py-0.5 pointer-events-none">
             Ctrl K
           </span>
         </div>
       </div>
 
       {/* Right: theme toggle + avatar */}
-      <div className="relative flex items-center gap-3 ml-4" ref={menuRef}>
+      <div className="relative flex items-center gap-3"  ref={menuRef}>
         <button
           onClick={toggleTheme}
           aria-label="Toggle theme"
@@ -106,7 +144,7 @@ const AppHeader: React.FC = () => {
         {/* Avatar — opens dropdown */}
         <button
           onClick={() => setMenuOpen((v) => !v)}
-          className="relative flex items-center justify-center w-8 h-8 rounded-full text-white dark:text-black text-sm font-normal hover:ring-2 hover:ring-brand-300 transition-all"
+          className="relative flex items-center justify-center w-7 h-7 rounded-full mr-2  text-white dark:text-black text-sm font-normal hover:ring-2 hover:ring-brand-300 transition-all"
           style={{ backgroundColor: theme === "dark" ? "#f2f4f7" : avatarColor }}
           aria-label="Profile menu"
         >
@@ -156,6 +194,7 @@ const AppHeader: React.FC = () => {
       </div>
 
       <GlobalTaskSearchModal isOpen={searchOpen} onClose={() => setSearchOpen(false)} anchorRect={searchAnchor} />
+      </div>
     </header>
   );
 };

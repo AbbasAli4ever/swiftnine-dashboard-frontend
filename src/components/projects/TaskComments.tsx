@@ -82,7 +82,7 @@ function CommentMenu({
       {open && (
         <>
           <div className="fixed inset-0 z-[80]" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-7 z-[90] min-w-[120px] rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900">
+          <div className="absolute right-0 top-7 z-[90] min-w-[120px] rounded-xl border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-800 dark:bg-gray-900">
             {canEdit && (
               <button
                 type="button"
@@ -269,7 +269,7 @@ function ReactionBar({
           onClick={() => setPickerOpen((p) => !p)}
           className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition-colors ${
             myReaction
-              ? "border-brand-300 bg-brand-50 text-brand-600 dark:border-brand-700 dark:bg-brand-950/30 dark:text-brand-400"
+              ? "border-brand-300 bg-brand-50 text-brand-600 dark:border-gray-000 dark:bg-brand-950/30 dark:text-brand-400"
               : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
           }`}
         >
@@ -405,7 +405,7 @@ function ThreadCard({
             <button
               type="button"
               onClick={() => onOpenThread(comment)}
-              className="text-[12px] text-gray-400 hover:text-brand-500"
+              className="text-[12px] text-gray-400 hover:text-brand-500 dark:hover:text-gray-000"
             >
               Reply
             </button>
@@ -614,7 +614,7 @@ function Composer({
           </button>
         </div>
       )}
-      <div className="relative rounded-xl border border-gray-200 bg-white p-2.5 dark:border-gray-700 dark:bg-gray-900">
+      <div className="relative rounded-xl border border-gray-200 bg-white p-2.5 dark:border-gray-800 dark:bg-gray-900">
         {/* @mention dropdown */}
         {mentionQuery !== null && filteredMembers.length > 0 && (
           <div className="absolute bottom-full left-0 mb-1 w-56 rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900 z-50 overflow-hidden">
@@ -647,7 +647,7 @@ function Composer({
             type="button"
             onClick={() => void handleSend()}
             disabled={!text.trim() || sending || disabled}
-            className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-500 text-white disabled:opacity-40 hover:bg-brand-600 transition-colors"
+            className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-500 dark:bg-gray-000 dark:text-black text-white disabled:opacity-40 hover:bg-brand-600 dark:hover:bg-gray-200 transition-colors"
           >
             <LuSend className="h-3.5 w-3.5" />
           </button>

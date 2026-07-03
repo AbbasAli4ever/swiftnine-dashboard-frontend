@@ -251,7 +251,7 @@ export default function TaskAttachments({ taskId, userId, refreshKey }: TaskAtta
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
-            className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-500 hover:border-brand-400 hover:bg-brand-50  hover:text-brand-600 dark:border-gray-700 dark:hover:border-gray-500 dark:hover:bg-brand-950 dark:hover:text-brand-400 transition-colors"
+            className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-500 hover:border-brand-400 hover:bg-brand-50  hover:text-brand-600 dark:border-gray-800 dark:hover:border-gray-000 dark:hover:bg-transparent dark:hover:text-gray-000 transition-colors"
           >
             <LuUpload className="h-3 w-3" />
             Upload
@@ -325,7 +325,7 @@ export default function TaskAttachments({ taskId, userId, refreshKey }: TaskAtta
                 return (
                   <div
                     key={att.id}
-                    className="group flex items-center gap-3 rounded-xl border border-gray-100 bg-white p-2.5 shadow-sm transition-all hover:border-gray-200 hover:shadow-md dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-700"
+                    className="group flex items-center gap-3 rounded-xl border border-gray-100 bg-white p-2.5 shadow-sm transition-all hover:border-gray-200 hover:shadow-md dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-000"
                   >
                     {/* Thumbnail / icon — click to view */}
                     <button
@@ -441,7 +441,7 @@ export default function TaskAttachments({ taskId, userId, refreshKey }: TaskAtta
                 <button
                   type="button"
                   onClick={() => inputRef.current?.click()}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-gray-200 py-2.5 text-xs text-gray-400 transition-colors hover:border-brand-300 hover:text-brand-500 dark:border-gray-700 dark:hover:border-brand-600 dark:hover:text-brand-400"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-gray-200 py-2.5 text-xs text-gray-400 transition-colors hover:border-brand-300 hover:text-brand-500 dark:border-gray-700 dark:hover:border-gray-000 dark:hover:text-brand-400"
                 >
                   <LuX className="h-3 w-3 rotate-45" />
                   Add more files

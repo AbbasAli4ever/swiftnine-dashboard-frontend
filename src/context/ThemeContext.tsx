@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { createContext, useState, useContext, useEffect } from "react";
+import { createContext, useState, useContext, useEffect, useCallback } from "react";
 
 type Theme = "light" | "dark";
 
@@ -12,34 +12,51 @@ type ThemeContextType = {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
+function getInitialTheme(): Theme {
+  if (typeof document === "undefined") return "light";
+  // The inline script in <head> already applied the "dark" class before
+  // hydration, so read it back instead of defaulting to "light" here —
+  // otherwise React's first render would briefly flip the theme again.
+  return document.documentElement.classList.contains("dark") ? "dark" : "light";
+}
+
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const [theme, setTheme] = useState<Theme>("light");
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [theme, setTheme] = useState<Theme>(getInitialTheme);
 
-  useEffect(() => {
-    // This code will only run on the client side
-    const savedTheme = localStorage.getItem("theme") as Theme | null;
-    const initialTheme = savedTheme || "light"; // Default to light theme
+  const applyTheme = useCallback((next: Theme, animate: boolean) => {
+    const root = document.documentElement;
 
-    setTheme(initialTheme);
-    setIsInitialized(true);
+    if (animate) {
+      // Briefly enable a transition just for the toggle, then remove it so
+      // it never affects normal interactions (hover states, etc.).
+      root.classList.add("theme-transition");
+      window.setTimeout(() => root.classList.remove("theme-transition"), 300);
+    }
+
+    root.classList.toggle("dark", next === "dark");
+    localStorage.setItem("theme", next);
   }, []);
 
   useEffect(() => {
-    if (isInitialized) {
-      localStorage.setItem("theme", theme);
-      if (theme === "dark") {
-        document.documentElement.classList.add("dark");
-      } else {
-        document.documentElement.classList.remove("dark");
+    // Keep in sync if the theme is changed in another tab.
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "theme" && (e.newValue === "light" || e.newValue === "dark")) {
+        applyTheme(e.newValue, false);
+        setTheme(e.newValue);
       }
-    }
-  }, [theme, isInitialized]);
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [applyTheme]);
 
   const toggleTheme = () => {
-    setTheme((prevTheme) => (prevTheme === "light" ? "dark" : "light"));
+    setTheme((prevTheme) => {
+      const next = prevTheme === "light" ? "dark" : "light";
+      applyTheme(next, true);
+      return next;
+    });
   };
 
   return (

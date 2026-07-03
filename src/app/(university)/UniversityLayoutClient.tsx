@@ -30,13 +30,15 @@ export default function UniversityLayoutClient({
   if (!isAuthenticated) return null;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#f5f7fa] dark:bg-gray-900">
-      <AppSidebar />
-      <div className="flex flex-col flex-1 min-w-0 ml-[320px]">
-        <AppHeader />
-        <main className="flex-1 overflow-y-auto bg-[#f5f7fa] dark:bg-gray-900">
-          {children}
-        </main>
+    <div className="flex flex-col h-screen overflow-hidden bg-[#f5f7fa] dark:bg-gray-900">
+      <AppHeader />
+      <div className="flex flex-1 overflow-hidden">
+        <AppSidebar hasHeader={true} />
+        <div className="flex flex-col flex-1 min-w-0 ml-80 overflow-hidden">
+          <main className="flex-1 overflow-y-auto border border-t border-r border-b mr-2 mb-2 rounded-tr-lg rounded-br-lg border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+            {children}
+          </main>
+        </div>
       </div>
     </div>
   );

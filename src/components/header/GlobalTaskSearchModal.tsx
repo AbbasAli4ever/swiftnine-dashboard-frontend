@@ -186,7 +186,7 @@ export default function GlobalTaskSearchModal({
     <div
       ref={panelRef}
       style={panelStyle}
-      className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900"
+      className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-901"
     >
       {/* Search input */}
       <div className="flex items-center gap-2 border-b border-gray-100 px-3 py-2.5 dark:border-gray-800">
@@ -197,7 +197,7 @@ export default function GlobalTaskSearchModal({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search tasks..."
-          className="flex-1 bg-transparent text-sm text-gray-800 outline-none placeholder:text-gray-400 dark:text-white"
+          className="flex-1 bg-transparent text-sm font-semibold text-gray-800 outline-none placeholder:text-gray-400 dark:text-white"
         />
         {query && (
           <button
@@ -221,7 +221,7 @@ export default function GlobalTaskSearchModal({
             onClick={() => handleSortChange(opt.value)}
             className={`rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors ${
               activeSort === opt.value
-                ? "bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400"
+                ? "bg-gray-200 text-gray-700 dark:bg-gray-905 dark:text-brand-400"
                 : "text-gray-500 hover:bg-gray-50 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800"
             }`}
           >
@@ -231,7 +231,7 @@ export default function GlobalTaskSearchModal({
       </div>
 
       {/* Results */}
-      <div className="max-h-[min(480px,60vh)] overflow-y-auto">
+      <div className="max-h-[min(480px,60vh)] overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-800">
         {!loading && results.length === 0 && (
           <div className="flex flex-col items-center justify-center gap-2 py-10">
             <LuSearch className="h-8 w-8 text-gray-200 dark:text-gray-700" />

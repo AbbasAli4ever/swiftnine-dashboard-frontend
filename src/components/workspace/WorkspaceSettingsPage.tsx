@@ -448,7 +448,7 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
   }
 
   return (
-    <div className="h-full overflow-y-auto bg-white p-5 dark:bg-[#111111] lg:pl-[100px] lg:py-8">
+    <div className=" h-full overflow-y-auto  bg-white p-5 dark:bg-[#111111] lg:pl-[100px] lg:py-8  mr-2  rounded-tr-xl rounded-br-xl [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-800">
       <div className="mx-auto w-full max-w-[860px]">
         <section className="min-w-0">
           <div className="max-w-[760px] lg:px-6">
@@ -462,7 +462,7 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
               </h3>
               <div className="mt-3 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
                 <div className="grid grid-cols-[140px_1fr] items-center border-b border-gray-200 px-4 py-3 dark:border-gray-800">
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Avatar</p>
+                  <p className="text-sm text-gray-900 font-semibold dark:text-gray-401">Avatar</p>
                   <div className="flex items-center justify-end">
                     {logoUrl.trim() ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -483,14 +483,14 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
                 </div>
 
                 <div className="grid grid-cols-[140px_1fr] items-center px-4 py-3">
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Name</p>
+                  <p className="text-sm text-gray-900 font-semibold dark:text-gray-401">Name</p>
                   <div className="flex justify-end">
                     <input
                       type="text"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       maxLength={100}
-                      className="h-9 w-full max-w-[260px] rounded-md border border-gray-200 bg-gray-50 px-3 text-sm text-gray-800 placeholder:text-gray-400 focus:border-blue-600 focus:outline-none dark:border-gray-905 dark:focus:border-gray-000 dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500"
+                      className="h-9 w-full max-w-[260px] rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-800 placeholder:text-gray-400 focus:border-blue-600 focus:outline-none dark:border-gray-905 dark:focus:border-gray-000 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"
                     />
                   </div>
                 </div>
@@ -514,7 +514,7 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
               </h3>
               <div className="mt-3 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
                 <div className="flex items-center justify-between px-4 py-3">
-                  <p className="text-sm text-gray-700 dark:text-gray-300">
+                  <p className="text-sm text-gray-900 font-semibold dark:text-gray-401">
                     Delete this Workspace forever
                   </p>
                   <button

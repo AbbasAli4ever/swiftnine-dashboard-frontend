@@ -347,7 +347,7 @@ export default function TagPicker({
             ref={triggerRef}
             type="button"
             onClick={(e) => handleOpen(e)}
-            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-dashed border-gray-300 px-2 py-0.5 text-xs text-gray-400 hover:border-brand-400 hover:text-brand-500 dark:border-gray-600 dark:hover:border-brand-500"
+            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-dashed border-gray-300 px-2 py-0.5 text-xs text-gray-400 hover:border-brand-400 hover:text-brand-500 dark:border-gray-600 dark:hover:border-gray-000 dark:hover:text-gray-000"
           >
             <LuPlus className="h-3 w-3" />
             Add tag
@@ -359,7 +359,7 @@ export default function TagPicker({
           type="button"
           onClick={handleOpen}
           title="Add tag"
-          className="flex h-5.5 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 shadow-sm hover:border-brand-400 hover:text-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-brand-500"
+          className="flex h-5.5 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 shadow-sm hover:border-brand-400 hover:text-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-gray-000 dark:hover:text-gray-000"
         >
           <LuTag className="h-3 w-3" />
         </button>

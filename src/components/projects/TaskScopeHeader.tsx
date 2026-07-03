@@ -47,7 +47,7 @@ export default function TaskScopeHeader({
         {/* Animated search */}
         <div className="flex items-center">
           <div
-            className={`flex items-center overflow-hidden rounded-lg border transition-all duration-300 ease-in-out ${
+            className={`flex items-center overflow-hidden rounded-lg  border focus-within:hover:border-gray-900 hover:border-blue-300 dark:hover:border-gray-801 dark:focus-within:hover:border-gray-000 transition-all duration-300 ease-in-out ${
               searchOpen
                 ? "w-52 border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"
                 : "w-7 border-transparent bg-transparent"

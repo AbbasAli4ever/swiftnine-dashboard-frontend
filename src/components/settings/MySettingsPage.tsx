@@ -13,8 +13,8 @@ function SectionRow({ label, description, children }: { label: string; descripti
   return (
     <div className="flex gap-0 border-b border-gray-100 dark:border-gray-800 last:border-0">
       <div className="w-[200px] shrink-0 py-5 pr-6">
-        <p className="text-[14px] font-semibold text-gray-800 dark:text-white/90">{label}</p>
-        {description && <p className="mt-1 text-xs text-gray-400 dark:text-gray-500 leading-relaxed">{description}</p>}
+        <p className="text-[14px] font-semibold text-gray-900 dark:text-white/90">{label}</p>
+        {description && <p className="mt-1 text-xs text-[#838383] dark:text-gray-501 leading-relaxed">{description}</p>}
       </div>
       <div className="flex-1 py-5 min-w-0">{children}</div>
     </div>
@@ -24,7 +24,7 @@ function SectionRow({ label, description, children }: { label: string; descripti
 function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="mb-4 last:mb-0">
-      <p className="mb-1.5 text-xs font-normal text-gray-500 dark:text-gray-400">{label}</p>
+      <p className="mb-1.5 text-xs font-normal text-gray-900 dark:text-gray-401">{label}</p>
       {children}
     </div>
   );
@@ -152,7 +152,7 @@ export default function MySettingsPage() {
   };
 
   return (
-    <div className="h-full overflow-y-auto bg-white dark:bg-gray-900">
+    <div className="h-full overflow-y-auto bg-white dark:bg-gray-900 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-800">
       <div className="mx-auto max-w-full px-8 py-6">
         <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-1">My Settings</h1>
 
@@ -161,7 +161,7 @@ export default function MySettingsPage() {
           <div className="space-y-1">
             {/* Avatar */}
             <div className="mb-5">
-              <p className="text-xs font-normal text-gray-500 dark:text-gray-400 mb-2">Avatar</p>
+              <p className="text-xs font-normal text-gray-500 dark:text-gray-401 mb-2">Avatar</p>
               <div className="flex items-center justify-between">
                 <div className="relative shrink-0">
                   <div
@@ -170,7 +170,7 @@ export default function MySettingsPage() {
                   >
                     {initials}
                   </div>
-                  <span className={`absolute bottom-0.5 right-0.5 w-3 h-3 rounded-full border-2 border-white dark:border-gray-950 ${onlineStatus === "ONLINE" ? "bg-green-500" : "bg-gray-400"}`} />
+                  <span className={`absolute bottom-0.5 right-0.5 w-3 h-3 rounded-full border-2 border-white dark:border-gray-950 ${onlineStatus === "ONLINE" ? "bg-green-500" : "bg-gray-401"}`} />
                 </div>
 
                 {/* Pill switcher */}
@@ -194,13 +194,13 @@ export default function MySettingsPage() {
                   </span>
                 </div>
               </div>
-              <p className="mt-2 text-sm font-normal text-gray-800 dark:text-white/90">
+              <p className="mt-2 text-sm font-normal text-gray-800 dark:text-gray-401">
                 {profile?.fullName ?? user?.fullName ?? "—"}
               </p>
             </div>
 
             <FieldRow label="Full Name">
-              <div className="relative flex items-center rounded-lg border border-gray-200 dark:border-gray-700 focus-within:border-gray-905 dark:focus-within:border-gray-000 bg-white dark:bg-gray-800 px-3 h-10">
+              <div className="relative flex items-center rounded-xl border border-gray-200 hover:border-gray-300 focus-within:border-gray-905 focus-within:shadow-md focus-within:hover:border-gray-905 dark:border-gray-800 dark:hover:border-gray-801  dark:focus-within:border-gray-000 dark:focus-within:hover:border-gray-000 bg-white dark:bg-gray-900 px-3 h-10">
                 <svg className="w-4 h-4 text-gray-300 dark:text-gray-600 mr-2 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0" />
                 </svg>
@@ -209,13 +209,13 @@ export default function MySettingsPage() {
                   autoComplete=".."
                   value={fullName}
                   onChange={e => setFullName(e.target.value)}
-                  className="flex-1 text-sm text-gray-800 dark:text-gray-100 bg-transparent outline-none"
+                  className="flex-1 text-sm text-gray-800 dark:text-gray-100 bg-transparent  outline-none"
                 />
               </div>
             </FieldRow>
 
             <FieldRow label="Email">
-              <div className="relative flex items-center rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60 px-3 h-10">
+              <div className="relative flex items-center rounded-xl border border-gray-200 hover:border-gray-300 focus-within:border-gray-905 focus-within:shadow-md focus-within:hover:border-gray-905 dark:border-gray-800 dark:hover:border-gray-801  dark:focus-within:border-gray-000 dark:focus-within:hover:border-gray-000 bg-white dark:bg-gray-900 px-3 h-10">
                 <svg className="w-4 h-4 text-gray-300 dark:text-gray-600 mr-2 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
                 </svg>
@@ -229,7 +229,7 @@ export default function MySettingsPage() {
             </FieldRow>
 
             <FieldRow label="Current Password">
-              <div className={`relative flex items-center rounded-lg border bg-white dark:bg-gray-800 px-3 h-10 focus-within:border-gray-905 dark:focus-within:border-gray-000 ${passwordError && !currentPassword ? "border-red-400" : "border-gray-200 dark:border-gray-700"}`}>
+              <div className={`relative flex items-center rounded-xl border border-gray-200 hover:border-gray-300 focus-within:border-gray-905 focus-within:shadow-md focus-within:hover:border-gray-905 dark:border-gray-800 dark:hover:border-gray-801  dark:focus-within:border-gray-000 dark:focus-within:hover:border-gray-000 bg-white dark:bg-gray-900 px-3 h-10 ${passwordError && !currentPassword ? "border-red-400" : "border-gray-200 dark:border-gray-700"}`}>
                 <svg className="w-4 h-4 text-gray-300 dark:text-gray-600 mr-2 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
                 </svg>
@@ -245,7 +245,7 @@ export default function MySettingsPage() {
             </FieldRow>
 
             <FieldRow label="New Password">
-              <div className="relative flex items-center rounded-lg border border-gray-200 dark:border-gray-700 focus-within:border-gray-905 dark:focus-within:border-gray-000 bg-white dark:bg-gray-800 px-3 h-10">
+              <div className="relative flex items-center rounded-xl border border-gray-200 hover:border-gray-300 focus-within:border-gray-905 focus-within:shadow-md focus-within:hover:border-gray-905 dark:border-gray-800 dark:hover:border-gray-801  dark:focus-within:border-gray-000 dark:focus-within:hover:border-gray-000 bg-white dark:bg-gray-900 px-3 h-10">
                 <svg className="w-4 h-4 text-gray-300 dark:text-gray-600 mr-2 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
                 </svg>
@@ -261,7 +261,7 @@ export default function MySettingsPage() {
             </FieldRow>
 
             <FieldRow label="Confirm New Password">
-              <div className={`relative flex items-center rounded-lg border bg-white dark:bg-gray-800 px-3 h-10 focus-within:border-gray-905 dark:focus-within:border-gray-000 ${passwordError === "Passwords do not match" ? "border-red-400" : "border-gray-200 dark:border-gray-700"}`}>
+              <div className={`relative flex items-center rounded-xl border border-gray-200 hover:border-gray-300 focus-within:border-gray-905 focus-within:shadow-md focus-within:hover:border-gray-905 dark:border-gray-800 dark:hover:border-gray-801  dark:focus-within:border-gray-000 dark:focus-within:hover:border-gray-000 bg-white dark:bg-gray-900 px-3 h-10 ${passwordError === "Passwords do not match" ? "border-red-400" : "border-gray-200 dark:border-gray-700"}`}>
                 <svg className="w-4 h-4 text-gray-300 dark:text-gray-600 mr-2 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
                 </svg>
@@ -323,7 +323,7 @@ export default function MySettingsPage() {
               <select
                 value={timezone}
                 onChange={e => setTimezone(e.target.value)}
-                className="w-full h-10 rounded-lg border border-gray-200 dark:border-gray-700 focus:border-gray-905 dark:focus:border-gray-905 bg-white dark:bg-gray-800 px-3 pr-8 text-sm text-gray-800 dark:text-gray-100 appearance-none outline-none"
+                className="w-full h-10  rounded-xl border border-gray-200 hover:border-gray-300 focus-within:border-gray-905 focus-within:shadow-md focus-within:hover:border-gray-905 dark:border-gray-800 dark:hover:border-gray-801  dark:focus-within:border-gray-000 dark:focus-within:hover:border-gray-000 bg-white dark:bg-gray-900 dark:text-gray-100  px-3 pr-8 text-sm appearance-none outline-none"
               >
                 <option value="Asia/Karachi">Asia/Karachi</option>
                 <option value="America/New_York">America/New_York</option>

@@ -4,7 +4,6 @@ import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { useWorkspace } from "@/context/WorkspaceContext";
 import { useProjects } from "@/context/ProjectContext";
 import { useTaskLists } from "@/context/TaskListContext";
 import { Project, projectService } from "@/services/project.service";
@@ -12,8 +11,6 @@ import { taskService } from "@/services/task.service";
 import { useUiStore } from "@/stores/ui.store";
 import { TaskList } from "@/services/task-list.service";
 import { parseApiError } from "@/lib/api";
-import WorkspaceSwitcher from "@/components/workspace/WorkspaceSwitcher";
-import CreateWorkspaceModal from "@/components/workspace/CreateWorkspaceModal";
 import InvitePeopleModal from "@/components/workspace/InvitePeopleModal";
 import CreateSpaceModal from "@/components/projects/CreateSpaceModal";
 import EditSpaceModal from "@/components/projects/EditSpaceModal";
@@ -76,10 +73,6 @@ const inboxLinks: NavLink[] = [
   { label: "My Tasks",          path: "/my-tasks", icon: <BsPersonCheck className="w-4 h-4" /> },
 ];
 
-const dmUsers = [
-  { name: "Numan Zafar", initials: "NZ", color: "bg-orange-400" },
-  { name: "sufian",      initials: "S",  color: "bg-brand-500", you: true },
-];
 
 type SettingsNavItem = {
   label: string;
@@ -204,8 +197,8 @@ function SidebarListRow({
         onDrop={() => onDrop(list.id)}
         className={`group ml-7 flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13px] transition-colors ${
           isActive
-            ? "bg-violet-100/80 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300"
-            : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+            ? "bg-gray-100 text-gray-900 dark:bg-gray-905 dark:text-gray-100"
+            : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-905"
         }`}
       >
         <MdChecklist className="h-3.5 w-3.5 shrink-0 text-gray-400" />
@@ -436,10 +429,10 @@ function SpaceRow({
         <div
           className={`group flex w-full items-center gap-1 rounded-lg px-2 py-1.5 transition-colors ${
             isProjectActive
-              ? "bg-violet-100/80 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300"
+              ? "bg-gray-100 text-gray-900 dark:bg-gray-905 dark:text-gray-100"
               : isWithinProject
-                ? "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
-                : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                ? "bg-gray-100 text-gray-900 dark:bg-gray-905 dark:text-gray-100"
+                : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-905"
           }`}
         >
           {isLocked ? (
@@ -632,50 +625,6 @@ function SpaceRow({
   );
 }
 
-function WorkspacePanelHeader() {
-  const [switcherOpen, setSwitcherOpen] = useState(false);
-  const [createModalOpen, setCreateModalOpen] = useState(false);
-  const { activeWorkspace } = useWorkspace();
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const wsName    = activeWorkspace?.name ?? "Workspace";
-  const wsInitial = wsName.charAt(0).toUpperCase();
-
-  return (
-    <div className="relative flex items-center justify-between px-6 py-3 border-b border-gray-100 dark:border-gray-800">
-      <button
-        ref={triggerRef}
-        onClick={() => setSwitcherOpen((v) => !v)}
-        className="flex items-center gap-1.5 font-normal text-gray-800 dark:text-gray-100 hover:text-brand-500"
-      >
-        <span className="flex items-center justify-center w-5 h-5 rounded bg-[#6366f1] dark:bg-gray-000 dark:text-black text-white text-[10px] font-normal shrink-0">
-          {wsInitial}
-        </span>
-        <span className="truncate max-w-[140px]">{wsName}</span>
-        <LuChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-      </button>
-
-      {/* <button
-        type="button"
-        className="flex h-7 w-7 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800"
-        aria-label="Open calendar"
-      >
-        <LuCalendarDays className="h-4 w-4" />
-      </button> */}
-
-      <WorkspaceSwitcher
-        isOpen={switcherOpen}
-        onClose={() => setSwitcherOpen(false)}
-        onCreateWorkspace={() => { setSwitcherOpen(false); setCreateModalOpen(true); }}
-        anchorRef={triggerRef}
-      />
-
-      <CreateWorkspaceModal
-        isOpen={createModalOpen}
-        onClose={() => setCreateModalOpen(false)}
-      />
-    </div>
-  );
-}
 
 // ── Favorites section ────────────────────────────────────────────────────────
 function FavoritesSidebarSection() {
@@ -843,7 +792,7 @@ function HomePanelContent() {
   }, [showArchived, getLists, projects]);
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden px-4 py-3 text-[14px]">
+    <div className="flex flex-1 flex-col overflow-hidden px-2 py-3 text-[14px]">
       <div className="flex-1 space-y-0.5 overflow-y-auto no-scrollbar pb-4">
 
         {/* Home links */}
@@ -856,10 +805,10 @@ function HomePanelContent() {
               href={item.path}
               className={`flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 transition-colors
                 ${active
-                  ? "bg-gray-100 text-gray-900 dark:bg-gray-905 dark:text-gray-100"
-                  : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-905"}`}
+                  ? "bg-gray-200 text-gray-900 dark:bg-gray-905 dark:text-gray-100"
+                  : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-[#282626]"}`}
             >
-              <span className={active ? "text-gray-500" : "text-gray-400"}>{item.icon}</span>
+              <span className={active ? "text-gray-500 dark:text-gray-100" : "text-gray-400 "}>{item.icon}</span>
               <span className="flex-1">{item.label}</span>
               {item.badge && (
                 <span className="text-[11px] text-gray-500 dark:text-gray-400">
@@ -882,14 +831,14 @@ function HomePanelContent() {
                 ref={spacesMenuBtnRef}
                 type="button"
                 onClick={() => setSpacesMenuOpen((v) => !v)}
-                className="text-gray-400 hover:text-brand-500 transition-colors"
+                className="text-gray-400 hover:text-gray-900 dark:hover:text-gray-000 transition-colors"
               >
                 <LuMoreHorizontal className="w-4 h-4" />
               </button>
               <button
                 type="button"
                 onClick={() => setCreateOpen(true)}
-                className="text-gray-400 hover:text-brand-500 transition-colors"
+                className="text-gray-400 hover:text-gray-900 dark:hover:text-gray-000 transition-colors"
               >
                 <LuPlus className="w-4 h-4" />
               </button>
@@ -956,7 +905,7 @@ function HomePanelContent() {
           {/* New Space button */}
           <button
             onClick={() => setCreateOpen(true)}
-            className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 mt-1 w-full text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-brand-500 transition-colors"
+            className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 mt-1 w-full text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-905 dark:hover:text-gray-000 transition-colors"
           >
             <LuPlus className="w-4 h-4" />
             <span>New Space</span>
@@ -1009,8 +958,8 @@ function SettingsPanelContent() {
         onClick={() => { if (item.tab) navigateToTab(item.tab); }}
         className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-colors ${
           isActive
-            ? "bg-violet-100/80 text-violet-700 dark:bg-gray-905 dark:text-gray-100"
-            : "text-gray-600 hover:bg-violet-50 hover:text-violet-700 dark:text-gray-400 dark:hover:bg-gray-905 dark:hover:text-gray-100"
+            ? "bg-gray-100 text-gray-900 dark:bg-gray-905 dark:text-gray-401 font-bold"
+            : "text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-905 "
         }`}
       >
         <Icon className="h-4 w-4 shrink-0" />
@@ -1029,7 +978,9 @@ function SettingsPanelContent() {
         <p className="px-2 pb-1 text-[11px] uppercase tracking-wide text-gray-400 font-normal">
           Workspace
         </p>
-        {workspaceSettingsItems.map(navItem)}
+        <div className="space-y-0.5">
+          {workspaceSettingsItems.map(navItem)}
+        </div>
       </div>
 
       <div className="pt-3">
@@ -1076,8 +1027,8 @@ function LmsPanelContent() {
               onClick={() => router.push(item.href)}
               className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-colors ${
                 isActive
-                  ? "bg-violet-100/80 text-violet-700 dark:bg-gray-905 dark:text-gray-100"
-                  : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+                  ? "bg-gray-100 text-gray-900 dark:bg-gray-905 dark:text-gray-100"
+                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-905 dark:hover:text-gray-100"
               }`}
             >
               <Icon className="h-4 w-4 shrink-0" />
@@ -1090,21 +1041,14 @@ function LmsPanelContent() {
   );
 }
 
-function PlaceholderPanel({ label }: { label: string }) {
-  return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-2 text-gray-400">
-      <span className="text-2xl">🚧</span>
-      <p className="text-sm font-normal">{label}</p>
-    </div>
-  );
-}
 
-// ── Panel header — workspace name for home/settings, university name for LMS ──
+
+// ── Panel header — university name for LMS ───────────────────────────────────
 function LmsPanelHeader() {
   return (
     <div className="flex items-center px-6 py-[15.5px] border-b border-gray-100 dark:border-gray-800">
       <div className="flex items-center gap-1.5">
-        <span className="flex items-center justify-center w-5 h-5 rounded bg-violet-600 text-white text-[10px] font-normal shrink-0">
+        <span className="flex items-center justify-center w-5 h-5 rounded bg-violet-600 dark:bg-gray-000 dark:text-black text-white text-[10px] font-normal shrink-0">
           <LuBookOpen className="w-3 h-3" />
         </span>
         <span className="font-normal text-gray-800 dark:text-gray-100 truncate max-w-[180px]">
@@ -1116,7 +1060,7 @@ function LmsPanelHeader() {
 }
 
 // ── Main sidebar ─────────────────────────────────────────────────────────────
-const AppSidebar: React.FC = () => {
+const AppSidebar: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => {
   const router = useRouter();
   const pathname = usePathname();
   const [activeRail, setActiveRail] = useState<string>("home");
@@ -1152,9 +1096,9 @@ const AppSidebar: React.FC = () => {
   };
 
   return (
-    <aside className="fixed top-0 left-0 h-screen flex z-50">
+    <aside className={`fixed left-0 flex z-50 ${hasHeader ? "top-10 h-[calc(100vh-40px)]" : "top-0 h-screen"}`}>
       {/* Left icon rail */}
-      <div className="flex flex-col w-14 h-full mx-1 bg-gray-901 shrink-0">
+      <div className="flex flex-col w-14 shrink-0 mx-1 mb-2 dark:bg-gray-901 bg-[#000000] rounded-[10px] overflow-hidden">
         <nav className="flex flex-col items-center gap-3 flex-1 pt-2">
           {railItems.map((item) => {
             const isActive = activeRail === item.id && !isSettingsActive;
@@ -1204,8 +1148,8 @@ const AppSidebar: React.FC = () => {
       </div>
 
       {/* Right contextual panel */}
-      <div className="w-[264px] h-full bg-white dark:bg-gray-901 border-r border-gray-200 dark:border-gray-800 flex flex-col overflow-hidden">
-        {activeRail === "lms" ? <LmsPanelHeader /> : <WorkspacePanelHeader />}
+      <div className="w-[264px] bg-[#f9f9f9] dark:bg-gray-901 border-l border-r border-b border-t border-gray-200 dark:border-gray-800 flex flex-col overflow-hidden mb-2 rounded-tl-xl rounded-bl-xl">
+        {activeRail === "lms" && <LmsPanelHeader />}
         {isSettingsActive ? (
           <SettingsPanelContent />
         ) : (

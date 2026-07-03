@@ -67,7 +67,7 @@ export default function CreateListModal({
   };
 
   const inputClass =
-    "h-9 w-full rounded-xl border border-gray-200 bg-white px-4 text-sm text-gray-800 outline-none transition-colors focus:border-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white";
+    "h-9 w-full rounded-xl border border-gray-200 bg-white px-4 text-sm text-gray-800 outline-none transition-colors focus:border-brand-500 dark:focus:border-gray-000 dark:border-gray-800 dark:bg-gray-905 dark:text-white";
 
   return (
     <Modal
@@ -76,7 +76,7 @@ export default function CreateListModal({
       className="mx-4 max-w-xl"
       backdropClassName="fixed inset-0 h-full w-full bg-black/30"
     >
-      <form onSubmit={handleSubmit} className="rounded-2xl bg-white dark:bg-gray-950">
+      <form onSubmit={handleSubmit} className="rounded-2xl bg-white dark:bg-gray-907">
         <div className="border-b border-gray-100 px-6 py-4 dark:border-gray-800">
           <h2 className="text-base font-normal text-gray-800 dark:text-white">
             Create List
@@ -121,14 +121,14 @@ export default function CreateListModal({
         <div className="flex items-center justify-between border-t border-gray-100 px-6 py-4 dark:border-gray-800">
           <button
             type="button"
-            className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-normal text-gray-600 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+            className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-normal text-gray-600 transition-colors hover:bg-gray-50 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-gray-800"
           >
             Use Templates
           </button>
           <button
             type="submit"
             disabled={loading || !name.trim() || !resolvedProjectId}
-            className="rounded-xl bg-brand-500 px-6 py-2.5 text-sm font-normal text-white transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-xl bg-brand-500 dark:bg-gray-000 dark:text-black dark:hover:bg-gray-200 px-6 py-2.5 text-sm font-normal text-white transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loading ? "Creating..." : "Create"}
           </button>
