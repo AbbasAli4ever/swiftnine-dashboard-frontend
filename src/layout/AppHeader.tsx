@@ -95,10 +95,10 @@ const AppHeader: React.FC = () => {
       <div className="flex flex-1 items-center h-full pr-4">
 
       {/* Center: search */}
-      <div className="flex-1 flex justify-center px-4">
-        <div ref={searchBarRef} className="relative w-full max-w-[400px]">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <div className="flex-1 flex justify-center px-4 ">
+        <div ref={searchBarRef} className="group relative w-full max-w-[400px] ">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none group-hover:text-gray-801 dark:group-hover:text-gray-100 transition-colors">
+            <svg className="w-4 h-4 " fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
             </svg>
           </span>
@@ -115,11 +115,16 @@ const AppHeader: React.FC = () => {
               setSearchAnchor(searchBarRef.current?.getBoundingClientRect() ?? null);
               setSearchOpen(true);
             }}
-            className="w-full h-7 rounded-full border font-semibold border-gray-200 dark:border-transparent bg-white dark:bg-gray-800 pl-9 pr-20 text-sm text-gray-800 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-500/10 transition-colors"
+            className="w-full h-7 cursor-pointer rounded-full border font-semibold hover:placeholder:text-gray-801 dark:hover:placeholder:text-gray-100 hover:text-gray-801  border-gray-200 hover:shadow-md dark:hover:shadow-gray-801 dark:hover:text-white dark:border-transparent bg-white dark:bg-gray-800 pl-9 pr-20 text-sm text-gray-800 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-500/10 transition-colors"
           />
-          <span className="absolute right-3 top-1/2 font-semibold -translate-y-1/2 flex items-center gap-0.5 text-[11px] text-gray-400 font-normal bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-500 rounded-full px-2 py-0.5 pointer-events-none">
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-[1px] transition-all duration-300 group-hover:bg-[linear-gradient(180deg,#FB64B6_0%,#AD46FF_50%,#2B7FFF_100%)]">
+  <span className="flex items-center gap-0.5 rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-gray-400 dark:border-gray-600 dark:bg-gray-800">
+    Ctrl K
+  </span>
+</div>
+          {/* <span className="absolute right-3 top-1/2 font-semibold -translate-y-1/2 flex items-center gap-0.5 text-[11px] text-gray-400  bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600  rounded-full px-2 py-0.5 pointer-events-none">
             Ctrl K
-          </span>
+          </span> */}
         </div>
       </div>
 

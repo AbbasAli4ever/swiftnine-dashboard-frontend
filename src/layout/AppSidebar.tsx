@@ -825,7 +825,7 @@ function HomePanelContent() {
         {/* Spaces */}
         <div className="mt-3 border-t border-gray-100 pt-5 dark:border-gray-800">
           <div className="relative flex items-center justify-between px-2 mb-1">
-            <p className="text-[12px] uppercase tracking-wide text-[#646464] font-semibold">Spaces</p>
+            <p className="text-[12px] uppercase tracking-wide text-gray-600 dark:text-gray-400 font-semibold">Spaces</p>
             <div className="flex items-center gap-1">
               <button
                 ref={spacesMenuBtnRef}

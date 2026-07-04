@@ -285,7 +285,7 @@ function StatusGroup({
             <button
               type="button"
               onClick={() => setQuickCreateOpen(true)}
-              className="flex items-center gap-2 px-4 py-1.5 text-sm text-gray-400 transition-colors hover:text-brand-500"
+              className="flex items-center gap-2 px-4 py-1.5 text-sm text-gray-400 transition-colors hover:text-brand-500 dark:hover:text-gray-000"
             >
               <span className="flex w-8 shrink-0 items-center justify-center">
                 <LuPlus className="h-3.5 w-3.5" />

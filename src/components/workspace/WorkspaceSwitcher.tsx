@@ -124,7 +124,7 @@ export default function WorkspaceSwitcher({ isOpen, onClose, onCreateWorkspace, 
             <p className="text-sm font-normal text-gray-900 dark:text-gray-100 truncate">
               {activeWorkspace.name}
             </p>
-            <p className="text-xs text-gray-400">Free Forever · <span className="text-brand-500 cursor-pointer hover:underline">Upgrade</span></p>
+            <p className="text-xs text-gray-400">Free Forever · <span className="text-brand-500 dark:text-gray-000 cursor-pointer hover:underline">Upgrade</span></p>
           </div>
         </div>
       )}
@@ -134,7 +134,7 @@ export default function WorkspaceSwitcher({ isOpen, onClose, onCreateWorkspace, 
         <button
           type="button"
           onClick={handleOpenWorkspaceSettings}
-          className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-xs font-normal text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+          className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-xs font-normal text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#282626] transition-colors"
         >
           <LuSettings className="w-3.5 h-3.5" />
           Settings
@@ -142,7 +142,7 @@ export default function WorkspaceSwitcher({ isOpen, onClose, onCreateWorkspace, 
         <button
           type="button"
           onClick={() => { onClose(); router.push("/settings?tab=people"); }}
-          className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-xs font-normal text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+          className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-xs font-normal text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#282626] transition-colors"
         >
           <LuUsers className="w-3.5 h-3.5" />
           People
@@ -150,7 +150,7 @@ export default function WorkspaceSwitcher({ isOpen, onClose, onCreateWorkspace, 
       </div>
 
       {/* Workspace list */}
-      <div className="py-1.5 max-h-52 overflow-y-auto">
+      <div className="py-1.5 px-2 space-y-1 max-h-52 overflow-y-auto">
         {isLoading ? (
           <div className="flex items-center justify-center py-6">
             <div className="w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
@@ -164,16 +164,16 @@ export default function WorkspaceSwitcher({ isOpen, onClose, onCreateWorkspace, 
               <button
                 key={ws.id}
                 onClick={() => handleSwitch(ws.id)}
-                className={`flex w-full items-center gap-3 px-4 py-2 text-sm transition-colors
+                className={`flex w-full items-center rounded-lg gap-3 px-4 py-2  text-sm transition-colors
                   ${ws.id === activeWorkspace?.id
-                    ? "bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400"
-                    : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                    ? "bg-gray-200 dark:bg-gray-905 text-gray-900 dark:text-gray-100"
+                    : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-[#282626]"
                   }`}
               >
                 <WorkspaceAvatar workspace={ws} size="sm" />
                 <span className="flex-1 text-left truncate font-normal">{ws.name}</span>
                 {ws.id === activeWorkspace?.id && (
-                  <LuCheck className="w-4 h-4 text-brand-500 shrink-0" />
+                  <LuCheck className="w-4 h-4 text-brand-500 dark:text-gray-000  shrink-0" />
                 )}
               </button>
             ))}

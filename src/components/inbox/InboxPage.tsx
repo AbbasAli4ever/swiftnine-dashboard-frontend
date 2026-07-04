@@ -606,7 +606,7 @@ export default function InboxPage() {
                   <span className={`${isActive ? "text-brand-501 dark:text-brand-400" : "text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300"}`}>{tab.icon}</span>
                   <span className="font-semibold leading-none">{tab.label}</span>
                   {count && (
-                    <span className={`text-[11px] leading-none ${isActive ? "text-brand-400" : "text-gray-400"}`}>
+                    <span className={`text-[11px] pl-3 leading-none ${isActive ? "text-brand-501 dark:text-brand-400" : "text-gray-400"}`}>
                       {count}
                     </span>
                   )}
