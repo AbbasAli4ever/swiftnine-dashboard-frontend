@@ -227,7 +227,7 @@ export default function InvitePeopleModal({
           <button
             type="button"
             onClick={() => setIsRoleOpen((v) => !v)}
-            className="flex w-full items-start gap-2 rounded-md border border-gray-200 bg-gray-50 p-2 text-left hover:border-violet-300 dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-violet-500/40"
+            className="flex w-full items-start gap-2 rounded-md border border-gray-200 bg-gray-50 p-2 text-left hover:border-violet-300 dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-gray-000"
           >
             <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-gray-200 text-gray-600 dark:bg-white/10 dark:text-gray-300">
               <LuUserPlus className="h-3.5 w-3.5" />
@@ -260,7 +260,7 @@ export default function InvitePeopleModal({
                 </div>
               </div>
 
-              <div className="max-h-56 overflow-y-auto">
+              <div className="max-h-56 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-800">
                 {ROLE_OPTIONS.filter((option) => option.key !== selectedRole).map((option) => (
                   <button
                     key={option.key}
@@ -315,7 +315,7 @@ export default function InvitePeopleModal({
             type="button"
             onClick={handleSend}
             disabled={isSending || !activeWorkspace}
-            className="rounded-md bg-violet-500 px-3 py-1.5 text-xs font-normal text-white transition-colors hover:bg-violet-600 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-md bg-violet-500 dark:bg-gray-200 dark:text-black dark:hover:bg-gray-000 px-3 py-1.5 text-xs font-normal text-white transition-colors hover:bg-violet-600  disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSending ? "Sending..." : "Send free invite"}
           </button>

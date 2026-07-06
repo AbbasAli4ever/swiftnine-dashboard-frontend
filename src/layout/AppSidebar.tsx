@@ -503,7 +503,7 @@ function SpaceRow({
                 event.stopPropagation();
                 setCreateListOpen(true);
               }}
-              className="flex h-5 w-5 items-center justify-center rounded text-gray-400 opacity-0 transition-all hover:bg-gray-200 hover:text-brand-500 group-hover:opacity-100 dark:hover:bg-gray-700"
+              className="flex h-5 w-5 items-center justify-center rounded text-gray-400 opacity-0 transition-all hover:bg-gray-200 hover:text-brand-500 dark:hover:text-gray-000 group-hover:opacity-100 dark:hover:bg-gray-600/50"
             >
               <LuPlus className="h-3.5 w-3.5" />
             </button>
@@ -516,7 +516,7 @@ function SpaceRow({
               if (!menuOpen) setMenuOpen(true);
             }}
             onClick={(event) => event.stopPropagation()}
-            className={`flex h-5 w-5 items-center justify-center rounded text-gray-400 transition-all hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200 ${menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+            className={`flex h-5 w-5 items-center justify-center rounded text-gray-400 transition-all hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-600/50 dark:hover:text-gray-200 ${menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
           >
             <LuMoreHorizontal className="h-3.5 w-3.5" />
           </button>
@@ -831,7 +831,7 @@ function HomePanelContent() {
                 ref={spacesMenuBtnRef}
                 type="button"
                 onClick={() => setSpacesMenuOpen((v) => !v)}
-                className="text-gray-400 hover:text-gray-900 dark:hover:text-gray-000 transition-colors"
+                className="text-gray-400 hover:text-gray-900  dark:hover:text-gray-000 transition-colors"
               >
                 <LuMoreHorizontal className="w-4 h-4" />
               </button>

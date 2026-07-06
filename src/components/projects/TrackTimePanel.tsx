@@ -272,7 +272,7 @@ export default function TrackTimePanel({ taskId, totalTimeLogged, userName, user
         ref={btnRef}
         type="button"
         onClick={handleOpen}
-        className="rounded px-1 py-1 text-sm hover:bg-gray-100 dark:hover:bg-gray-800"
+        className="rounded px-1 py-1 text-sm hover:bg-gray-100 hover:text-brand-500 dark:hover:bg-gray-800"
       >
         {isTimerRunning ? (
           <span className="font-mono text-red-500">{displayTime}</span>

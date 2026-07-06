@@ -146,7 +146,7 @@ export default function CreateDocModal({
             <button
               type="submit"
               disabled={loading || !activeWorkspace}
-              className="rounded-md bg-brand-500 px-3 py-1.5 text-sm font-medium text-white dark:bg-gray-000 dark:text-black hover:bg-brand-600 disabled:opacity-50"
+              className="rounded-md bg-brand-500 px-3 py-1.5 text-sm font-medium text-white dark:bg-gray-200 dark:text-black hover:bg-brand-600 dark:hover:bg-gray-000 disabled:opacity-50"
             >
               {loading ? "Creating…" : "Create"}
             </button>

@@ -376,7 +376,7 @@ export default function ListAttachments({ listId }: ListAttachmentsProps) {
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
-              className="flex items-center gap-1.5 rounded-xl bg-brand-500 dark:bg-gray-000 dark:text-black px-3 py-2 text-xs font-medium text-white hover:bg-brand-600 transition-colors"
+              className="flex items-center gap-1.5 rounded-xl bg-brand-500 dark:bg-gray-200 dark:text-black px-3 py-2 text-xs font-medium text-white hover:bg-brand-600 dark:hover:bg-gray-000 transition-colors"
             >
               <LuUpload className="h-3.5 w-3.5" />
               Upload File
@@ -432,7 +432,7 @@ export default function ListAttachments({ listId }: ListAttachmentsProps) {
                 <button
                   type="button"
                   onClick={() => inputRef.current?.click()}
-                  className="flex items-center gap-2 rounded-xl bg-brand-500 dark:bg-gray-000 dark:text-black  px-4 py-2 text-sm font-medium text-white hover:bg-brand-600 transition-colors"
+                  className="flex items-center gap-2 rounded-xl bg-brand-500 dark:bg-gray-200 dark:text-black  px-4 py-2 text-sm font-medium text-white hover:bg-brand-600 dark:hover:bg-gray-000 transition-colors"
                 >
                   <LuUpload className="h-4 w-4" />
                   Upload File

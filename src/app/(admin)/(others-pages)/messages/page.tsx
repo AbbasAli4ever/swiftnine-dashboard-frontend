@@ -74,7 +74,7 @@ export default function MessagesPage() {
       </div>
 
       {/* User list */}
-      <div className="flex-1 overflow-y-auto px-4 py-2">
+      <div className="flex-1 overflow-y-auto px-4 py-2 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-800">
         {filtered.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-8">No people found</p>
         ) : (

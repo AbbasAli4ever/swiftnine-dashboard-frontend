@@ -288,7 +288,7 @@ export default function TaskAttachments({ taskId, userId, refreshKey }: TaskAtta
           {/* Empty state */}
           {!loading && attachments.length === 0 && uploading.length === 0 && (
             <div className="flex flex-col items-center justify-center px-6 py-10 text-center">
-              <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-50 to-brand-100 dark:from-brand-950 dark:to-brand-900">
+              <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-linear-to-br from-brand-950 to-brand-900 dark:from-brand-950 dark:to-brand-900">
                 <LuUpload className={`h-6 w-6 transition-colors ${dragOver ? "text-brand-500" : "text-brand-400"}`} />
               </div>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-300">

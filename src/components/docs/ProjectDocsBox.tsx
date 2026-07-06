@@ -61,7 +61,7 @@ export default function ProjectDocsBox({ projectId }: { projectId: string }) {
           type="button"
           onClick={createAndOpen}
           disabled={creating}
-          className="flex items-center gap-1 text-sm font-normal text-brand-500 hover:text-brand-600 disabled:opacity-50"
+          className="flex items-center gap-1 text-sm font-normal text-brand-500 dark:text-gray-200 dark:hover:text-gray-000 hover:text-brand-600 disabled:opacity-50"
         >
           {creating ? (
             <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
@@ -88,7 +88,7 @@ export default function ProjectDocsBox({ projectId }: { projectId: string }) {
             type="button"
             onClick={createAndOpen}
             disabled={creating}
-            className="rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-normal text-white disabled:opacity-50 dark:bg-white dark:text-gray-900"
+            className="rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-normal text-white disabled:opacity-50 dark:bg-gray-200 dark:hover:bg-gray-000 dark:text-gray-900"
           >
             {creating ? "Creating…" : "Add a Doc"}
           </button>

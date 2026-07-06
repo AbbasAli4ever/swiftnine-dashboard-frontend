@@ -418,7 +418,7 @@ export default function TaskDashboardHome({
           <button
             type="button"
             onClick={onCreateList}
-            className="text-sm font-normal text-brand-500 hover:text-brand-600"
+            className="text-sm font-normal text-brand-500 hover:text-brand-600 dark:text-gray-200 dark:hover:text-gray-000"
           >
             Create List
           </button>

@@ -647,7 +647,7 @@ function Composer({
             type="button"
             onClick={() => void handleSend()}
             disabled={!text.trim() || sending || disabled}
-            className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-500 dark:bg-gray-000 dark:text-black text-white disabled:opacity-40 hover:bg-brand-600 dark:hover:bg-gray-200 transition-colors"
+            className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-500 dark:bg-gray-200 dark:text-black text-white disabled:opacity-40 hover:bg-brand-600 dark:hover:bg-gray-000 transition-colors"
           >
             <LuSend className="h-3.5 w-3.5" />
           </button>

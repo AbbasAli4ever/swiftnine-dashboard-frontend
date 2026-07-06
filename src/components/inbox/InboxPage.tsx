@@ -558,17 +558,17 @@ export default function InboxPage() {
 
   const primaryHeader = (
     <div className="flex items-center justify-between">
-      <button className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
+      <button className="flex items-center gap-1.5 text-[12px] border px-1.5 py-0.5 border-gray-200 dark:border-gray-800 rounded-full text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
         <LuListFilter className="w-4 h-4" />
         Filter
       </button>
-      <div className="flex items-center gap-3">
-        <button className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+      <div className="flex items-center gap-2">
+        <button className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-800 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
           <LuSettings2 className="w-4 h-4" />
         </button>
         <button
           onClick={handleClearAll}
-          className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors"
+          className="flex items-center p-1 rounded-lg gap-1.5 text-sm border border-gray-200 dark:border-gray-800 text-gray-500 dark:text-gray-400 hover:text-brand-500 dark:hover:text-gray-000 transition-colors"
         >
           <LuCheck className="w-4 h-4" />
           Clear all
@@ -597,7 +597,7 @@ export default function InboxPage() {
                 onClick={() => handleTabChange(tab.id)}
                 className="flex flex-1 flex-row items-center gap-2 py-3.5 text-sm transition-colors group"
               >
-                <div className={`flex w-full flex-row items-center  mx-2 px-3 py-4 rounded-lg transition-colors
+                <div className={`flex w-full gap-2 flex-row items-center  mx-2 px-3 py-4 rounded-lg transition-colors
                   ${isActive
                     ? "text-brand-501 dark:text-brand-400 hover:bg-gray-100 dark:group-hover:bg-gray-800"
                     : "text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200 group-hover:bg-gray-100 dark:group-hover:bg-gray-800"
@@ -621,7 +621,7 @@ export default function InboxPage() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-800">
         {activeTab === "primary" && (
           primaryNotifications.length === 0
             ? <EmptyState />

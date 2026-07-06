@@ -124,7 +124,7 @@ export default function TaskScopeHeader({
         <button
           type="button"
           onClick={onAddTask}
-          className="inline-flex h-7 items-center gap-1 rounded-lg bg-brand-500 dark:bg-gray-000 dark:text-black px-3 text-xs font-medium text-white transition-colors hover:bg-brand-600 dark:hover:bg-gray-200"
+          className="inline-flex h-7 items-center gap-1 rounded-lg bg-brand-500 dark:bg-gray-200 dark:text-black px-3 text-xs font-medium text-white transition-colors hover:bg-brand-600 dark:hover:bg-gray-000"
         >
           Add Task
           <LuChevronDown className="h-3.5 w-3.5" />

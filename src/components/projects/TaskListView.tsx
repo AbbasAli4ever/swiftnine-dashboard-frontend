@@ -172,7 +172,7 @@ function StatusGroup({
           className="flex items-center gap-2 text-left"
         >
           <LuChevronDown
-            className={`h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform ${collapsed ? "-rotate-90" : ""}`}
+            className={`h-3.5 w-3.5 shrink-0 text-gray-400  transition-transform ${collapsed ? "-rotate-90" : ""}`}
           />
           <span
             className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[12px] font-medium tracking-wider uppercase text-white"
@@ -184,13 +184,13 @@ function StatusGroup({
           <span className="text-xs text-gray-400">{tasks.length}</span>
         </button>
         <div className="flex items-center gap-1 ml-auto">
-          <button type="button" className="rounded p-0.5 text-gray-300 hover:text-gray-600 dark:hover:text-gray-300">
+          <button type="button" className="rounded p-0.5 text-gray-300 hover:text-gray-600 dark:hover:text-gray-000">
             <LuEllipsis className="h-3.5 w-3.5" />
           </button>
           <button
             type="button"
             onClick={() => setQuickCreateOpen(true)}
-            className="rounded p-0.5 text-gray-300 hover:text-brand-500"
+            className="rounded p-0.5 text-gray-300 hover:text-brand-500 dark:hover:text-gray-000"
             title="Add task"
           >
             <LuPlus className="h-3.5 w-3.5" />

@@ -323,12 +323,8 @@
   }
 
   &::-webkit-scrollbar-thumb {
-    @apply bg-gray-200 rounded-full;
+    @apply bg-gray-200 rounded-full dark:bg-gray-800;
   }
-}
-
-.dark .custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: #1f2937;
 }
 
 

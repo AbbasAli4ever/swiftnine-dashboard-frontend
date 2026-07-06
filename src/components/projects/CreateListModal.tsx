@@ -76,7 +76,7 @@ export default function CreateListModal({
       className="mx-4 max-w-xl"
       backdropClassName="fixed inset-0 h-full w-full bg-black/30"
     >
-      <form onSubmit={handleSubmit} className="rounded-2xl bg-white dark:bg-gray-907">
+      <form onSubmit={handleSubmit} className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-907">
         <div className="border-b border-gray-100 px-6 py-4 dark:border-gray-800">
           <h2 className="text-base font-normal text-gray-800 dark:text-white">
             Create List
