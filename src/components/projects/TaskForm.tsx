@@ -128,7 +128,7 @@ export default function TaskForm({
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-2xl rounded-2xl bg-white shadow-2xl dark:bg-gray-900 flex flex-col overflow-hidden">
+      <div className="relative z-10 w-full max-w-2xl rounded-2xl border border-gray-200 dark:border-gray-800 bg-white shadow-2xl dark:bg-gray-900 flex flex-col overflow-hidden">
 
         {/* Top bar */}
         <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3 dark:border-gray-800">
@@ -176,8 +176,8 @@ export default function TaskForm({
           )}
 
           {/* Write with AI */}
-          <button type="button" className="flex items-center gap-2 text-sm text-gray-400 hover:text-brand-500">
-            <LuSparkles className="h-4 w-4 text-brand-400" />
+          <button type="button" className="group flex items-center gap-2 text-sm text-gray-400 hover:text-brand-500 dark:hover:text-gray-000 ">
+            <LuSparkles className="h-4 w-4 text-gray-400 group-hover:text-brand-500 dark:group-hover:text-gray-000" />
             <span>Write with AI</span>
           </button>
 

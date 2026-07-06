@@ -11,14 +11,31 @@ import { QueryProvider } from "@/app/providers/QueryProvider";
 import "./globals.css";
 import "flatpickr/dist/flatpickr.css";
 
+const themeInitScript = `
+(function () {
+  try {
+    var theme = localStorage.getItem('theme');
+    if (!theme) {
+      theme = 'light';
+    }
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    }
+  } catch (e) {}
+})();
+`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className="dark:bg-gray-900" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
+      <body className="bg-white dark:bg-gray-900" suppressHydrationWarning>
         <QueryProvider>
           <ThemeProvider>
             <AuthProvider>

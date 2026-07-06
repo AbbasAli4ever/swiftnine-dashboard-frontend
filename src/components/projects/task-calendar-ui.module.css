@@ -88,6 +88,7 @@
 }
 
 .root :global(.fc .fc-scrollgrid) {
+  border-top: 0;
   border-left: 0;
   border-right: 0;
   border-bottom: 0;
@@ -141,7 +142,10 @@
 }
 
 .root :global(.fc .fc-daygrid-day.fc-day-today) {
-  background: #f2f4ff;
+  background: #f2f4ff !important;
+  border: 1px solid #000000 !important;
+  border-right: none !important;
+  border-bottom: none !important;
 }
 
 /* ── Event harness spacing ── */
@@ -252,49 +256,49 @@
 /* ── Dark mode ── */
 :global(.dark) .root {
   background: #191919;
-  border-color: #374151;
+  border-color: #2a2a2a !important;
 }
 
 :global(.dark) .toolbar {
-  border-bottom-color: #374151;
+  border-bottom-color: #2a2a2a;
 }
 
 :global(.dark) .navButton {
-  background: #313131;
-  border-color: #4b5563;
+  background: #191919;
+  border-color: #2a2a2a;
   color: #d1d5db;
 }
 
 :global(.dark) .navButton:hover {
-  background: #374151;
-  border-color: #6b7280;
+  background: #1f2937;
+  border-color: #2a2a2a;
 }
 
 :global(.dark) .todayButton {
-  background: #313131;
-  border-color: #4b5563;
+  background: #191919;
+  border-color: #2a2a2a;
   color: #d1d5db;
 }
 
 :global(.dark) .todayButton:hover {
-  background: #374151;
-  border-color: #6b7280;
+  background: #1f2937;
+  border-color: #374151;
 }
 
 :global(.dark) .selectControl {
-  background: #313131;
-  border-color: #4b5563;
+  background: #191919;
+  border-color: #2a2a2a;
   color: #f3f4f6;
 }
 
 :global(.dark) .root :global(.fc-theme-standard td),
 :global(.dark) .root :global(.fc-theme-standard th),
 :global(.dark) .root :global(.fc-theme-standard .fc-scrollgrid) {
-  border-color: #374151;
+  border-color: #1f2937;
 }
 
 :global(.dark) .root :global(.fc .fc-scrollgrid-section-header th) {
-  background: #1f2937;
+  background: #111111;
 }
 
 :global(.dark) .root :global(.fc .fc-col-header-cell-cushion) {
@@ -306,7 +310,7 @@
 }
 
 :global(.dark) .root :global(.fc .fc-day-other) {
-  background: #111827;
+  background: #111111;
 }
 
 :global(.dark) .root :global(.fc .fc-day-other .fc-daygrid-day-number) {
@@ -314,7 +318,28 @@
 }
 
 :global(.dark) .root :global(.fc .fc-daygrid-day.fc-day-today) {
-  background: #1e1b4b;
+  background: transparent !important;
+  border: 1px solid #e5e7eb !important;
+  border-right: none !important;
+  border-bottom: none !important;
+}
+
+/* First (Sunday) and last (Saturday) columns match the sidebar background.
+   !important is required because this must win over both `.fc-day-other`
+   (dimmed non-current-month cells) and the plain (non-today) grid background,
+   which share the same specificity and would otherwise fight on source order. */
+.root :global(.fc-daygrid-day.fc-day-sun):not(:global(.fc-day-today)),
+.root :global(.fc-daygrid-day.fc-day-sat):not(:global(.fc-day-today)),
+.root :global(.fc-col-header-cell.fc-day-sun),
+.root :global(.fc-col-header-cell.fc-day-sat) {
+  background: #f9f9f9 !important;
+}
+
+:global(.dark) .root :global(.fc-daygrid-day.fc-day-sun):not(:global(.fc-day-today)),
+:global(.dark) .root :global(.fc-daygrid-day.fc-day-sat):not(:global(.fc-day-today)),
+:global(.dark) .root :global(.fc-col-header-cell.fc-day-sun),
+:global(.dark) .root :global(.fc-col-header-cell.fc-day-sat) {
+  background: #191919 !important;
 }
 
 :global(.dark) .root :global(.fc .fc-event-main) {

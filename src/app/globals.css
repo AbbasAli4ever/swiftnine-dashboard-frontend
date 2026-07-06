@@ -3,6 +3,20 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+  Smooth, non-blinking theme switch.
+  This class is toggled on <html> only for the ~300ms of a user-triggered
+  toggle (see ThemeContext), so normal hovers/animations are unaffected and
+  there's no transition applied on first paint (which would itself cause a
+  visible flash from light to the saved theme).
+*/
+.theme-transition,
+.theme-transition * {
+  transition-property: background-color, border-color, color, fill, stroke, box-shadow !important;
+  transition-timing-function: ease-in-out !important;
+  transition-duration: 250ms !important;
+}
+
 @theme {
   --font-*: initial;
   --font-system: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -68,30 +82,38 @@
 
   --color-gray-25: #fcfcfd;
   --color-gray-50: #f9fafb;
-  --color-gray-100: #f2f4f7;
-  --color-gray-200: #e4e7ec;
+  --color-gray-100: #f0f0f0;
+  /* --color-gray-200: #e4e7ec; */
+  --color-gray-200: #e8e8e8;
   --color-gray-300: #d0d5dd;
-  --color-gray-400: #98a2b3;
+  --color-gray-400: #b4b4b4;
+  --color-gray-401: #EEEEEE;
+  /* --color-gray-400: #98a2b3; */
   --color-gray-500: #667085;
-  --color-gray-600: #475467;
-  --color-gray-700: #344054;
+  --color-gray-501: #7B7B7B;
+  /* --color-gray-600: #475467; */
+  --color-gray-600: #646464;
+/* --color-gray-700: #344054; */
+  --color-gray-700: #2a2a2a;
   /* searchbar & setting preference input color */
-
-  --color-gray-800: #1d2939;  
+  /* --color-gray-800: #1d2939;   */
+  --color-gray-800: #2a2a2a; 
   /* --color-gray-800: #191919;   */
-
-  
+  --color-gray-801: #52525B; 
   /* --color-gray-900: #101828; */
   --color-gray-900: #111111;
-
+    /* --color-gray-900: #202020; */
+/* dark mode theme color overall */
+  --color-gray-907: #111111;
+  /* normal mode theme color combination */
+  --color-gray-910: #fbfbfb;
+  --color-gray-908: #f5f5f5;
   /* sidebar-color */
   --color-gray-901: #191919;
   /* setting inputs and sidebard focus hover color dark mode */
-  --color-gray-905: #313131;
-
+  /* --color-gray-905: #313131; */
+  --color-gray-905: #292929;
   --color-gray-000: white;
-
-
   --color-gray-950: #0c111d;
   --color-gray-dark: #1a2231;
 
@@ -297,16 +319,12 @@
   }
 
   &::-webkit-scrollbar-track {
-    @apply rounded-full;
+    @apply rounded-full bg-transparent;
   }
 
   &::-webkit-scrollbar-thumb {
-    @apply bg-gray-200 rounded-full dark:bg-gray-700;
+    @apply bg-gray-200 rounded-full dark:bg-gray-800;
   }
-}
-
-.dark .custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: #344054;
 }
 
 

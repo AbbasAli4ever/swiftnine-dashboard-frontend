@@ -364,7 +364,7 @@ export default function TaskRow({
                 type="button"
                 title="Add subtask"
                 onClick={(e) => { e.stopPropagation(); setAddingSubtask(true); if (!isExpanded) toggleExpand(task.id); }}
-                className="flex h-5.5 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 shadow-sm hover:border-brand-400 hover:text-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-brand-500"
+                className="flex h-5.5 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 shadow-sm hover:border-brand-400 hover:text-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-gray-000 dark:hover:text-gray-000"
               >
                 <LuPlus className="h-3 w-3" />
               </button>
@@ -381,7 +381,7 @@ export default function TaskRow({
               type="button"
               title="Open task"
               onClick={(e) => { e.stopPropagation(); onView(task.id); }}
-              className="flex h-5.5 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 shadow-sm hover:border-brand-400 hover:text-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-brand-500"
+              className="flex h-5.5 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 shadow-sm hover:border-brand-400 hover:text-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-gray-000 dark:hover:text-gray-000"
             >
               <LuPencil className="h-3 w-3" />
             </button>
@@ -416,7 +416,7 @@ export default function TaskRow({
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); handleMenuOpen(e); }}
-              className={`rounded p-1 text-gray-400 transition-opacity hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 ${hovered || menuOpen ? "opacity-100" : "opacity-0"}`}
+              className={`rounded p-1 text-gray-400 transition-opacity hover:bg-gray-100 hover:text-gray-700 dark:hover:text-gray-000 dark:hover:bg-gray-800 ${hovered || menuOpen ? "opacity-100" : "opacity-0"}`}
             >
               <LuEllipsis className="h-3.5 w-3.5" />
             </button>

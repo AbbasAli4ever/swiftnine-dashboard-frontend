@@ -414,8 +414,8 @@ export default function TasksPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="mb-4 border-b border-gray-100 dark:bg-gray-901 dark:border-gray-800">
-        <div className="mb-1 flex items-center gap-2 pt-1">
+      <div className="mb-4 border-b border-gray-200 dark:bg-gray-900 dark:border-gray-800 -mx-5 -mt-3 px-5 lg:-mx-6 lg:px-6">
+        <div className="mb-1 flex items-center gap-2 py-2">
           <span
             className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white"
             style={{ backgroundColor: project.color }}
@@ -443,7 +443,7 @@ export default function TasksPage() {
           </button>
         </div>
 
-        <div className="flex flex-wrap items-end gap-5">
+        <div className="flex flex-wrap items-end gap-0.5">
           {/* <button
             type="button"
             className="pb-2 text-sm text-gray-400 transition-colors hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
@@ -454,7 +454,7 @@ export default function TasksPage() {
             <button
               key={tab.id}
               onClick={() => updateQuery({ view: tab.id })}
-              className={`border-b-2 pb-2 text-sm font-semibold transition-colors group ${
+              className={`border-b-2 pb-2 text-[12px] font-normal transition-colors group ${
                 currentView === tab.id
                   ? "border-gray-900 text-gray-900 dark:border-white dark:text-white"
                   : "border-transparent text-gray-500 dark:text-gray-400"
@@ -490,10 +490,10 @@ export default function TasksPage() {
 
       {currentView !== "overview" && scopeHeader}
 
-      <div className="min-h-0 flex-1 overflow-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-700">
+      <div className="min-h-0 flex-1 bg-gray-910 dark:bg-transparent overflow-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-901 pr-2">
         {isLoadingTasks ? (
           <div className="flex h-full items-center justify-center">
-            <div className="h-10 w-10 animate-spin rounded-full border-4 border-brand-500 border-t-transparent" />
+            <div className="h-10 w-10 animate-spin rounded-full border-4  border-brand-500 border-t-transparent" />
           </div>
         ) : null}
 

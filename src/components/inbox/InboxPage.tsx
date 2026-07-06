@@ -169,7 +169,7 @@ function PrimaryRow({ item, isLast, taskMeta, onClear, onSnooze, onMarkRead, onM
     <>
       <div
         onClick={() => onRowClick(item)}
-        className={`group flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors ${!isLast ? "border-b border-gray-100 dark:border-gray-800" : ""} ${item.isRead ? "opacity-70" : ""}`}
+        className={`group flex items-center gap-3 mx-2 px-3 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-905 cursor-pointer transition-colors ${!isLast ? "border-b border-gray-100 dark:border-gray-800" : ""} ${item.isRead ? "opacity-70" : ""}`}
       >
         {/* Task status icon */}
         <div className="shrink-0 flex items-center justify-center w-5">
@@ -558,17 +558,17 @@ export default function InboxPage() {
 
   const primaryHeader = (
     <div className="flex items-center justify-between">
-      <button className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
+      <button className="flex items-center gap-1.5 text-[12px] border px-1.5 py-0.5 border-gray-200 dark:border-gray-800 rounded-full text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
         <LuListFilter className="w-4 h-4" />
         Filter
       </button>
-      <div className="flex items-center gap-3">
-        <button className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+      <div className="flex items-center gap-2">
+        <button className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-800 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
           <LuSettings2 className="w-4 h-4" />
         </button>
         <button
           onClick={handleClearAll}
-          className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors"
+          className="flex items-center p-1 rounded-lg gap-1.5 text-sm border border-gray-200 dark:border-gray-800 text-gray-500 dark:text-gray-400 hover:text-brand-500 dark:hover:text-gray-000 transition-colors"
         >
           <LuCheck className="w-4 h-4" />
           Clear all
@@ -580,7 +580,7 @@ export default function InboxPage() {
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Tab bar */}
-      <div className="flex border-b border-gray-200 dark:border-gray-800 shrink-0">
+      <div className="flex border-b  border-gray-200 dark:border-gray-800 shrink-0 px-2">
         {tabs.map((tab, index) => {
           const isActive = activeTab === tab.id;
           const count = tab.id === "primary" && unreadCount > 0 ? `${unreadCount} unread` : undefined;
@@ -591,22 +591,22 @@ export default function InboxPage() {
               className="relative flex flex-1 items-center"
             >
               {showDivider && (
-                <span className="absolute right-0 top-2 bottom-2 w-px bg-gray-200 dark:bg-gray-700" />
+                <span className="absolute right-0 top-4 bottom-4 w-px bg-gray-200 dark:bg-gray-800" />
               )}
               <button
                 onClick={() => handleTabChange(tab.id)}
-                className="flex flex-1 flex-row items-center gap-2 px-1 py-3.5 text-sm transition-colors group"
+                className="flex flex-1 flex-row items-center gap-2 py-3.5 text-sm transition-colors group"
               >
-                <div className={`flex w-full flex-row items-center gap-2 px-3 py-4 rounded-[5px] transition-colors
+                <div className={`flex w-full gap-2 flex-row items-center  mx-2 px-3 py-4 rounded-lg transition-colors
                   ${isActive
-                    ? "text-brand-501 dark:text-brand-400"
+                    ? "text-brand-501 dark:text-brand-400 hover:bg-gray-100 dark:group-hover:bg-gray-800"
                     : "text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200 group-hover:bg-gray-100 dark:group-hover:bg-gray-800"
                   }`}
                 >
                   <span className={`${isActive ? "text-brand-501 dark:text-brand-400" : "text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300"}`}>{tab.icon}</span>
                   <span className="font-semibold leading-none">{tab.label}</span>
                   {count && (
-                    <span className={`text-[11px] leading-none ${isActive ? "text-brand-400" : "text-gray-400"}`}>
+                    <span className={`text-[11px] pl-3 leading-none ${isActive ? "text-brand-501 dark:text-brand-400" : "text-gray-400"}`}>
                       {count}
                     </span>
                   )}
@@ -621,7 +621,7 @@ export default function InboxPage() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-800">
         {activeTab === "primary" && (
           primaryNotifications.length === 0
             ? <EmptyState />

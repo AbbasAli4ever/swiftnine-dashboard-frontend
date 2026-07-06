@@ -159,7 +159,7 @@ function FieldSelector({ value, onChange }: { value: FilterField; onChange: (f: 
               />
             </div>
           </div>
-          <div className="max-h-64 overflow-y-auto py-1">
+          <div className="max-h-64 overflow-y-auto py-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-800">
             {filtered.map((f) => (
               <button
                 key={f.value}
@@ -231,7 +231,7 @@ function StatusValueSelector({
               className="w-full rounded-lg border border-brand-400 bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-gray-400 dark:text-white"
             />
           </div>
-          <div className="max-h-60 overflow-y-auto py-1">
+          <div className="max-h-60 overflow-y-auto py-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-800">
             {filteredGroups.length > 0 && (
               <>
                 <p className="flex items-center justify-between px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
@@ -300,7 +300,7 @@ function TagValueSelector({ row, tags, onChange }: { row: FilterRow; tags: Works
           <div className="border-b border-gray-100 px-3 py-2 dark:border-gray-800">
             <input autoFocus type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..." className="w-full rounded-lg border border-brand-400 bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-gray-400 dark:text-white" />
           </div>
-          <div className="max-h-60 overflow-y-auto py-1">
+          <div className="max-h-60 overflow-y-auto py-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-800">
             {filtered.map((t) => (
               <label key={t.id} className="flex cursor-pointer items-center gap-2.5 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-800">
                 <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: t.color }} />
@@ -366,7 +366,7 @@ function AssigneeValueSelector({ row, members, onChange }: { row: FilterRow; mem
           <div className="border-b border-gray-100 px-3 py-2 dark:border-gray-800">
             <input autoFocus type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search or enter email..." className="w-full rounded-lg border border-brand-400 bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-gray-400 dark:text-white" />
           </div>
-          <div className="max-h-60 overflow-y-auto py-1">
+          <div className="max-h-60 overflow-y-auto py-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-800">
             <label className="flex cursor-pointer items-center gap-2.5 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-800">
               <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-medium text-brand-600">Me</span>
               <span className="flex-1 text-sm text-gray-700 dark:text-gray-200">Me</span>
@@ -631,7 +631,7 @@ export default function TaskFiltersModal({
   };
 
   return createPortal(
-    <div ref={panelRef} style={panelStyle} className="rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900">
+    <div ref={panelRef} style={panelStyle} className="rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-901">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-100 px-4 py-2.5 dark:border-gray-800">
           <div className="flex items-center gap-2">
@@ -649,7 +649,7 @@ export default function TaskFiltersModal({
         </div>
 
         {/* Filter rows */}
-        <div className="max-h-[60vh] space-y-2 overflow-y-auto px-4 py-3">
+        <div className="max-h-[60vh] space-y-2 overflow-y-auto px-4 py-3 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-800">
           {rows.map((row, idx) => (
             <FilterRowUI
               key={row.id}
@@ -686,7 +686,7 @@ export default function TaskFiltersModal({
             <button
               type="button"
               onClick={handleApply}
-              className="rounded-md bg-brand-500 px-3 py-1 text-xs font-medium text-white hover:bg-brand-600"
+              className="rounded-md bg-brand-500 px-3 py-1 text-xs font-medium text-white hover:bg-brand-600 dark:bg-gray-000 dark:text-black dark:hover:bg-gray-200"
             >
               Apply
             </button>

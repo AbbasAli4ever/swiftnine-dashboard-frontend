@@ -384,7 +384,7 @@ export default function TaskDashboardHome({
               <p className="text-sm text-gray-400">No activity yet in this project.</p>
             </div>
           ) : (
-            <div className="flex-1 overflow-y-auto space-y-3 pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-700">
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-800">
               {activity.map((item) => (
                 <div key={item.id} className="flex items-start gap-2.5">
                   <span
@@ -426,12 +426,12 @@ export default function TaskDashboardHome({
           <button
             type="button"
             onClick={onCreateList}
-            className="text-sm font-normal text-brand-500 hover:text-brand-600"
+            className="text-sm font-normal text-brand-500 hover:text-brand-600 dark:text-gray-200 dark:hover:text-gray-000"
           >
             Create List
           </button>
         </div>
-        <div className="flex-1 overflow-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-700">
+        <div className="flex-1 overflow-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-800">
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-800/40">
               <tr className="text-left text-xs uppercase tracking-wide text-gray-400">
@@ -558,7 +558,7 @@ export default function TaskDashboardHome({
               <p className="text-sm text-gray-400">No attachments in this project yet.</p>
             </div>
           ) : (
-            <div className="flex-1 overflow-y-auto space-y-2 pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-700">
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-800">
               {attachments.map((att) => (
                 <div key={att.id} className="flex items-center gap-3 rounded-lg border border-gray-100 p-2.5 dark:border-gray-800">
                   <span className="text-xl">{getFileIcon(att.mimeType)}</span>
@@ -597,7 +597,7 @@ export default function TaskDashboardHome({
               <p className="text-sm text-gray-400">No tasks yet in this project.</p>
             </div>
           ) : (
-            <div className="flex flex-1 flex-col items-center overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-700">
+            <div className="flex flex-1 flex-col items-center overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-800">
               <ReactApexChart
                 type="pie"
                 width={260}

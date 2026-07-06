@@ -103,7 +103,7 @@ function ReplyCard({ n, actorDisplayName, onClick }: { n: Notification; actorDis
 
 function EmptyState({ label }: { label: string }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center text-center">
+    <div className="flex h-full flex-col items-center justify-center text-center bg-gray-910 dark:bg-[#090909]">
       <LuCheckCheck className="mb-3 h-13 w-13 text-gray-200" />
       <p className="text-[18px] font-bold text-brand-400">No {label} replies</p>
     </div>
@@ -131,21 +131,21 @@ export default function RepliesPage() {
 
   return (
     <div className="h-full overflow-hidden bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-      <header className="border-b border-gray-200 dark:border-gray-800">
-        <div className="flex h-16 items-center justify-between px-6">
-          <div className="flex items-center gap-3">
+      <header className="border-b  border-gray-200 dark:border-gray-800">
+        <div className="flex h-12 items-center justify-between px-6">
+          <div className="flex items-center gap-3 pl-2">
             {/* <LuChevronLeft className="h-5 w-5 text-gray-500 dark:text-gray-400" /> */}
-            <h1 className="text-lg font-semibold text-gray-950 dark:text-white">Replies</h1>
+            <h1 className="text-[14px] font-semibold text-gray-950 -mt-3 dark:text-white">Replies</h1>
           </div>
           {/* <LuCheckCheck className="h-5 w-5 text-gray-500 dark:text-gray-400" /> */}
         </div>
 
-        <div className="flex items-end gap-2 px-6">
+        <div className="flex items-end gap-0.5 px-6">
           <button
-            className={`text-sm font-semibold border-b-2 transition-colors group ${activeTab === "unread" ? "border-gray-950 dark:border-gray-100 text-gray-950 dark:text-white" : "border-transparent text-gray-500 dark:text-gray-400"}`}
+            className={`text-[12px] font-normal border-b-2 transition-colors group ${activeTab === "unread" ? "border-gray-950 dark:border-gray-100 text-gray-950 dark:text-white" : "border-transparent text-gray-500 dark:text-gray-400"}`}
             onClick={() => setActiveTab("unread")}
           >
-            <span className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-colors ${activeTab === "unread" ? "" : "group-hover:bg-gray-100 dark:group-hover:bg-gray-800 group-hover:text-gray-700 dark:group-hover:text-gray-200"}`}>
+            <span className={`flex items-center gap-1 px-2  py-1 rounded-lg transition-colors ${activeTab === "unread" ? "" : "group-hover:bg-gray-100 dark:group-hover:bg-gray-800 group-hover:text-gray-700 dark:group-hover:text-gray-200"}`}>
               Unread{" "}
               {unread.length > 0 && (
                 <span className={activeTab === "unread" ? "font-medium text-gray-500 dark:text-gray-400" : ""}>{unread.length}</span>
@@ -153,7 +153,7 @@ export default function RepliesPage() {
             </span>
           </button>
           <button
-            className={`text-sm font-semibold border-b-2 transition-colors group ${activeTab === "read" ? "border-gray-950 dark:border-gray-100 text-gray-950 dark:text-white" : "border-transparent text-gray-500 dark:text-gray-400"}`}
+            className={`text-[12px] font-normal border-b-2 transition-colors group ${activeTab === "read" ? "border-gray-950 dark:border-gray-100 text-gray-950 dark:text-white" : "border-transparent text-gray-500 dark:text-gray-400"}`}
             onClick={() => setActiveTab("read")}
           >
             <span className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-colors ${activeTab === "read" ? "" : "group-hover:bg-gray-100 dark:group-hover:bg-gray-800 group-hover:text-gray-700 dark:group-hover:text-gray-200"}`}>
@@ -163,7 +163,7 @@ export default function RepliesPage() {
         </div>
       </header>
 
-      <main className="h-[calc(100%-96px)] overflow-auto bg-white dark:bg-gray-900 px-6 pt-6">
+      <main className="h-[calc(100%-96px)] overflow-auto bg-white dark:bg-gray-900">
         {list.length === 0 ? (
           <EmptyState label={activeTab} />
         ) : (

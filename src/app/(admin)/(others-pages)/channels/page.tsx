@@ -152,7 +152,7 @@ export default function AllChannelsPage() {
                     <div className="flex items-center justify-between gap-4">
                       <span className="text-sm text-gray-400">{formatDate(ch.updatedAt)}</span>
                       {ch.isMember && (
-                        <span className="text-xs text-gray-400 dark:text-gray-500">Following</span>
+                        <span className="text-xs text-gray-600 dark:text-gray-400">Following</span>
                       )}
                     </div>
                   </td>

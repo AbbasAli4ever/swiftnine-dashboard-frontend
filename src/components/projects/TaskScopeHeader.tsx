@@ -47,7 +47,7 @@ export default function TaskScopeHeader({
         {/* Animated search */}
         <div className="flex items-center">
           <div
-            className={`flex items-center overflow-hidden rounded-lg border transition-all duration-300 ease-in-out ${
+            className={`flex items-center overflow-hidden rounded-lg  border focus-within:hover:border-gray-900 hover:border-blue-300 dark:hover:border-gray-801 dark:focus-within:hover:border-gray-000 transition-all duration-300 ease-in-out ${
               searchOpen
                 ? "w-52 border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"
                 : "w-7 border-transparent bg-transparent"
@@ -124,7 +124,7 @@ export default function TaskScopeHeader({
         <button
           type="button"
           onClick={onAddTask}
-          className="inline-flex h-7 items-center gap-1 rounded-lg bg-brand-500 dark:bg-gray-000 dark:text-black px-3 text-xs font-medium text-white transition-colors hover:bg-brand-600 dark:hover:bg-gray-200"
+          className="inline-flex h-7 items-center gap-1 rounded-lg bg-brand-500 dark:bg-gray-200 dark:text-black px-3 text-xs font-medium text-white transition-colors hover:bg-brand-600 dark:hover:bg-gray-000"
         >
           Add Task
           <LuChevronDown className="h-3.5 w-3.5" />

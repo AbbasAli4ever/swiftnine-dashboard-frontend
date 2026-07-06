@@ -12,7 +12,6 @@ import NotificationPermissionBanner from "@/components/ui/NotificationPermission
 import UserProfilePanel from "@/components/user-profile/UserProfilePanel";
 import ViewUserProfilePanel from "@/components/user-profile/ViewUserProfilePanel";
 import { useUiStore } from "@/stores/ui.store";
-import { usePathname } from "next/navigation";
 import React, { useEffect } from "react";
 
 export default function AdminLayoutClient({
@@ -23,11 +22,6 @@ export default function AdminLayoutClient({
   const { isAuthenticated, isLoading } = useAuth();
   const { workspaces, isLoading: workspacesLoading } = useWorkspace();
   const { profilePanelOpen, closeProfilePanel, viewingUserId, closeUserPanel } = useUiStore();
-  const pathname = usePathname();
-  const isMessageQueuePage =
-    pathname === "/replies" ||
-    pathname === "/assigned-comments";
-
   useEffect(() => {
     // Only bounce to /signin when we are sure the user has never logged in on
     // this browser. If session_exists is set, AuthContext is still trying to
@@ -51,24 +45,29 @@ export default function AdminLayoutClient({
 
   return (
     <NotificationProvider>
-    <div className="flex h-screen overflow-hidden bg-white dark:bg-gray-900">
-      <AppSidebar />
+    <div className="flex flex-col h-screen overflow-hidden bg-white dark:bg-gray-907">
+      {/* Header — full width, above everything */}
+      <NotificationPermissionBanner />
+      <AppHeader />
 
-      {/* Main area */}
-      <div className="flex flex-col flex-1 min-w-0 ml-[320px]">
-        <NotificationPermissionBanner />
-        {!isMessageQueuePage && <AppHeader />}
-        {/* Content row: main + profile panels side by side, below the header */}
-        <div className="flex flex-1 overflow-hidden">
-          <main className="flex-1 overflow-hidden">
-            {children}
-          </main>
+      {/* Body row: sidebar + content */}
+      <div className="flex flex-1 overflow-hidden">
+        <AppSidebar hasHeader={true} />
 
-          {/* Own profile panel — only covers content area */}
-          <UserProfilePanel isOpen={profilePanelOpen} onClose={closeProfilePanel} />
+        {/* Main area — offset by sidebar width */}
+        <div className="flex flex-col flex-1 min-w-0 ml-[320px] overflow-hidden">
+          {/* Content row: main + profile panels side by side */}
+          <div className="flex flex-1 overflow-hidden">
+            <main className="flex-1 border border-r border-b mr-2 mb-2 rounded-tr-lg rounded-br-lg border-gray-200 dark:border-gray-800  overflow-hidden">
+              {children}
+            </main>
 
-          {/* Other user's profile panel — only covers content area */}
-          <ViewUserProfilePanel userId={viewingUserId} onClose={closeUserPanel} />
+            {/* Own profile panel — only covers content area */}
+            <UserProfilePanel isOpen={profilePanelOpen} onClose={closeProfilePanel} />
+
+            {/* Other user's profile panel — only covers content area */}
+            <ViewUserProfilePanel userId={viewingUserId} onClose={closeUserPanel} />
+          </div>
         </div>
       </div>
 

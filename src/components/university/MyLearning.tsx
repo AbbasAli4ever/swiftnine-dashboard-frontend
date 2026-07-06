@@ -174,7 +174,7 @@ export default function MyLearning() {
     <div className="flex flex-col lg:flex-row">
 
       {/* ── Main content ───────────────────────────────────────────────────── */}
-      <div className="flex-1 min-w-0 p-6 space-y-6">
+      <div className="flex-1 min-w-0 overflow-y-auto p-6 space-y-6 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-800">
 
         {error && (
           <div className="rounded-lg bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-600 dark:text-red-400">
@@ -233,7 +233,7 @@ export default function MyLearning() {
         )}
 
         {/* Course info card */}
-        <div className="rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-6 shadow-sm">
+        <div className="rounded-xl bg-white dark:bg-gray-901 border border-gray-200 dark:border-gray-800 p-6 shadow-sm">
           {isLoadingDetail ? (
             <div className="space-y-3 animate-pulse">
               <div className="h-3 w-24 rounded bg-gray-100 dark:bg-gray-700" />
@@ -285,7 +285,7 @@ export default function MyLearning() {
               <div className="mb-5">
                 <div className="flex justify-between text-sm mb-1.5">
                   <span className="text-gray-600 dark:text-gray-300 font-medium">Your progress</span>
-                  <span className="font-semibold text-[#7C3AED]">{progress?.percentage ?? 0}% complete</span>
+                  <span className="font-semibold text-[#7C3AED] dark:text-gray-000">{progress?.percentage ?? 0}% complete</span>
                 </div>
                 <div className="h-2 w-full rounded-full bg-gray-100 dark:bg-gray-700">
                   <div className="h-2 rounded-full bg-[#7C3AED] transition-all" style={{ width: `${progress?.percentage ?? 0}%` }} />
@@ -294,10 +294,10 @@ export default function MyLearning() {
 
               <button
                 onClick={() => activeLesson && selectLesson(activeLesson)}
-                className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#7C3AED] px-5 py-3 text-sm font-semibold text-white hover:bg-[#6d28d9] transition-colors"
+                className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#7C3AED] dark:bg-gray-200 dark:text-black px-5 py-3 text-sm font-semibold text-white hover:bg-[#6d28d9] dark:hover:bg-gray-000 transition-colors"
               >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M4 2l10 6-10 6V2z" fill="white"/>
+                <svg className="w-4 h-4 text-white dark:text-black" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M4 2l10 6-10 6V2z" fill="currentColor"/>
                 </svg>
                 {activeCourse?.lastPlayedLesson ? `Continue: ${activeCourse.lastPlayedLesson.title}` : "Start Course"}
               </button>
@@ -306,7 +306,7 @@ export default function MyLearning() {
         </div>
 
         {/* Curriculum */}
-        <div className="rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+        <div className="rounded-xl bg-white px-2  dark:bg-gray-901 border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
             <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -325,14 +325,14 @@ export default function MyLearning() {
               ))}
             </div>
           ) : (
-            <div className="divide-y divide-gray-100 dark:divide-gray-700">
+            <div className="divide-y divide-gray-100 dark:divide-gray-700 space-y-1 space-x-1">
               {courseDetail?.modules.map((mod, idx) => {
                 const isExpanded = expandedModule === mod.id || (expandedModule === null && idx === 0);
                 return (
-                  <div key={mod.id}>
+                  <div className="" key={mod.id}>
                     <button
                       onClick={() => setExpandedModule(isExpanded ? "" : mod.id)}
-                      className="w-full flex items-center justify-between px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                      className="w-full flex items-center rounded-lg justify-between px-6 py-4 hover:bg-gray-100 dark:hover:bg-gray-905 transition-colors"
                     >
                       <div className="flex items-center gap-3">
                         <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#7C3AED]/10 text-[#7C3AED] text-xs font-bold">
@@ -362,7 +362,7 @@ export default function MyLearning() {
                               key={lesson.id}
                               onClick={() => selectLesson(lesson)}
                               className={`w-full flex items-center justify-between py-2 pl-10 pr-2 rounded-lg transition-colors ${
-                                isActive ? "bg-[#7C3AED]/10" : "hover:bg-gray-50 dark:hover:bg-gray-700/30"
+                                isActive ? "bg-[#7C3AED]/10 dark:bg-gray-905" : "hover:bg-gray-50 dark:hover:bg-gray-700/30"
                               }`}
                             >
                               <div className="flex items-center gap-2.5">
@@ -396,10 +396,10 @@ export default function MyLearning() {
       </div>
 
       {/* ── Right sidebar ──────────────────────────────────────────────────── */}
-      <div className="lg:w-80 shrink-0 p-6 space-y-5 border-t lg:border-t-0 lg:border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 lg:self-start lg:sticky lg:top-0">
+      <div className="lg:w-80 shrink-0 p-6 space-y-5 border-t lg:border-t-0 lg:border-l border-gray-200 dark:border-gray-800 bg-[#f9f9f9] dark:bg-gray-901 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-800">
 
         {/* My Notes */}
-        <div className="rounded-xl bg-gray-50 dark:bg-gray-700/50 p-4">
+        <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-700/50 p-4">
           <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white mb-3">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
               <rect x="2" y="2" width="12" height="12" rx="2"/>
@@ -413,19 +413,19 @@ export default function MyLearning() {
             rows={4}
             placeholder={activeLesson ? "Add notes for this lesson..." : "Select a lesson to take notes"}
             disabled={!activeLesson}
-            className="w-full resize-none rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2.5 text-sm text-gray-700 dark:text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/30 focus:border-[#7C3AED] disabled:opacity-50"
+            className="w-full resize-none rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2.5 text-sm text-gray-700 dark:text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/30 focus:border-[#7C3AED] dark:focus:border-gray-000 disabled:opacity-50"
           />
           <button
             onClick={() => saveNote(noteContent || currentNote)}
             disabled={isSavingNote || !activeLesson}
-            className="mt-3 w-full rounded-lg bg-[#7C3AED] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#6d28d9] transition-colors disabled:opacity-50"
+            className="mt-3 w-full rounded-lg bg-[#7C3AED] dark:bg-gray-200 dark:text-black px-4 py-2.5 text-sm font-medium text-white hover:bg-[#6d28d9] dark:hover:bg-gray-000 transition-colors disabled:opacity-50"
           >
             {isSavingNote ? "Saving…" : "Save Note"}
           </button>
         </div>
 
         {/* Reviews */}
-        <div className="rounded-xl bg-gray-50 dark:bg-gray-700/50 p-4">
+        <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-700/50 p-4">
           <div className="flex items-center justify-between mb-3">
             <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
               <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" className="text-amber-400">
@@ -436,7 +436,7 @@ export default function MyLearning() {
             {reviewMode === "view" && !myReview && (
               <button
                 onClick={() => setReviewMode("write")}
-                className="text-xs text-[#7C3AED] hover:underline"
+                className="text-xs text-[#7C3AED] dark:text-gray-000 hover:underline"
               >
                 + Add
               </button>
@@ -459,13 +459,13 @@ export default function MyLearning() {
                 rows={3}
                 maxLength={2000}
                 placeholder="Share your thoughts (optional)…"
-                className="w-full resize-none rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/30 focus:border-[#7C3AED]"
+                className="w-full resize-none rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/30 focus:border-[#7C3AED] dark:focus:border-gray-000"
               />
               <div className="flex gap-2">
                 <button
                   onClick={handleSubmitReview}
                   disabled={reviewSubmitting}
-                  className="flex-1 rounded-lg bg-[#7C3AED] px-3 py-2 text-xs font-medium text-white hover:bg-[#6d28d9] transition-colors disabled:opacity-50"
+                  className="flex-1 rounded-lg bg-[#7C3AED] dark:bg-gray-200 dark:text-black px-3 py-2 text-xs font-medium text-white hover:bg-[#6d28d9] dark:hover:bg-gray-000 transition-colors disabled:opacity-50"
                 >
                   {reviewSubmitting ? "Saving…" : myReview ? "Update" : "Submit"}
                 </button>
@@ -525,7 +525,7 @@ export default function MyLearning() {
           ) : reviews.length === 0 ? (
             <p className="text-xs text-gray-400 dark:text-gray-500 text-center py-2">No reviews yet. Be the first!</p>
           ) : (
-            <div className="space-y-3 max-h-48 overflow-y-auto pr-1">
+            <div className="space-y-3 max-h-48 overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-800">
               {reviews.filter((r) => r.id !== myReview?.id).map((r) => (
                 <div key={r.id} className="border-b border-gray-100 dark:border-gray-600 pb-2 last:border-0 last:pb-0">
                   <div className="flex gap-0.5 mb-1">
@@ -545,7 +545,7 @@ export default function MyLearning() {
 
         {/* Instructor */}
         {instructor && (
-          <div className="rounded-xl bg-gray-50 dark:bg-gray-700/50 p-4">
+          <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-700/50 p-4">
             <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Instructor</h4>
             <div className="flex items-start gap-3 mb-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">
@@ -575,7 +575,7 @@ export default function MyLearning() {
                 <button
                   key={item.course.id}
                   onClick={() => selectCourse(item)}
-                  className="w-full flex items-center gap-3 rounded-lg border border-gray-200 dark:border-gray-600 p-3 hover:border-[#7C3AED] transition-colors text-left"
+                  className="w-full flex items-center gap-3 rounded-lg border border-gray-200 dark:border-gray-800 p-3 hover:border-[#7C3AED] transition-colors text-left"
                 >
                   <div className="flex h-10 w-14 shrink-0 items-center justify-center rounded bg-[#7C3AED]/10">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">

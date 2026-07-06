@@ -68,7 +68,7 @@ export default function UniversityDashboard() {
     : null;
 
   return (
-    <section className="relative w-full flex-1 self-stretch bg-[#f5f7fa] dark:bg-gray-900">
+    <section className="relative w-full flex-1 self-stretch bg-white dark:bg-gray-900">
       <div className="mx-auto flex w-full max-w-full flex-col px-4 pb-10 pt-6 sm:px-6 lg:px-10">
         <main className="flex w-full flex-col gap-6">
 
@@ -120,7 +120,7 @@ export default function UniversityDashboard() {
                   return (
                     <Card
                       key={card.label}
-                      className="rounded-2xl border border-[#e8eaed] bg-white shadow-none dark:border-gray-700 dark:bg-gray-800"
+                      className="rounded-2xl border border-[#e8eaed] bg-[#f9f9f9] shadow-none dark:border-gray-700 dark:bg-gray-901"
                     >
                       <CardContent className="flex h-full flex-col items-start gap-1 p-6">
                         <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${card.iconWrapperClassName}`}>

@@ -200,7 +200,7 @@ function SubtaskRow({
           ) : (
             <span
               onClick={(e) => { e.stopPropagation(); setEditingTitle(true); setTitleDraft(subtask.title); }}
-              className={`min-w-0 truncate cursor-text hover:text-brand-500 ${subtask.isCompleted ? "line-through text-gray-400" : ""}`}
+              className={`min-w-0 truncate cursor-text hover:text-brand-500 dark:hover:text-gray-000 ${subtask.isCompleted ? "line-through text-gray-400" : ""}`}
             >
               {subtask.title}
             </span>
@@ -233,7 +233,7 @@ function SubtaskRow({
               type="button"
               title="Open task"
               onClick={(e) => { e.stopPropagation(); onOpen(subtask.id); }}
-              className="flex h-5 w-7 shrink-0 items-center justify-center rounded border border-gray-200 bg-white text-gray-400 shadow-sm hover:border-brand-400 hover:text-brand-500 dark:border-gray-700 dark:bg-gray-900"
+              className="flex h-5 w-7 shrink-0 items-center justify-center rounded border border-gray-200 bg-white text-gray-400 shadow-sm hover:border-brand-400 hover:text-brand-500 dark:border-gray-000 dark:hover:text-gray-000 dark:bg-gray-900"
             >
               <LuPencil className="h-3 w-3" />
             </button>
@@ -287,7 +287,7 @@ function SubtaskRow({
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); handleMenuOpen(e); }}
-            className={`rounded p-1 text-gray-400 transition-opacity hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 ${hovered || menuOpen ? "opacity-100" : "opacity-0"}`}
+            className={`rounded p-1 text-gray-400 transition-opacity hover:bg-gray-100 hover:text-gray-700 dark:hover:text-gray-000 dark:hover:bg-gray-800 ${hovered || menuOpen ? "opacity-100" : "opacity-0"}`}
           >
             <LuEllipsis className="h-3.5 w-3.5" />
           </button>
@@ -375,7 +375,7 @@ function SubtaskQuickAdd({
   const defaultStatus = statuses[0];
 
   return (
-    <div className="flex items-center gap-2 border-t border-brand-100 bg-brand-50/30 py-1.5 pr-4 dark:border-brand-900/30 dark:bg-brand-950/10" style={{ paddingLeft: "0.5rem" }}>
+    <div className="flex items-center gap-2 border-t border-gray-800 bg-brand-50/30 py-1.5 pr-4 dark:border-brand-900/30 dark:bg-gray-907" style={{ paddingLeft: "0.5rem" }}>
       {defaultStatus && (
         <div className="flex w-6 shrink-0 items-center justify-center">
           <StatusIcon group={defaultStatus.group} color={defaultStatus.color} size={13} />
@@ -405,7 +405,7 @@ function SubtaskQuickAdd({
         </div>
       </div>
       <button type="button" onClick={onClose} className="shrink-0 rounded-lg px-2.5 py-1 text-xs text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800">Cancel</button>
-      <button type="button" onClick={() => void handleSave()} disabled={!title.trim() || saving} className="shrink-0 rounded-lg bg-brand-500 px-2.5 py-1 text-xs text-white hover:bg-brand-600 disabled:opacity-50">
+      <button type="button" onClick={() => void handleSave()} disabled={!title.trim() || saving} className="shrink-0 rounded-lg bg-brand-500 px-2.5 py-1 text-xs text-white hover:bg-brand-600 dark:bg-gray-800 dark:hover:bg-gray-000 dark:hover:text-black disabled:opacity-50">
         {saving ? "..." : "Save ↵"}
       </button>
     </div>
@@ -453,7 +453,7 @@ function ActivityFeed({ taskId }: { taskId: string }) {
   }, [nextCursor, loading, load]);
 
   return (
-    <div ref={containerRef} className="flex-1 overflow-y-auto p-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-700">
+    <div ref={containerRef} className="flex-1 overflow-y-auto p-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-800">
       <div className="space-y-4">
         {[...items].reverse().map((item) => (
           <ActivityRow key={item.id} item={item} />
@@ -670,7 +670,7 @@ export default function TaskDetailModal({ task, statuses, listId, onClose, onMin
                 </>
               )}
             </div>
-            <button type="button" className="rounded border border-gray-200 p-0.5 text-gray-400 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800">
+            <button type="button" className="rounded border border-gray-200 p-0.5 text-gray-400 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800">
               <LuPlus className="h-3.5 w-3.5" />
             </button>
           </div>
@@ -679,11 +679,11 @@ export default function TaskDetailModal({ task, statuses, listId, onClose, onMin
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-gray-400">Created {formatDate(task.createdAt)}</span>
             <div className="mx-1 h-4 w-px bg-gray-200 dark:bg-gray-700" />
-            <button type="button" className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800">
+            <button type="button" className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-gray-800">
               <RiAiGenerate className="mr-1 inline h-3.5 w-3.5" />
               Ask AI
             </button>
-            <button type="button" className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800">
+            <button type="button" className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-gray-800">
               Share
             </button>
             <div className="relative">
@@ -691,7 +691,7 @@ export default function TaskDetailModal({ task, statuses, listId, onClose, onMin
                 ref={ellipsisBtnRef}
                 type="button"
                 onClick={() => setMenuOpen((v) => !v)}
-                className="rounded-lg border border-gray-200 p-1.5 text-gray-400 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+                className="rounded-lg border border-gray-200 p-1.5 text-gray-400 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800"
               >
                 <LuEllipsis className="h-3.5 w-3.5" />
               </button>
@@ -699,7 +699,7 @@ export default function TaskDetailModal({ task, statuses, listId, onClose, onMin
               {menuOpen && (
                 <div
                   ref={menuRef}
-                  className="absolute right-0 top-full z-50 mt-1.5 w-52 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900"
+                  className="absolute right-0 top-full z-50 mt-1.5 w-52 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl dark:border-gray-800 dark:bg-gray-900"
                 >
                   {/* Copy actions */}
                   <div className="p-1">
@@ -756,11 +756,11 @@ export default function TaskDetailModal({ task, statuses, listId, onClose, onMin
               type="button"
               onClick={() => void handleToggleFavorite()}
               title={isFavorite ? "Unfavorite" : "Favorite"}
-              className={`rounded-lg border p-1.5 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800 ${isFavorite ? "border-amber-300 text-amber-400 dark:border-amber-600" : "border-gray-200 text-gray-400 dark:border-gray-700"}`}
+              className={`rounded-lg border p-1.5 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800 ${isFavorite ? "border-amber-300 text-amber-400 dark:border-amber-600" : "border-gray-200 text-gray-400 dark:border-gray-800"}`}
             >
               <LuStar className="h-3.5 w-3.5" style={isFavorite ? { fill: "currentColor" } : undefined} />
             </button>
-            <button type="button" className="rounded-lg border border-gray-200 p-1.5 text-gray-400 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800">
+            <button type="button" className="rounded-lg border border-gray-200 p-1.5 text-gray-400 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800">
               <LuArrowUpRight className="h-3.5 w-3.5" />
             </button>
             {onMinimize && (
@@ -768,7 +768,7 @@ export default function TaskDetailModal({ task, statuses, listId, onClose, onMin
                 type="button"
                 onClick={onMinimize}
                 title="Minimize"
-                className="rounded-lg border border-gray-200 p-1.5 text-gray-400 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+                className="rounded-lg border border-gray-200 p-1.5 text-gray-400 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800"
               >
                 <LuMinus className="h-3.5 w-3.5" />
               </button>
@@ -776,7 +776,7 @@ export default function TaskDetailModal({ task, statuses, listId, onClose, onMin
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-gray-200 p-1.5 text-gray-400 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+              className="rounded-lg border border-gray-200 p-1.5 text-gray-400 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800"
             >
               <LuX className="h-3.5 w-3.5" />
             </button>
@@ -787,7 +787,7 @@ export default function TaskDetailModal({ task, statuses, listId, onClose, onMin
         <div className="flex min-h-0 flex-1 overflow-hidden">
 
           {/* ── Left: main content ── */}
-          <div className="flex flex-1 flex-col overflow-y-auto dark:bg-gray-901 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-700">
+          <div className="flex flex-1 flex-col overflow-y-auto dark:bg-gray-901 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-800">
             <div className="mx-auto w-full max-w-4xl px-8 py-6">
 
               {/* Parent task pill */}
@@ -927,7 +927,7 @@ export default function TaskDetailModal({ task, statuses, listId, onClose, onMin
                   <button
                     type="button"
                     onClick={() => setAddingSubtask(true)}
-                    className="flex items-center gap-1 text-xs text-gray-400 hover:text-brand-500"
+                    className="flex items-center gap-1 text-xs text-gray-400 hover:text-brand-500 dark:hover:text-gray-000"
                   >
                     <LuPlus className="h-3.5 w-3.5" />
                     Add subtask

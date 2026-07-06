@@ -20,12 +20,12 @@ export default function DocsListSidebarSection() {
   return (
     <div className="pt-3">
       <div className="flex items-center justify-between px-2 mb-1">
-        <p className="text-[12px] uppercase tracking-wide text-[#646464] font-semibold">
+        <p className="text-[12px] uppercase tracking-wide text-gray-600 dark:text-gray-400 font-semibold">
           Docs
         </p>
         <button
           onClick={() => setCreateOpen(true)}
-          className="text-gray-400 hover:text-brand-500 transition-colors"
+          className="text-gray-400 hover:text-gray-900 dark:hover:text-gray-000 transition-colors"
           title="New document"
         >
           <LuPlus className="w-4 h-4" />
@@ -49,17 +49,17 @@ export default function DocsListSidebarSection() {
               <Link
                 key={d.id}
                 href={href}
-                className={`flex items-center gap-2 rounded-lg px-2.5 py-1.5 transition-colors ${
+                className={`group flex items-center gap-2 rounded-lg px-2.5 py-1.5 transition-colors ${
                   active
-                    ? "bg-brand-50 text-brand-600 dark:bg-brand-900/30 dark:text-brand-400"
-                    : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+                    ? "bg-gray-100 text-gray-900 dark:bg-gray-905 dark:text-gray-100"
+                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-905 dark:hover:text-gray-100"
                 }`}
                 title={d.scope === "PERSONAL" ? "Personal — only you" : undefined}
               >
                 {d.scope === "PERSONAL" ? (
-                  <LuLock className="w-3.5 h-3.5 shrink-0 text-gray-400" />
+                  <LuLock className="w-3.5 h-3.5 shrink-0 text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-000" />
                 ) : (
-                  <LuFileText className="w-3.5 h-3.5 shrink-0 text-gray-400" />
+                  <LuFileText className="w-3.5 h-3.5 shrink-0 text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-000" />
                 )}
                 <span className="truncate">{d.title || "Untitled"}</span>
               </Link>
@@ -70,7 +70,7 @@ export default function DocsListSidebarSection() {
 
       <button
         onClick={() => setCreateOpen(true)}
-        className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 mt-1 w-full text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-brand-500 transition-colors"
+        className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 mt-1 w-full text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-905 dark:hover:text-gray-000 transition-colors"
       >
         <LuPlus className="w-4 h-4" />
         <span>New Doc</span>
