@@ -31,4 +31,8 @@ export const queryKeys = {
     ["favorites", workspaceId] as const,
   statuses: (projectId: string) => ["statuses", projectId] as const,
   tags: (workspaceId: string | null) => ["tags", workspaceId] as const,
+  aiConversations: (workspaceId: string | null) =>
+    ["ai-conversations", workspaceId] as const,
+  aiConversation: (workspaceId: string | null, id: string | null) =>
+    ["ai-conversations", workspaceId, id] as const,
 } as const;
