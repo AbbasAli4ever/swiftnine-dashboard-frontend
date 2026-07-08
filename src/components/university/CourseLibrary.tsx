@@ -285,6 +285,7 @@ function CourseCard({ course }: { course: CatalogCourse }) {
           </button>
         </div>
       </div>
-    </div>
   );
 }
+
+

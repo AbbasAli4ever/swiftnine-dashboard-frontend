@@ -110,7 +110,11 @@ export function useChatConversations() {
       const key = queryKeys.aiConversation(workspaceId, conversationId);
       queryClient.setQueryData<AiConversationDetail>(key, (prev) =>
         prev
-          ? { ...prev, messages: [...prev.messages, message], updatedAt: message.createdAt }
+          ? {
+              ...prev,
+              messages: [...prev.messages, { ...message, status: message.status ?? "complete" }],
+              updatedAt: message.createdAt,
+            }
           : prev
       );
       queryClient.setQueryData<AiConversationSummary[]>(listKey, (prev) =>
