@@ -12,6 +12,7 @@
 
 import axios, { type AxiosError } from "axios";
 import { getAccessToken } from "@/stores/auth.store";
+import { refreshSession, redirectToLogin } from "@/lib/api";
 
 const UNIVERSITY_BASE =
   process.env.NEXT_PUBLIC_UNIVERSITY_API_URL ?? "http://localhost:3003/api/v1";
@@ -33,6 +34,35 @@ universityApi.interceptors.request.use((config) => {
   }
   return config;
 });
+
+// ── Response: refresh-on-401 ──────────────────────────────────────────────────
+// Mirrors src/lib/api.ts's interceptor — reuses the same single-flight
+// refreshSession() so a University API 401 doesn't trigger a duplicate
+// /auth/refresh call if one is already in flight from the main api client.
+universityApi.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalConfig = error.config;
+
+    if (error.response?.status !== 401 || originalConfig?._retry) {
+      if (error.response?.status === 401 && originalConfig?._retry) {
+        redirectToLogin();
+      }
+      return Promise.reject(error);
+    }
+
+    originalConfig._retry = true;
+
+    try {
+      const { accessToken } = await refreshSession();
+      originalConfig.headers.Authorization = `Bearer ${accessToken}`;
+      return universityApi(originalConfig);
+    } catch {
+      redirectToLogin();
+      return Promise.reject(error);
+    }
+  }
+);
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

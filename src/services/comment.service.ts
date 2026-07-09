@@ -1,4 +1,4 @@
-import { api } from "@/lib/api";
+import { api, refreshSession, redirectToLogin } from "@/lib/api";
 import { getAccessToken } from "@/stores/auth.store";
 
 interface ApiWrapper<T> {
@@ -144,6 +144,17 @@ export const commentService = {
           },
           signal,
         });
+
+        // 401 = expired JWT — refresh before the retry loop re-reads the token.
+        if (res.status === 401) {
+          try {
+            await refreshSession();
+            return "reconnect";
+          } catch {
+            redirectToLogin();
+            return "done";
+          }
+        }
 
         if (!res.ok || !res.body) {
           return "reconnect";

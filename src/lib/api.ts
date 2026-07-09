@@ -34,11 +34,10 @@ api.interceptors.request.use((config) => {
 });
 
 // ── Shared refresh session ────────────────────────────────────────────────────
-// Single in-flight promise shared by both the 401 interceptor and AuthContext.
+// Single in-flight promise shared by every caller (this interceptor,
+// universityApi.ts, the socket clients, the SSE streams, and AuthContext).
 // This guarantees only ONE /auth/refresh HTTP call fires at a time, preventing
 // rotating-token reuse errors when multiple callers race to refresh.
-let refreshPromise: Promise<string> | null = null;
-
 export interface RefreshResult {
   accessToken: string;
   user: import("@/stores/auth.store").AuthUser;
@@ -56,16 +55,12 @@ export function refreshSession(): Promise<RefreshResult> {
       })
       .finally(() => {
         _refreshPromiseFull = null;
-        refreshPromise = null;
       });
-
-    // Keep the token-only promise in sync for the interceptor
-    refreshPromise = _refreshPromiseFull.then((d) => d.accessToken);
   }
   return _refreshPromiseFull;
 }
 
-function redirectToLogin() {
+export function redirectToLogin() {
   clearAccessToken();
   if (typeof window !== "undefined") {
     window.location.href = "/signin";
@@ -115,30 +110,13 @@ api.interceptors.response.use(
     originalConfig._retry = true;
 
     try {
-      // Deduplicate — multiple concurrent 401s share one refresh call
-      if (!refreshPromise) {
-        refreshPromise = _refreshPromiseFull
-          ? _refreshPromiseFull.then((d) => d.accessToken)
-          : api
-              .post<{ accessToken: string }>("/auth/refresh")
-              .then((res) => {
-                const newToken = res.data.accessToken;
-                setAccessToken(newToken);
-                return newToken;
-              })
-              .catch((err) => {
-                refreshPromise = null;
-                return Promise.reject(err);
-              })
-              .finally(() => {
-                refreshPromise = null;
-              });
-      }
-
-      const newToken = await refreshPromise;
+      // Deduplicate — shares the same in-flight refresh as every other
+      // caller (universityApi, sockets, SSE streams), so a 401 here never
+      // races a second, independent /auth/refresh call against them.
+      const { accessToken } = await refreshSession();
 
       // Retry original request with the fresh token
-      originalConfig.headers.Authorization = `Bearer ${newToken}`;
+      originalConfig.headers.Authorization = `Bearer ${accessToken}`;
       return api(originalConfig);
     } catch {
       // Refresh failed — cookie expired or missing, send user to login
