@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useModal } from "@/hooks/useModal";
@@ -15,6 +15,7 @@ import { TaskListItem } from "@/services/task.service";
 import { useWorkspaceMembers } from "@/hooks/useWorkspaceMembers";
 import { getTaskSearchCacheKey, useTaskSearchStore } from "@/stores/task-search.store";
 import { useTaskStore } from "@/stores/task.store";
+import { useInfiniteTaskSearch } from "@/hooks/useInfiniteTaskSearch";
 import TaskListView, { TaskListSectionData } from "./TaskListView";
 import TaskBoard from "./TaskBoard";
 import TaskDashboardHome from "./TaskDashboardHome";
@@ -164,6 +165,33 @@ export default function TasksPage() {
     return { type: "project" as const, projectId };
   }, [projectId, selectedList, isProjectLocked]);
 
+  // Mirrors TaskBoard's own isProjectBoard check — a project with exactly one
+  // active list and no list selected still takes the single-list board path.
+  const boardLists = selectedList ? [selectedList] : activeLists;
+  const isProjectBoardView = boardLists.length > 1;
+  const boardScope = currentView === "board" && !isProjectBoardView && boardLists.length === 1
+    ? taskScope
+    : null;
+  const boardQuery = useInfiniteTaskSearch(boardScope, taskSearchParams);
+  const lastBoardKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!boardScope || boardQuery.isLoading) return;
+    const boardListId = boardLists[0].id;
+    if (lastBoardKeyRef.current !== boardQuery.queryKeyString) {
+      lastBoardKeyRef.current = boardQuery.queryKeyString;
+      useTaskStore.getState().setTasksForLists({ [boardListId]: boardQuery.items });
+      return;
+    }
+    const existing = useTaskStore.getState().tasksByList[boardListId] ?? [];
+    const existingIds = new Set(existing.map((t) => t.id));
+    const toAppend = boardQuery.items.filter((t) => !existingIds.has(t.id));
+    if (toAppend.length > 0) {
+      useTaskStore.getState().setTasksForLists({ [boardListId]: [...existing, ...toAppend] });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boardScope, boardQuery.items, boardQuery.isLoading, boardQuery.queryKeyString]);
+
   const pagedCacheKey = useMemo(() => (
     taskScope ? getTaskSearchCacheKey(taskScope, taskSearchParams, "page") : null
   ), [taskScope, taskSearchParams]);
@@ -185,9 +213,10 @@ export default function TasksPage() {
     void searchProject(taskScope.projectId, taskSearchParams, "page");
   }, [currentView, taskScope, taskSearchParams, searchList, searchProject]);
 
-  // Full (all-pages) cache only backs Calendar and single-list Board — Overview/Attachments never read it.
+  // Full (all-pages) cache only backs Calendar — Board uses useInfiniteTaskSearch instead
+  // (see boardQuery above) so it never eagerly downloads every page.
   useEffect(() => {
-    if (!taskScope || (currentView !== "board" && currentView !== "calendar")) return;
+    if (!taskScope || currentView !== "calendar") return;
     if (taskScope.type === "list") {
       void searchList(taskScope.projectId, taskScope.listId, taskSearchParams, "all");
       return;
@@ -212,8 +241,10 @@ export default function TasksPage() {
   useEffect(() => {
     // Overview/Attachments don't fetch pagedCache/fullCache, so groupedTasksByList would
     // be empty placeholders here — only sync into the shared task store for views that
-    // actually populate it (List/Board/Calendar), so we don't clobber Board's per-list cache.
-    if (!projectId || currentView === "overview" || currentView === "attachments") return;
+    // actually populate it (List/Calendar). Board is excluded: it's synced separately by
+    // the boardQuery effect above, and groupedTasksByList (derived from the now Calendar-only
+    // fullCache) would otherwise race with and wipe that data.
+    if (!projectId || currentView === "overview" || currentView === "attachments" || currentView === "board") return;
     setTasksForLists(groupedTasksByList);
   }, [currentView, groupedTasksByList, projectId, setTasksForLists]);
 
@@ -417,7 +448,7 @@ export default function TasksPage() {
   const isLoadingTasks = taskScope
     ? currentView === "list"
       ? !pagedCache || pagedCache.loading
-      : currentView === "board" || currentView === "calendar"
+      : currentView === "calendar"
         ? !fullCache || fullCache.loading
         : false
     : false;
@@ -544,14 +575,18 @@ export default function TasksPage() {
         {!isLoadingTasks && currentView === "board" ? (
           <TaskBoard
             projectId={project.id}
-            lists={selectedList ? [selectedList] : activeLists}
+            lists={boardLists}
             statuses={statuses}
             members={members}
             onOpenTaskDetail={(taskId) => void openTaskDetailById(taskId)}
             onRefetchMembers={refetchMembers}
             disableAutoFetch
-            disableSameStatusReorder={disableBoardReorder}
-            taskSearchParams={selectedList ? undefined : taskSearchParams}
+            disableSameStatusReorder={disableBoardReorder || (boardQuery.hasNextPage ?? false)}
+            taskSearchParams={taskSearchParams}
+            fetchNextPage={boardQuery.fetchNextPage}
+            hasNextPage={boardQuery.hasNextPage}
+            isFetchingNextPage={boardQuery.isFetchingNextPage}
+            boardInitialLoading={boardQuery.isLoading}
           />
         ) : null}
 
