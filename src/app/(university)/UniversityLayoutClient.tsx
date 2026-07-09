@@ -36,7 +36,9 @@ export default function UniversityLayoutClient({
         <AppSidebar hasHeader={true} />
         <div className="flex flex-col flex-1 min-w-0 ml-80 overflow-hidden">
           <main className="flex-1 overflow-y-auto border border-t border-r border-b mr-2 mb-2 rounded-tr-lg rounded-br-lg border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+            <div className="max-w-[1400px] mx-auto">
             {children}
+            </div>
           </main>
         </div>
       </div>

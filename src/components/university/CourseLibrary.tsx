@@ -40,15 +40,15 @@ export default function CourseLibrary() {
   return (
     <div className="p-6">
       {/* Category filters */}
-      <div className="flex gap-2  flex-wrap mb-6">
+      <div className="flex gap-2 flex-wrap mb-6">
         {CATEGORIES.map((cat) => (
           <button
             key={cat.label}
             onClick={() => handleCategory(cat.value)}
-            className={`rounded-full px-4 py-1 text-sm font-medium transition-colors border ${
+            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors border ${
               activeCategoryValue === cat.value
-                ? "bg-[#7C3AED] text-white border-[#7C3AED] dark:border-transparent dark:bg-gray-000 dark:text-black"
-                : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-[#7C3AED] dark:hover:border-gray-000 dark:hover:text-gray-000 hover:text-[#7C3AED]"
+                ? "bg-[#7C3AED] text-white border-[#7C3AED]"
+                : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-[#7C3AED] hover:text-[#7C3AED]"
             }`}
           >
             {cat.label}
@@ -193,7 +193,7 @@ function CourseCard({ course }: { course: CatalogCourse }) {
   }
 
   return (
-    <div className="rounded-xl overflow-hidden bg-white dark:bg-gray-901 border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-all group">
+    <div className="relative rounded-xl overflow-hidden bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md transition-all group flex flex-col h-[365px]">
       {/* Thumbnail */}
       <div
         className={`relative h-40 shrink-0 overflow-hidden ${!course.coverImageUrl ? `bg-linear-to-br ${gradient} flex items-center justify-center` : ""}`}
@@ -257,34 +257,35 @@ function CourseCard({ course }: { course: CatalogCourse }) {
         </div>
       )}
 
-        <div className="border-t border-gray-200 dark:border-gray-800 pt-3 flex items-center justify-between">
-          <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+      {/* Pinned footer — always at bottom */}
+      <div className="absolute bottom-0 left-0 right-0 px-4 py-3 border-t border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 flex items-center justify-between">
+        <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+          <span className="flex items-center gap-1">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <rect x="1" y="1" width="10" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
+              <path d="M3 5h6M3 7.5h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+            </svg>
+            {course.totalLessons} lessons
+          </span>
+          {duration && (
             <span className="flex items-center gap-1">
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <rect x="1" y="1" width="10" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
-                <path d="M3 5h6M3 7.5h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.2"/>
+                <path d="M6 3.5v2.5l1.5 1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
               </svg>
-              {course.totalLessons} lessons
+              {duration}
             </span>
-            {duration && (
-              <span className="flex items-center gap-1">
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                  <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.2"/>
-                  <path d="M6 3.5v2.5l1.5 1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-                </svg>
-                {duration}
-              </span>
-            )}
-          </div>
-          <button
-            onClick={handleWatch}
-            disabled={enrolling}
-            className="rounded-lg bg-purple-50 dark:bg-gray-800 px-3 py-1.5 text-xs font-medium text-[#7C3AED] dark:text-gray-000 hover:bg-[#7C3AED] dark:hover:bg-gray-000 dark:hover:text-black hover:text-white transition-colors disabled:opacity-60"
-          >
-            {enrolling ? "Loading…" : isEnrolled ? "Continue" : "Watch Now"}
-          </button>
+          )}
         </div>
+        <button
+          onClick={handleWatch}
+          disabled={enrolling}
+          className="rounded-lg bg-purple-50 dark:bg-purple-900/30 px-3 py-1.5 text-xs font-medium text-[#7C3AED] hover:bg-[#7C3AED] hover:text-white transition-colors disabled:opacity-60"
+        >
+          {enrolling ? "Loading…" : isEnrolled ? "Continue" : "Watch Now"}
+        </button>
       </div>
+    </div>
   );
 }
 
