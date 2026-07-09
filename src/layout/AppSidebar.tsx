@@ -27,7 +27,7 @@ import ChannelSidebarSection from "@/components/channels/ChannelSidebarSection";
 import ChatbotPanelContent from "@/components/chatbot/ChatbotPanelContent";
 import { ICON_MAP } from "@/components/projects/IconColorPicker";
 import { toast } from "sonner";
-import { RiHomeSmileFill,RiInbox2Fill } from "react-icons/ri";
+import { RiInbox2Fill } from "react-icons/ri";
 import { BsReply,BsPersonCheck,BsPersonWorkspace  } from "react-icons/bs";
 import { GoPersonAdd } from "react-icons/go";
 import {
@@ -50,6 +50,7 @@ import {
   LuBookOpen,
   LuPlay,
   LuBotMessageSquare,
+  LuKanban,
 } from "react-icons/lu";
 import { MdChecklist } from "react-icons/md";
 
@@ -62,8 +63,9 @@ type RailItem = {
 };
 
 const railItems: RailItem[] = [
-  { id: "home", label: "Home", icon: <RiHomeSmileFill className="w-5 h-5" />, panel: "home" },
   { id: "lms",  label: "UNI",  icon: <LuBookOpen className="w-5 h-5" />,      panel: "lms" },
+  { id: "home", label: "Board", icon: <LuKanban className="w-5 h-5" />, panel: "home" },
+  { id: "chatbot", label: "SwiftBot", icon: <LuBotMessageSquare className="w-5 h-5" />, panel: "chatbot" },
 ];
 
 // ── Nav link definitions ─────────────────────────────────────────────────────
@@ -791,7 +793,7 @@ function HomePanelContent() {
       <div className="flex-1 space-y-0.5 overflow-y-auto no-scrollbar pb-4">
 
         {/* Home links */}
-        <p className="px-2 pb-2 text-[16px] font-semibold text-gray-900 dark:text-gray-100">Home</p>
+        <p className="px-2 pb-2 text-[16px] font-semibold text-gray-900 dark:text-gray-100">Board</p>
         {inboxLinks.map((item) => {
           const active = item.path === pathname || (item.path === "/" && pathname === "/");
           return (
@@ -1058,7 +1060,7 @@ function LmsPanelHeader() {
 const AppSidebar: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => {
   const router = useRouter();
   const pathname = usePathname();
-  const [activeRail, setActiveRail] = useState<string>("home");
+  const [activeRail, setActiveRail] = useState<string>("lms");
   const [inviteOpen, setInviteOpen] = useState(false);
   const isSettingsRoute = pathname.startsWith("/settings");
   const isLmsRoute = pathname.startsWith("/university");
