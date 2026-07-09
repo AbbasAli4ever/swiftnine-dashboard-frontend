@@ -24,6 +24,7 @@ import ListContextMenu from "@/components/projects/ListContextMenu";
 import DocsListSidebarSection from "@/components/docs/DocsListSidebarSection";
 import DmSidebarSection from "@/components/dm/DmSidebarSection";
 import ChannelSidebarSection from "@/components/channels/ChannelSidebarSection";
+import ChatbotPanelContent from "@/components/chatbot/ChatbotPanelContent";
 import { ICON_MAP } from "@/components/projects/IconColorPicker";
 import { toast } from "sonner";
 import { RiHomeSmileFill,RiInbox2Fill } from "react-icons/ri";
@@ -48,6 +49,7 @@ import {
   LuLayoutGrid,
   LuBookOpen,
   LuPlay,
+  LuBotMessageSquare,
 } from "react-icons/lu";
 import { MdChecklist } from "react-icons/md";
 
@@ -56,7 +58,7 @@ type RailItem = {
   id: string;
   label: string;
   icon: React.ReactNode;
-  panel: "home" | "lms" | "ai" | "teams" | "clips" | "more";
+  panel: "home" | "lms" | "chatbot" | "ai" | "teams" | "clips" | "more";
 };
 
 const railItems: RailItem[] = [
@@ -1060,12 +1062,14 @@ const AppSidebar: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => 
   const [inviteOpen, setInviteOpen] = useState(false);
   const isSettingsRoute = pathname.startsWith("/settings");
   const isLmsRoute = pathname.startsWith("/university");
+  const isChatRoute = pathname.startsWith("/chat");
 
   // Keep rail in sync with route on first load / direct navigation
   React.useEffect(() => {
     if (isLmsRoute) setActiveRail("lms");
+    else if (isChatRoute) setActiveRail("chatbot");
     else if (!isSettingsRoute) setActiveRail("home");
-  }, [isLmsRoute, isSettingsRoute]);
+  }, [isLmsRoute, isChatRoute, isSettingsRoute]);
 
   const isSettingsActive = isSettingsRoute && activeRail !== "lms";
 
@@ -1078,6 +1082,11 @@ const AppSidebar: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => 
     if (id === "lms") {
       setActiveRail("lms");
       router.push("/university");
+      return;
+    }
+    if (id === "chatbot") {
+      setActiveRail("chatbot");
+      router.push("/chat");
       return;
     }
     setActiveRail(id);
@@ -1147,8 +1156,9 @@ const AppSidebar: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => 
           <SettingsPanelContent />
         ) : (
           <>
-            {activeRail === "home" && <HomePanelContent />}
-            {activeRail === "lms"  && <LmsPanelContent />}
+            {activeRail === "home"    && <HomePanelContent />}
+            {activeRail === "lms"     && <LmsPanelContent />}
+            {activeRail === "chatbot" && <ChatbotPanelContent />}
           </>
         )}
       </div>
