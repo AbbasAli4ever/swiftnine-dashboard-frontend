@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useModal } from "@/hooks/useModal";
 import { useProjects } from "@/context/ProjectContext";
@@ -18,19 +19,21 @@ import TaskListView, { TaskListSectionData } from "./TaskListView";
 import TaskBoard from "./TaskBoard";
 import TaskDashboardHome from "./TaskDashboardHome";
 import TaskCalendarView from "./TaskCalendarView";
-import TaskForm from "./TaskForm";
-import TaskDetailModal from "./TaskDetailModal";
 import MinimizedTaskBar from "./MinimizedTaskBar";
-import CreateListModal from "./CreateListModal";
-import RenameListModal from "./RenameListModal";
-import ConfirmActionModal from "@/components/common/ConfirmActionModal";
-import TaskFiltersModal from "./TaskFiltersModal";
 import ProjectTaskHeader from "./ProjectTaskHeader";
 import ListTaskHeader from "./ListTaskHeader";
 import ProjectAttachments from "./ProjectAttachments";
 import ListAttachments from "./ListAttachments";
-import ProjectUnlockModal from "./ProjectUnlockModal";
 import TaskPagination from "./TaskPagination";
+
+// Opened on demand only — never visible on first paint, so defer their bundle cost.
+const TaskForm = dynamic(() => import("./TaskForm"), { ssr: false });
+const TaskDetailModal = dynamic(() => import("./TaskDetailModal"), { ssr: false });
+const CreateListModal = dynamic(() => import("./CreateListModal"), { ssr: false });
+const RenameListModal = dynamic(() => import("./RenameListModal"), { ssr: false });
+const ConfirmActionModal = dynamic(() => import("@/components/common/ConfirmActionModal"), { ssr: false });
+const TaskFiltersModal = dynamic(() => import("./TaskFiltersModal"), { ssr: false });
+const ProjectUnlockModal = dynamic(() => import("./ProjectUnlockModal"), { ssr: false });
 import {
   clearTaskSearchPatch,
   countActiveTaskSearchFilters,
@@ -172,17 +175,19 @@ export default function TasksPage() {
   const pagedCache = useTaskSearchStore((state) => (pagedCacheKey ? state.caches[pagedCacheKey] : undefined));
   const fullCache = useTaskSearchStore((state) => (fullCacheKey ? state.caches[fullCacheKey] : undefined));
 
+  // Paginated cache only backs the List tab (TaskListView + TaskPagination).
   useEffect(() => {
-    if (!taskScope) return;
+    if (!taskScope || currentView !== "list") return;
     if (taskScope.type === "list") {
       void searchList(taskScope.projectId, taskScope.listId, taskSearchParams, "page");
       return;
     }
     void searchProject(taskScope.projectId, taskSearchParams, "page");
-  }, [taskScope, taskSearchParams, searchList, searchProject]);
+  }, [currentView, taskScope, taskSearchParams, searchList, searchProject]);
 
+  // Full (all-pages) cache only backs Calendar and single-list Board — Overview/Attachments never read it.
   useEffect(() => {
-    if (!taskScope || currentView === "list") return;
+    if (!taskScope || (currentView !== "board" && currentView !== "calendar")) return;
     if (taskScope.type === "list") {
       void searchList(taskScope.projectId, taskScope.listId, taskSearchParams, "all");
       return;
@@ -205,9 +210,12 @@ export default function TasksPage() {
   }, [activeLists, activeSearchItems]);
 
   useEffect(() => {
-    if (!projectId) return;
+    // Overview/Attachments don't fetch pagedCache/fullCache, so groupedTasksByList would
+    // be empty placeholders here — only sync into the shared task store for views that
+    // actually populate it (List/Board/Calendar), so we don't clobber Board's per-list cache.
+    if (!projectId || currentView === "overview" || currentView === "attachments") return;
     setTasksForLists(groupedTasksByList);
-  }, [groupedTasksByList, projectId, setTasksForLists]);
+  }, [currentView, groupedTasksByList, projectId, setTasksForLists]);
 
   const listSections = useMemo<TaskListSectionData[]>(() => {
     return allLists.map((list) => ({
@@ -409,7 +417,9 @@ export default function TasksPage() {
   const isLoadingTasks = taskScope
     ? currentView === "list"
       ? !pagedCache || pagedCache.loading
-      : !fullCache || fullCache.loading
+      : currentView === "board" || currentView === "calendar"
+        ? !fullCache || fullCache.loading
+        : false
     : false;
 
   return (

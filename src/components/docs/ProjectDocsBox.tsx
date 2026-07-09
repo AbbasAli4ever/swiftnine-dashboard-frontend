@@ -1,46 +1,31 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { LuFileText, LuPlus } from "react-icons/lu";
-import { docsService, type Doc } from "@/services/docs.service";
 import { useWorkspace } from "@/context/WorkspaceContext";
+import { useDocs } from "@/context/DocsContext";
 import { parseApiError } from "@/lib/api";
 import { toast } from "sonner";
 
 export default function ProjectDocsBox({ projectId }: { projectId: string }) {
   const router = useRouter();
   const { activeWorkspace } = useWorkspace();
-  const [docs, setDocs] = useState<Doc[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { docs: allDocs, isLoading: loading, createDoc } = useDocs();
   const [creating, setCreating] = useState(false);
 
-  const fetchDocs = useCallback(async () => {
-    if (!activeWorkspace) return;
-    setLoading(true);
-    try {
-      const list = await docsService.list({
-        workspaceId: activeWorkspace.id,
-        projectId,
-        scope: "PROJECT",
-      });
-      setDocs(list);
-    } catch (e) {
-      toast.error(parseApiError(e).message);
-    } finally {
-      setLoading(false);
-    }
-  }, [activeWorkspace, projectId]);
-
-  useEffect(() => {
-    fetchDocs();
-  }, [fetchDocs]);
+  // DocsContext already fetches all of the workspace's docs (GET /docs?workspaceId=X) —
+  // filter client-side instead of firing a second, project-scoped /docs request.
+  const docs = useMemo(
+    () => allDocs.filter((d) => d.projectId === projectId && d.scope === "PROJECT"),
+    [allDocs, projectId]
+  );
 
   const createAndOpen = useCallback(async () => {
     if (!activeWorkspace || creating) return;
     setCreating(true);
     try {
-      const doc = await docsService.create({
+      const doc = await createDoc({
         title: "Untitled",
         scope: "PROJECT",
         workspaceId: activeWorkspace.id,
@@ -51,7 +36,7 @@ export default function ProjectDocsBox({ projectId }: { projectId: string }) {
       toast.error(parseApiError(e).message);
       setCreating(false);
     }
-  }, [activeWorkspace, creating, projectId, router]);
+  }, [activeWorkspace, createDoc, creating, projectId, router]);
 
   return (
     <div className="flex h-72 flex-col rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-901">
