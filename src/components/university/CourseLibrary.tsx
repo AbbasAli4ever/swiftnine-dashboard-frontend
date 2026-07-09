@@ -284,7 +284,6 @@ function CourseCard({ course }: { course: CatalogCourse }) {
             {enrolling ? "Loading…" : isEnrolled ? "Continue" : "Watch Now"}
           </button>
         </div>
-      </div>
     </div>
   );
 }

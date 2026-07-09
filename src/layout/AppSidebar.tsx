@@ -61,7 +61,7 @@ type RailItem = {
 
 const railItems: RailItem[] = [
   { id: "home", label: "Home", icon: <RiHomeSmileFill className="w-5 h-5" />, panel: "home" },
-  { id: "lms",  label: "LMS",  icon: <LuBookOpen className="w-5 h-5" />,      panel: "lms" },
+  { id: "lms",  label: "UNI",  icon: <LuBookOpen className="w-5 h-5" />,      panel: "lms" },
 ];
 
 // ── Nav link definitions ─────────────────────────────────────────────────────
@@ -1006,7 +1006,7 @@ function LmsPanelContent() {
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto no-scrollbar px-2 py-3 text-[13px]">
-      <p className="px-2 pb-3 text-sm font-semibold text-gray-900 dark:text-gray-100">LMS</p>
+      <p className="px-2 pb-3 text-sm font-semibold text-gray-900 dark:text-gray-100">University</p>
 
       <div className="space-y-0.5">
         <p className="px-2 pb-1 text-[11px] uppercase tracking-wide text-gray-400 font-normal">Main</p>
