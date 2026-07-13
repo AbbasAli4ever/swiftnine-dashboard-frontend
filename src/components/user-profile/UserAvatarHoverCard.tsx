@@ -19,7 +19,6 @@ interface Props {
   user: AvatarUser;
   size?: "sm" | "md";
   className?: string;
-  showChatAction?: boolean;
 }
 
 const AVATAR_COLORS = [
@@ -35,7 +34,7 @@ function hashColor(id: string): string {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 
-export default function UserAvatarHoverCard({ user, size = "md", className = "", showChatAction = true }: Props) {
+export default function UserAvatarHoverCard({ user, size = "md", className = "" }: Props) {
   const [hovered, setHovered] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -170,16 +169,15 @@ export default function UserAvatarHoverCard({ user, size = "md", className = "",
 
           {/* Action buttons */}
           <div className="flex gap-2 px-4 pb-4">
-            {/* Direct message to user - disabled on Board tab */}
-            {showChatAction && (
-              <button
-                type="button"
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-              >
-                <LuMessageSquare className="h-4 w-4" />
-                Chat
-              </button>
-            )}
+            {/* Direct chat message functionality - commented out for now
+            <button
+              type="button"
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            >
+              <LuMessageSquare className="h-4 w-4" />
+              Chat
+            </button>
+            */}
             <button
               type="button"
               onClick={handleViewProfile}

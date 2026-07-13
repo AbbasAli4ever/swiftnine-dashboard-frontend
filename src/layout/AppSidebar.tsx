@@ -915,8 +915,9 @@ function HomePanelContent() {
         {/* Channels */}
         <ChannelSidebarSection />
 
-        {/* Direct Messages */}
+        {/* Direct Messages - commented out for now
         <DmSidebarSection />
+        */}
       </div>
 
       {/* <div className="border-t border-gray-100 px-1 pt-3 dark:border-gray-800">
@@ -999,8 +1000,8 @@ function SettingsPanelContent() {
 }
 
 const lmsMainItems = [
-    { label: "Course Library", icon: LuBookOpen,    href: "/university/course-library", exact: false },
   { label: "Dashboard",     icon: LuLayoutGrid,  href: "/university",                exact: true },
+  { label: "Course Library", icon: LuBookOpen,    href: "/university/course-library", exact: false },
   { label: "My Learning",   icon: LuPlay,        href: "/university/my-learning",    exact: false },
 ];
 
