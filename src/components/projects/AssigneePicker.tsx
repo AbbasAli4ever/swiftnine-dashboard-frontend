@@ -34,9 +34,10 @@ interface AssigneePickerProps {
   align?: "left" | "right";
   iconSize?: "sm" | "md";
   showLabel?: boolean;
+  showChatAction?: boolean;
 }
 
-export default function AssigneePicker({ assignees, members, onAdd, onRemove, onOpen, align = "left", iconSize = "md", showLabel = false }: AssigneePickerProps) {
+export default function AssigneePicker({ assignees, members, onAdd, onRemove, onOpen, align = "left", iconSize = "md", showLabel = false, showChatAction = true }: AssigneePickerProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const ref = useRef<HTMLDivElement>(null);
@@ -93,6 +94,7 @@ export default function AssigneePicker({ assignees, members, onAdd, onRemove, on
                 key={a.user.id}
                 user={{ id: a.user.id, fullName: a.user.fullName, avatarColor: a.user.avatarColor }}
                 size="sm"
+                showChatAction={showChatAction}
               />
             ))}
             {assignees.length > 3 && (

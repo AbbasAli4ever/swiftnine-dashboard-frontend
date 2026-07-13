@@ -36,8 +36,8 @@ api.interceptors.request.use((config) => {
 // ── Shared refresh session ────────────────────────────────────────────────────
 // Single in-flight promise shared by every caller (this interceptor,
 // universityApi.ts, the socket clients, the SSE streams, and AuthContext).
-// This guarantees only ONE /auth/refresh HTTP call fires at a time, preventing
-// rotating-token reuse errors when multiple callers race to refresh.
+// This guarantees only ONE /auth/refresh HTTP call fires at a time per tab,
+// preventing rotating-token reuse errors when multiple callers race to refresh.
 export interface RefreshResult {
   accessToken: string;
   user: import("@/stores/auth.store").AuthUser;
@@ -45,17 +45,30 @@ export interface RefreshResult {
 
 let _refreshPromiseFull: Promise<RefreshResult> | null = null;
 
+// The refresh_token cookie is shared across every tab of this origin, and the
+// backend rotates it on each use (old token deleted immediately, no reuse
+// grace period). Without this lock, two tabs whose access tokens expire
+// around the same moment can both fire /auth/refresh with the same cookie;
+// the loser presents an already-consumed token and gets rejected. The Web
+// Locks API serializes the network call across tabs — the delayed tab still
+// succeeds afterwards because it picks up the already-rotated cookie.
+function withCrossTabLock<T>(fn: () => Promise<T>): Promise<T> {
+  if (typeof navigator === "undefined" || !("locks" in navigator)) {
+    return fn();
+  }
+  return navigator.locks.request("auth-refresh-lock", fn) as Promise<T>;
+}
+
 export function refreshSession(): Promise<RefreshResult> {
   if (!_refreshPromiseFull) {
-    _refreshPromiseFull = api
-      .post<RefreshResult>("/auth/refresh")
-      .then((res) => {
+    _refreshPromiseFull = withCrossTabLock(() =>
+      api.post<RefreshResult>("/auth/refresh").then((res) => {
         setAccessToken(res.data.accessToken);
         return res.data;
       })
-      .finally(() => {
-        _refreshPromiseFull = null;
-      });
+    ).finally(() => {
+      _refreshPromiseFull = null;
+    });
   }
   return _refreshPromiseFull;
 }
@@ -93,9 +106,11 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    // Already retried once — refresh itself must have failed, force re-login
+    // Already retried once with a freshly-refreshed token and still got a 401.
+    // That means this specific endpoint has its own problem — refreshSession()
+    // already proved the session itself is fine — so don't force a global
+    // logout, just let the error surface normally to whoever made this call.
     if (originalConfig._retry) {
-      redirectToLogin();
       return Promise.reject(error);
     }
 

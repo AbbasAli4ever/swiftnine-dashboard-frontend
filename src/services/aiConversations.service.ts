@@ -1,4 +1,9 @@
 import { api } from "@/lib/api";
+import {
+  chatAttachmentService,
+  type ChatAttachment,
+  type ChatMessageAttachment,
+} from "@/services/chatAttachment.service";
 
 export type AiMessageRole = "user" | "assistant";
 export type AiMessageStatus = "complete" | "aborted";
@@ -16,6 +21,7 @@ export interface AiConversationMessage {
   content: string;
   status: AiMessageStatus;
   createdAt: string;
+  attachments?: ChatMessageAttachment[];
 }
 
 export interface AiConversationDetail extends AiConversationSummary {
@@ -65,8 +71,26 @@ export const aiConversationsService = {
   },
 
   async get(id: string): Promise<AiConversationDetail> {
-    const { data } = await api.get<{ data: WireConversationDetail }>(`/ai-conversations/${id}`);
-    return { ...data.data, messages: data.data.messages.map(fromWireMessage) };
+    const [{ data }, attachments] = await Promise.all([
+      api.get<{ data: WireConversationDetail }>(`/ai-conversations/${id}`),
+      chatAttachmentService.listByConversation(id).catch(() => [] as ChatAttachment[]),
+    ]);
+
+    const attachmentsByMessageId = new Map<string, ChatAttachment[]>();
+    for (const attachment of attachments) {
+      if (!attachment.messageId) continue;
+      const existing = attachmentsByMessageId.get(attachment.messageId);
+      if (existing) existing.push(attachment);
+      else attachmentsByMessageId.set(attachment.messageId, [attachment]);
+    }
+
+    return {
+      ...data.data,
+      messages: data.data.messages.map((m) => ({
+        ...fromWireMessage(m),
+        attachments: attachmentsByMessageId.get(m.id) ?? [],
+      })),
+    };
   },
 
   async create(title?: string): Promise<AiConversationSummary> {

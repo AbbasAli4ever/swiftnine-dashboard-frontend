@@ -10,9 +10,13 @@ import {
   aiConversationsService,
   type AiConversationSummary,
   type AiConversationDetail,
+  type AiConversationMessage,
   type AiMessageRole,
   type AiMessageStatus,
 } from "@/services/aiConversations.service";
+import type { ChatMessageAttachment } from "@/services/chatAttachment.service";
+
+export type { ChatMessageAttachment };
 
 export interface ChatMessage {
   id: string;
@@ -20,6 +24,7 @@ export interface ChatMessage {
   content: string;
   status?: AiMessageStatus;
   createdAt: string;
+  attachments?: ChatMessageAttachment[];
 }
 
 export interface ChatConversationSummary {
@@ -129,7 +134,11 @@ export function useChatConversations() {
   // Network-only — persists a message that's already showing in the cache
   // (by id), then reconciles the client-generated id with the server's.
   const persistMessage = useCallback(
-    async (conversationId: string, message: ChatMessage, options?: { title?: string }) => {
+    async (
+      conversationId: string,
+      message: ChatMessage,
+      options?: { title?: string }
+    ): Promise<AiConversationMessage | undefined> => {
       const key = queryKeys.aiConversation(workspaceId, conversationId);
       try {
         const saved = await aiConversationsService.appendMessage(conversationId, {
@@ -148,15 +157,17 @@ export function useChatConversations() {
             prev?.map((c) => (c.id === conversationId && !c.title ? { ...c, title: options.title! } : c))
           );
         }
+        return saved;
       } catch (err) {
         if (isNotFound(err)) {
           // The conversation this message belongs to doesn't exist on this
           // backend (stale id from another environment, or deleted elsewhere).
           setActiveConversationId(null);
-          return;
+          return undefined;
         }
         // Otherwise the message stays visible locally for this session even
         // though persistence failed; a later reload reflects the backend truth.
+        return undefined;
       }
     },
     [queryClient, workspaceId, listKey, setActiveConversationId]
@@ -167,7 +178,7 @@ export function useChatConversations() {
   const appendMessage = useCallback(
     async (conversationId: string, message: ChatMessage, options?: { title?: string }) => {
       insertLocalMessage(conversationId, message);
-      await persistMessage(conversationId, message, options);
+      return persistMessage(conversationId, message, options);
     },
     [insertLocalMessage, persistMessage]
   );
@@ -181,6 +192,24 @@ export function useChatConversations() {
         messages[messages.length - 1] = { ...messages[messages.length - 1], content };
         return { ...prev, messages };
       });
+    },
+    [queryClient, workspaceId]
+  );
+
+  // Cache-only — patches the attachments on a specific message once they're
+  // known (e.g. after a synchronous document-generation call resolves for a
+  // message that was created moments earlier without any attachments yet).
+  const setMessageAttachments = useCallback(
+    (conversationId: string, messageId: string, attachments: ChatMessageAttachment[]) => {
+      const key = queryKeys.aiConversation(workspaceId, conversationId);
+      queryClient.setQueryData<AiConversationDetail>(key, (prev) =>
+        prev
+          ? {
+              ...prev,
+              messages: prev.messages.map((m) => (m.id === messageId ? { ...m, attachments } : m)),
+            }
+          : prev
+      );
     },
     [queryClient, workspaceId]
   );
@@ -252,6 +281,7 @@ export function useChatConversations() {
     insertLocalMessage,
     persistMessage,
     updateLastMessage,
+    setMessageAttachments,
     removeLastMessage,
     deleteConversation,
     renameConversation,

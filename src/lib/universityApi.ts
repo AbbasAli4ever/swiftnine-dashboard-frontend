@@ -44,10 +44,10 @@ universityApi.interceptors.response.use(
   async (error) => {
     const originalConfig = error.config;
 
+    // Already retried once with a freshly-refreshed token and still got a 401.
+    // refreshSession() already proved the session itself is fine, so this is
+    // this endpoint's own problem — don't force a global logout for it.
     if (error.response?.status !== 401 || originalConfig?._retry) {
-      if (error.response?.status === 401 && originalConfig?._retry) {
-        redirectToLogin();
-      }
       return Promise.reject(error);
     }
 

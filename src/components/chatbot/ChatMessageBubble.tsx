@@ -4,6 +4,7 @@ import { LuBotMessageSquare, LuCopy, LuCheck, LuRotateCcw } from "react-icons/lu
 import { getInitials } from "@/lib/getInitials";
 import type { ChatMessage } from "@/hooks/useChatConversations";
 import ChatMarkdown from "@/components/chatbot/ChatMarkdown";
+import ChatAttachmentList from "@/components/chatbot/ChatAttachmentList";
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 
 function formatTime(iso: string) {
@@ -14,10 +15,14 @@ export default function ChatMessageBubble({
   message,
   userName,
   onRetry,
+  onRegenerateImage,
+  isRegeneratingImage,
 }: {
   message: ChatMessage;
   userName: string;
   onRetry?: () => void;
+  onRegenerateImage?: () => void;
+  isRegeneratingImage?: boolean;
 }) {
   const isUser = message.role === "user";
   const { copy, copied } = useCopyToClipboard();
@@ -41,11 +46,21 @@ export default function ChatMessageBubble({
           <span className="text-xs text-gray-400">{formatTime(message.createdAt)}</span>
         </div>
         {isUser ? (
-          <p className="text-sm text-gray-700 dark:text-gray-300 mt-0.5 leading-relaxed whitespace-pre-wrap">
-            {message.content}
-          </p>
+          <div className="mt-0.5">
+            <ChatAttachmentList attachments={message.attachments} />
+            {message.content && (
+              <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
+                {message.content}
+              </p>
+            )}
+          </div>
         ) : (
           <div className="mt-0.5">
+            <ChatAttachmentList
+              attachments={message.attachments}
+              onRegenerate={onRegenerateImage}
+              regenerating={isRegeneratingImage}
+            />
             <ChatMarkdown content={message.content} />
             <div className="flex items-center gap-3 mt-1.5">
               <button

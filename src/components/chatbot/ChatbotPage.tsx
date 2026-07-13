@@ -5,14 +5,16 @@ import { LuBotMessageSquare, LuSparkles } from "react-icons/lu";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { useChatConversations, deriveTitle, type ChatMessage } from "@/hooks/useChatConversations";
-import {
-  chatbotService,
-  ChatbotHttpError,
-  type ChatCompletionMessage,
-} from "@/services/chatbot.service";
+import { chatbotService, type ChatCompletionMessage } from "@/services/ai/chatbot.service";
+import { AiHttpError } from "@/services/ai/http";
+import { imageGenerationService } from "@/services/ai/imageGeneration.service";
+import { documentGenerationService } from "@/services/ai/documentGeneration.service";
 import ChatMessageBubble from "@/components/chatbot/ChatMessageBubble";
-import ChatMessageInput from "@/components/chatbot/ChatMessageInput";
+import ChatMessageInput, { type ChatComposerAttachment } from "@/components/chatbot/ChatMessageInput";
 import ChatTypingIndicator from "@/components/chatbot/ChatTypingIndicator";
+import { chatAttachmentService, inferAttachmentType } from "@/services/chatAttachment.service";
+import { uploadChatAttachment } from "@/lib/uploadChatAttachment";
+import { parseApiError } from "@/lib/api";
 
 const SUGGESTED_PROMPTS = [
   "Help me draft a project update email",
@@ -64,11 +66,15 @@ export default function ChatbotPage() {
     insertLocalMessage,
     persistMessage,
     updateLastMessage,
+    setMessageAttachments,
     removeLastMessage,
   } = useChatConversations();
 
   const [isStreaming, setIsStreaming] = useState(false);
   const [awaitingFirstToken, setAwaitingFirstToken] = useState(false);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [isGeneratingDocument, setIsGeneratingDocument] = useState(false);
+  const [documentKind, setDocumentKind] = useState<"pdf" | "ppt" | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -80,6 +86,13 @@ export default function ChatbotPage() {
 
   const handleStop = () => {
     abortControllerRef.current?.abort();
+  };
+
+  // Lazily creates a conversation the moment a file is dropped, before any
+  // message text has been sent — attachments need a conversationId to
+  // presign against.
+  const ensureConversationId = async (): Promise<string> => {
+    return activeConversationId ?? (await createConversation());
   };
 
   // Streams a completion for `apiMessages` into `conversationId`, handling the
@@ -136,7 +149,7 @@ export default function ChatbotPage() {
           });
         }
       } else {
-        if (err instanceof ChatbotHttpError && err.status === 429) {
+        if (err instanceof AiHttpError && err.status === 429) {
           toast.error(
             "SwiftBot is getting a lot of requests right now — please wait a moment and try again."
           );
@@ -159,8 +172,9 @@ export default function ChatbotPage() {
     }
   };
 
-  const handleSend = async (text: string) => {
-    const conversationId = activeConversationId ?? (await createConversation());
+  const handleSend = async (text: string, attachments: ChatComposerAttachment[] = []) => {
+    if (!text.trim() && attachments.length === 0) return;
+    const conversationId = await ensureConversationId();
     // A conversation with no messages yet has no title — true whether it was
     // just created above or was already sitting empty (e.g. from clicking
     // "New chat" in the panel before typing anything).
@@ -171,12 +185,37 @@ export default function ChatbotPage() {
       role: "user",
       content: text,
       createdAt: new Date().toISOString(),
+      attachments: attachments.map((a) => ({
+        id: a.attachmentId,
+        fileName: a.fileName,
+        mimeType: a.mimeType,
+        fileSize: a.fileSize,
+        attachmentType: inferAttachmentType(a.mimeType),
+        url: a.previewUrl ?? null,
+        previewUrl: a.previewUrl,
+        status: "ready",
+      })),
     };
-    // Fire-and-forget: persists immediately so the turn survives even if the
-    // OpenAI stream that follows fails or is aborted.
-    void appendMessage(conversationId, userMessage, {
-      title: isFirstMessage ? deriveTitle(text) : undefined,
-    });
+
+    if (attachments.length > 0) {
+      // Attachments need the server-assigned messageId before they can be
+      // confirm-linked, so this path awaits instead of the usual
+      // fire-and-forget persist.
+      const saved = await appendMessage(conversationId, userMessage, {
+        title: isFirstMessage ? deriveTitle(text || attachments[0].fileName) : undefined,
+      });
+      if (saved) {
+        await Promise.allSettled(
+          attachments.map((a) => chatAttachmentService.confirm(a.attachmentId, { messageId: saved.id }))
+        );
+      }
+    } else {
+      // Fire-and-forget: persists immediately so the turn survives even if
+      // the OpenAI stream that follows fails or is aborted.
+      void appendMessage(conversationId, userMessage, {
+        title: isFirstMessage ? deriveTitle(text) : undefined,
+      });
+    }
 
     const apiMessages: ChatCompletionMessage[] = [...messages, userMessage].map((m) => ({
       role: m.role,
@@ -199,9 +238,184 @@ export default function ChatbotPage() {
     await runCompletion(activeConversationId, apiMessages);
   };
 
+  // Generates an image for `prompt` and attaches it to a new assistant
+  // message. Shared by both a fresh generation and Regenerate.
+  const runImageGeneration = async (conversationId: string, prompt: string) => {
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    setIsGeneratingImage(true);
+
+    try {
+      const { blob, mimeType, fileName } = await imageGenerationService.generate(
+        prompt,
+        controller.signal
+      );
+      const file = new File([blob], fileName, { type: mimeType });
+      const previewUrl = URL.createObjectURL(file);
+      const { attachmentId } = await uploadChatAttachment(
+        file,
+        conversationId,
+        undefined,
+        controller.signal,
+        "generated-image"
+      );
+
+      const assistantMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: prompt,
+        createdAt: new Date().toISOString(),
+        attachments: [
+          {
+            id: attachmentId,
+            fileName,
+            mimeType,
+            fileSize: file.size,
+            attachmentType: "generated-image",
+            url: previewUrl,
+            previewUrl,
+            status: "ready",
+          },
+        ],
+      };
+      const saved = await appendMessage(conversationId, assistantMessage);
+      if (saved) {
+        await chatAttachmentService.confirm(attachmentId, { messageId: saved.id });
+      }
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") {
+        if (err instanceof AiHttpError && err.status === 429) {
+          toast.error(
+            "SwiftBot's image generator is getting a lot of requests right now — please wait a moment and try again."
+          );
+        } else {
+          toast.error(err instanceof Error ? err.message : "Failed to generate image.");
+        }
+      }
+    } finally {
+      setIsGeneratingImage(false);
+      abortControllerRef.current = null;
+    }
+  };
+
+  const handleGenerateImage = async (prompt: string) => {
+    if (!prompt.trim()) return;
+    const conversationId = await ensureConversationId();
+    const isFirstMessage = messages.length === 0;
+
+    void appendMessage(
+      conversationId,
+      {
+        id: crypto.randomUUID(),
+        role: "user",
+        content: prompt,
+        createdAt: new Date().toISOString(),
+      },
+      { title: isFirstMessage ? deriveTitle(prompt) : undefined }
+    );
+
+    await runImageGeneration(conversationId, prompt);
+  };
+
+  const retryLastImage = async () => {
+    if (isStreaming || isGeneratingImage || !activeConversationId || messages.length < 2) return;
+    const last = messages[messages.length - 1];
+    const promptMessage = messages[messages.length - 2];
+    if (last.role !== "assistant" || promptMessage.role !== "user") return;
+
+    const attachmentId = last.attachments?.[0]?.id;
+    await removeLastMessage(activeConversationId);
+    if (attachmentId) {
+      await chatAttachmentService.remove(attachmentId).catch(() => {});
+    }
+    await runImageGeneration(activeConversationId, promptMessage.content);
+  };
+
+  // Drafts structured content for `prompt` via OpenAI, renders it into a
+  // PDF/PPT on the backend, and attaches the result to a new assistant
+  // message. The backend already links the attachment to the message in one
+  // call, so — unlike image generation — there's no separate confirm step.
+  const runDocumentGeneration = async (conversationId: string, prompt: string, kind: "pdf" | "ppt") => {
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    setIsGeneratingDocument(true);
+    setDocumentKind(kind);
+
+    try {
+      const { title, sections } = await documentGenerationService.draftContent(prompt, controller.signal);
+
+      const assistantMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: `Here's your generated ${kind === "pdf" ? "PDF" : "presentation"}: ${title}`,
+        createdAt: new Date().toISOString(),
+      };
+      const saved = await appendMessage(conversationId, assistantMessage);
+      if (!saved) return;
+
+      const generate =
+        kind === "pdf" ? documentGenerationService.generatePdf : documentGenerationService.generatePpt;
+      const attachment = await generate({ conversationId, messageId: saved.id, title, sections });
+
+      setMessageAttachments(conversationId, saved.id, [
+        {
+          id: attachment.id,
+          fileName: attachment.fileName,
+          mimeType: attachment.mimeType,
+          fileSize: attachment.fileSize,
+          attachmentType: attachment.attachmentType,
+          url: attachment.url,
+          status: "ready",
+        },
+      ]);
+    } catch (err) {
+      if ((err as Error).name === "AbortError") {
+        // silently swallowed, matching the image-generation abort path
+      } else if (err instanceof AiHttpError && err.status === 429) {
+        toast.error(
+          "SwiftBot is getting a lot of requests right now — please wait a moment and try again."
+        );
+      } else if (err instanceof AiHttpError) {
+        toast.error(err.message);
+      } else {
+        toast.error(
+          parseApiError(err).message || `Failed to generate ${kind === "pdf" ? "PDF" : "presentation"}.`
+        );
+      }
+    } finally {
+      setIsGeneratingDocument(false);
+      setDocumentKind(null);
+      abortControllerRef.current = null;
+    }
+  };
+
+  const handleGenerateDocument = async (prompt: string, kind: "pdf" | "ppt") => {
+    if (!prompt.trim()) return;
+    const conversationId = await ensureConversationId();
+    const isFirstMessage = messages.length === 0;
+
+    void appendMessage(
+      conversationId,
+      {
+        id: crypto.randomUUID(),
+        role: "user",
+        content: prompt,
+        createdAt: new Date().toISOString(),
+      },
+      { title: isFirstMessage ? deriveTitle(prompt) : undefined }
+    );
+
+    await runDocumentGeneration(conversationId, prompt, kind);
+  };
+
   const showWelcome = !activeConversation || messages.length === 0;
   const canRetry =
     !isStreaming && !showWelcome && messages[messages.length - 1]?.role === "assistant";
+  const canRetryImage =
+    !isStreaming &&
+    !isGeneratingImage &&
+    !showWelcome &&
+    messages[messages.length - 1]?.attachments?.[0]?.attachmentType === "generated-image";
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -226,14 +440,33 @@ export default function ChatbotPage() {
               message={message}
               userName={userName}
               onRetry={canRetry && index === messages.length - 1 ? retryLastMessage : undefined}
+              onRegenerateImage={
+                canRetryImage && index === messages.length - 1 ? retryLastImage : undefined
+              }
+              isRegeneratingImage={isGeneratingImage && index === messages.length - 1}
             />
           ))}
           {awaitingFirstToken && <ChatTypingIndicator />}
+          {isGeneratingImage && <ChatTypingIndicator label="Generating image…" />}
+          {isGeneratingDocument && (
+            <ChatTypingIndicator
+              label={documentKind === "ppt" ? "Generating presentation…" : "Generating PDF…"}
+            />
+          )}
           <div ref={bottomRef} />
         </div>
       )}
 
-      <ChatMessageInput onSend={handleSend} isStreaming={isStreaming} onStop={handleStop} />
+      <ChatMessageInput
+        onSend={handleSend}
+        onGenerateImage={handleGenerateImage}
+        onGenerateDocument={handleGenerateDocument}
+        isStreaming={isStreaming}
+        isGeneratingImage={isGeneratingImage}
+        isGeneratingDocument={isGeneratingDocument}
+        onStop={handleStop}
+        ensureConversationId={ensureConversationId}
+      />
     </div>
   );
 }

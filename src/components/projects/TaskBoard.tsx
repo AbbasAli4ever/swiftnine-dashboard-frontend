@@ -172,7 +172,7 @@ function CardContent({
       )}
       {!ghost && (
         <div className="flex items-center gap-1.5 flex-wrap" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-          <AssigneePicker assignees={task.assignees} members={members} onAdd={handleAddAssignee} onRemove={handleRemoveAssignee} onOpen={onRefetchMembers} iconSize="sm" />
+          <AssigneePicker assignees={task.assignees} members={members} onAdd={handleAddAssignee} onRemove={handleRemoveAssignee} onOpen={onRefetchMembers} iconSize="sm" showChatAction={false} />
           <DatePicker startDate={task.startDate} dueDate={task.dueDate} onChange={(r) => handleUpdateDates(r.startDate, r.dueDate)} iconSize="sm" />
           <PriorityPicker value={task.priority} onChange={handleUpdatePriority} onClear={() => handleUpdatePriority("NONE")} iconSize="sm" />
           <div className="ml-auto">
