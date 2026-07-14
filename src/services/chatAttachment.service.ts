@@ -13,6 +13,8 @@ export type ChatAttachmentType =
   | "generated-pdf"
   | "generated-ppt";
 
+export type ExtractionStatus = "ok" | "unsupported" | "failed";
+
 export interface ChatAttachment {
   id: string;
   conversationId: string;
@@ -23,6 +25,9 @@ export interface ChatAttachment {
   attachmentType: ChatAttachmentType;
   url: string | null;
   createdAt: string;
+  /** Extracted plain text, present for non-image documents once confirmed. */
+  extractedText?: string | null;
+  extractionStatus?: ExtractionStatus | null;
 }
 
 export interface PresignChatAttachmentPayload {
@@ -56,6 +61,8 @@ export interface ChatMessageAttachment {
   previewUrl?: string;
   status?: "uploading" | "ready" | "error";
   error?: string;
+  extractedText?: string | null;
+  extractionStatus?: ExtractionStatus | null;
 }
 
 export function inferAttachmentType(mimeType: string): ChatAttachmentType {

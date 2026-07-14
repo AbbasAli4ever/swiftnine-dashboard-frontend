@@ -15,6 +15,7 @@ import ChatTypingIndicator from "@/components/chatbot/ChatTypingIndicator";
 import { chatAttachmentService, inferAttachmentType } from "@/services/chatAttachment.service";
 import { uploadChatAttachment } from "@/lib/uploadChatAttachment";
 import { parseApiError } from "@/lib/api";
+import { buildApiMessages } from "@/lib/chatAttachmentContext";
 
 const SUGGESTED_PROMPTS = [
   "Help me draft a project update email",
@@ -67,6 +68,7 @@ export default function ChatbotPage() {
     persistMessage,
     updateLastMessage,
     setMessageAttachments,
+    patchMessageAttachment,
     removeLastMessage,
   } = useChatConversations();
 
@@ -205,9 +207,27 @@ export default function ChatbotPage() {
         title: isFirstMessage ? deriveTitle(text || attachments[0].fileName) : undefined,
       });
       if (saved) {
-        await Promise.allSettled(
+        const confirmations = await Promise.allSettled(
           attachments.map((a) => chatAttachmentService.confirm(a.attachmentId, { messageId: saved.id }))
         );
+        // Confirm() now also runs content extraction — backfill the result
+        // (extracted text, real signed url) onto the message already in the
+        // cache so this same turn's context build below can see it.
+        confirmations.forEach((result, i) => {
+          if (result.status !== "fulfilled") return;
+          const attachment = result.value;
+          patchMessageAttachment(conversationId, saved.id, attachments[i].attachmentId, {
+            url: attachment.url,
+            extractedText: attachment.extractedText,
+            extractionStatus: attachment.extractionStatus,
+          });
+          userMessage.attachments![i] = {
+            ...userMessage.attachments![i],
+            url: attachment.url,
+            extractedText: attachment.extractedText,
+            extractionStatus: attachment.extractionStatus,
+          };
+        });
       }
     } else {
       // Fire-and-forget: persists immediately so the turn survives even if
@@ -217,11 +237,7 @@ export default function ChatbotPage() {
       });
     }
 
-    const apiMessages: ChatCompletionMessage[] = [...messages, userMessage].map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
-
+    const apiMessages = await buildApiMessages([...messages, userMessage]);
     await runCompletion(conversationId, apiMessages);
   };
 
@@ -231,10 +247,7 @@ export default function ChatbotPage() {
     if (last.role !== "assistant") return;
 
     await removeLastMessage(activeConversationId);
-    const apiMessages: ChatCompletionMessage[] = messages.slice(0, -1).map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
+    const apiMessages = await buildApiMessages(messages.slice(0, -1));
     await runCompletion(activeConversationId, apiMessages);
   };
 

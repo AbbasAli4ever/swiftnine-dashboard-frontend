@@ -214,6 +214,39 @@ export function useChatConversations() {
     [queryClient, workspaceId]
   );
 
+  // Cache-only — merges `patch` onto one existing attachment within a
+  // message (by id), rather than replacing the whole list. Used after
+  // `confirm()` resolves for a user-uploaded attachment, once extraction
+  // results (or a fresh signed url) are known, so the CURRENT turn's context
+  // build can see them immediately without waiting for a refetch.
+  const patchMessageAttachment = useCallback(
+    (
+      conversationId: string,
+      messageId: string,
+      attachmentId: string,
+      patch: Partial<ChatMessageAttachment>
+    ) => {
+      const key = queryKeys.aiConversation(workspaceId, conversationId);
+      queryClient.setQueryData<AiConversationDetail>(key, (prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          messages: prev.messages.map((m) =>
+            m.id !== messageId
+              ? m
+              : {
+                  ...m,
+                  attachments: m.attachments?.map((a) =>
+                    a.id === attachmentId ? { ...a, ...patch } : a
+                  ),
+                }
+          ),
+        };
+      });
+    },
+    [queryClient, workspaceId]
+  );
+
   const removeLastMessage = useCallback(
     async (conversationId: string) => {
       const key = queryKeys.aiConversation(workspaceId, conversationId);
@@ -282,6 +315,7 @@ export function useChatConversations() {
     persistMessage,
     updateLastMessage,
     setMessageAttachments,
+    patchMessageAttachment,
     removeLastMessage,
     deleteConversation,
     renameConversation,

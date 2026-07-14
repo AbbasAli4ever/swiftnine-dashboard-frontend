@@ -1,8 +1,12 @@
 import { aiFetch, throwAiHttpError } from "@/services/ai/http";
 
+export type ChatCompletionContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } };
+
 export interface ChatCompletionMessage {
   role: "user" | "assistant" | "system";
-  content: string;
+  content: string | ChatCompletionContentPart[];
 }
 
 export const chatbotService = {

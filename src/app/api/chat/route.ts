@@ -10,8 +10,12 @@ const CHAT_MODEL_RATES = {
   },
 } as const;
 
+type ChatCompletionContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } };
+
 interface ChatRequestBody {
-  messages: { role: "user" | "assistant" | "system"; content: string }[];
+  messages: { role: "user" | "assistant" | "system"; content: string | ChatCompletionContentPart[] }[];
   model?: string;
 }
 
@@ -59,7 +63,7 @@ export async function POST(req: NextRequest) {
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const stream = await client.chat.completions.create({
       model: resolvedModel,
-      messages,
+      messages: messages as OpenAI.Chat.ChatCompletionMessageParam[],
       stream: true,
       stream_options: { include_usage: true },
     });
