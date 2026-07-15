@@ -51,8 +51,10 @@ import {
   LuPlay,
   LuBotMessageSquare,
   LuKanban,
+  LuBriefcase,
 } from "react-icons/lu";
 import { MdChecklist } from "react-icons/md";
+import { ssoService } from "@/services/sso.service";
 
 // ── Icon Rail items ──────────────────────────────────────────────────────────
 type RailItem = {
@@ -1063,6 +1065,7 @@ const AppSidebar: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => 
   const pathname = usePathname();
   const [activeRail, setActiveRail] = useState<string>("lms");
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [isOpeningClientHub, setIsOpeningClientHub] = useState(false);
   const isSettingsRoute = pathname.startsWith("/settings");
   const isLmsRoute = pathname.startsWith("/university");
   const isChatRoute = pathname.startsWith("/chat");
@@ -1100,6 +1103,34 @@ const AppSidebar: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => 
     router.push("/settings");
   };
 
+  const handleClientHubClick = async () => {
+    if (isOpeningClientHub) return;
+    // Open the tab synchronously, inside the trusted click handler — doing
+    // this after the await below would get silently blocked by popup
+    // blockers in most browsers. Must not pass noopener/noreferrer here:
+    // those force window.open to always return null, which would make the
+    // popup-blocked check below fire even when the tab opened successfully.
+    const odooTab = window.open("", "_blank");
+    if (odooTab) {
+      odooTab.opener = null;
+    }
+    setIsOpeningClientHub(true);
+    try {
+      const { data } = await ssoService.redirectToOdoo();
+      if (odooTab) {
+        odooTab.location.href = data.redirectUrl;
+      } else {
+        toast.error("Please allow pop-ups to open Client Hub.");
+      }
+    } catch (error) {
+      odooTab?.close();
+      const { message } = parseApiError(error);
+      toast.error(message);
+    } finally {
+      setIsOpeningClientHub(false);
+    }
+  };
+
   return (
     <aside className={`fixed left-0 flex z-50 ${hasHeader ? "top-10 h-[calc(100vh-40px)]" : "top-0 h-screen"}`}>
       {/* Left icon rail */}
@@ -1124,6 +1155,19 @@ const AppSidebar: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => 
               </button>
             );
           })}
+          <button
+            onClick={handleClientHubClick}
+            disabled={isOpeningClientHub}
+            title="Client Hub"
+            className="relative flex flex-col items-center justify-center w-10 h-10 rounded-xl text-gray-400 hover:bg-white/10 hover:text-white transition-all duration-150 disabled:opacity-60"
+          >
+            {isOpeningClientHub ? (
+              <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <LuBriefcase className="w-5 h-5" />
+            )}
+            <span className="text-[9px] mt-0.5 leading-none">Client Hub</span>
+          </button>
         </nav>
 
         {/* Bottom rail actions */}
