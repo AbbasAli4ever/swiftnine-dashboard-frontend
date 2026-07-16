@@ -88,7 +88,7 @@ export default function ProjectDocsBox({ projectId }: { projectId: string }) {
             type="button"
             onClick={createAndOpen}
             disabled={creating}
-            className="rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-normal text-white disabled:opacity-50 dark:bg-gray-200 dark:hover:bg-gray-000 dark:text-gray-900"
+            className="rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-normal text-white disabled:opacity-50 dark:bg-gray-000 dark:hover:bg-gray-200 dark:text-gray-900"
           >
             {creating ? "Creating…" : "Add a Doc"}
           </button>

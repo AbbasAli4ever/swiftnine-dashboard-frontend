@@ -294,7 +294,7 @@ export default function MyLearning() {
 
               <button
                 onClick={() => activeLesson && selectLesson(activeLesson)}
-                className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#7C3AED] dark:bg-gray-200 dark:text-black px-5 py-3 text-sm font-semibold text-white hover:bg-[#6d28d9] dark:hover:bg-gray-000 transition-colors"
+                className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#7C3AED] dark:bg-gray-000 dark:text-black px-5 py-3 text-sm font-semibold text-white hover:bg-[#6d28d9] dark:hover:bg-gray-200 transition-colors"
               >
                 <svg className="w-4 h-4 text-white dark:text-black" width="16" height="16" viewBox="0 0 16 16" fill="none">
                   <path d="M4 2l10 6-10 6V2z" fill="currentColor"/>
@@ -418,7 +418,7 @@ export default function MyLearning() {
           <button
             onClick={() => saveNote(noteContent || currentNote)}
             disabled={isSavingNote || !activeLesson}
-            className="mt-3 w-full rounded-lg bg-[#7C3AED] dark:bg-gray-200 dark:text-black px-4 py-2.5 text-sm font-medium text-white hover:bg-[#6d28d9] dark:hover:bg-gray-000 transition-colors disabled:opacity-50"
+            className="mt-3 w-full rounded-lg bg-[#7C3AED] dark:bg-gray-000 dark:text-black px-4 py-2.5 text-sm font-medium text-white hover:bg-[#6d28d9] dark:hover:bg-gray-200 transition-colors disabled:opacity-50"
           >
             {isSavingNote ? "Saving…" : "Save Note"}
           </button>
@@ -465,7 +465,7 @@ export default function MyLearning() {
                 <button
                   onClick={handleSubmitReview}
                   disabled={reviewSubmitting}
-                  className="flex-1 rounded-lg bg-[#7C3AED] dark:bg-gray-200 dark:text-black px-3 py-2 text-xs font-medium text-white hover:bg-[#6d28d9] dark:hover:bg-gray-000 transition-colors disabled:opacity-50"
+                  className="flex-1 rounded-lg bg-[#7C3AED] dark:bg-gray-000 dark:text-black px-3 py-2 text-xs font-medium text-white hover:bg-[#6d28d9] dark:hover:bg-gray-200 transition-colors disabled:opacity-50"
                 >
                   {reviewSubmitting ? "Saving…" : myReview ? "Update" : "Submit"}
                 </button>

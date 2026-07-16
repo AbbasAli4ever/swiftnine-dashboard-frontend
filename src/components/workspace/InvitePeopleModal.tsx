@@ -315,7 +315,7 @@ export default function InvitePeopleModal({
             type="button"
             onClick={handleSend}
             disabled={isSending || !activeWorkspace}
-            className="rounded-md bg-violet-500 dark:bg-gray-200 dark:text-black dark:hover:bg-gray-000 px-3 py-1.5 text-xs font-normal text-white transition-colors hover:bg-violet-600  disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-md bg-violet-500 dark:bg-gray-000 dark:text-black dark:hover:bg-gray-200 px-3 py-1.5 text-xs font-normal text-white transition-colors hover:bg-violet-600  disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSending ? "Sending..." : "Send free invite"}
           </button>

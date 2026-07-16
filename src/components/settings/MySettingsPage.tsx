@@ -365,7 +365,7 @@ export default function MySettingsPage() {
               type="button"
               onClick={handleSave}
               disabled={saving}
-              className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-normal text-white dark:bg-gray-200 dark:text-black hover:bg-brand-600 dark:hover:bg-gray-000  duration-200 transition-colors disabled:opacity-50"
+              className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-normal text-white dark:bg-gray-000 dark:text-black hover:bg-brand-600 dark:hover:bg-gray-200  duration-200 transition-colors disabled:opacity-50"
             >
               {saving ? "Saving..." : "Save changes"}
             </button>

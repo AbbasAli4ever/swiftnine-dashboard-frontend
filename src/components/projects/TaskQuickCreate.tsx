@@ -95,7 +95,7 @@ export default function TaskQuickCreate({ status, members, onSave, onCancel, var
             type="button"
             onClick={() => void handleSave()}
             disabled={!title.trim() || saving}
-            className="shrink-0 rounded bg-brand-500 px-2 py-1 text-[11px] font-medium text-white hover:bg-brand-600 dark:bg-gray-200 dark:text-black dark:hover:bg-gray-000 disabled:opacity-40"
+            className="shrink-0 rounded bg-brand-500 px-2 py-1 text-[11px] font-medium text-white hover:bg-brand-600 dark:bg-gray-000 dark:text-black dark:hover:bg-gray-200 disabled:opacity-40"
           >
             {saving ? "..." : "Save ↵"}
           </button>
@@ -178,7 +178,7 @@ export default function TaskQuickCreate({ status, members, onSave, onCancel, var
       <button type="button" onClick={onCancel} className="shrink-0 rounded-lg px-2.5 py-1 text-xs text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800">
         Cancel
       </button>
-      <button type="button" onClick={() => void handleSave()} disabled={!title.trim() || saving} className="shrink-0 rounded-lg bg-brand-500 px-2.5 py-1 text-xs text-white dark:bg-gray-200 dark:text-black dark:hover:bg-gray-000 hover:bg-brand-600 disabled:opacity-50">
+      <button type="button" onClick={() => void handleSave()} disabled={!title.trim() || saving} className="shrink-0 rounded-lg bg-brand-500 px-2.5 py-1 text-xs text-white dark:bg-gray-000 dark:text-black dark:hover:bg-gray-200 hover:bg-brand-600 disabled:opacity-50">
         {saving ? "..." : "Save ↵"}
       </button>
     </div>

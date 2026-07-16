@@ -786,7 +786,7 @@ function HomePanelContent() {
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden px-2 py-3 text-[14px]">
-      <div className="flex-1 space-y-0.5 overflow-y-auto no-scrollbar pb-4">
+      <div className="flex-1 space-y-0.5 overflow-y-auto pb-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-800">
 
         {/* Home links */}
         <p className="px-2 pb-2 text-[16px] font-semibold text-gray-900 dark:text-gray-100">Home</p>

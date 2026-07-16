@@ -38,7 +38,7 @@ function MenuItem({ icon, label, description, onClick, danger, hasSubmenu }: Men
   return (
     <button
       onClick={onClick}
-      className={`flex w-full items-center gap-3 px-4 py-2 text-sm transition-colors
+      className={`flex w-full rounded-lg items-center gap-3 px-4 py-2 text-sm transition-colors
         ${danger
           ? "text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
           : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
@@ -151,7 +151,7 @@ export default function SpaceContextMenu({
       <div
         ref={panelRef}
         style={{ top: position.top, left: position.left }}
-        className="fixed z-9999 w-64 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-2xl py-1.5 max-h-[calc(100vh-32px)] overflow-y-auto"
+        className="fixed z-9999 w-64 bg-white dark:bg-gray-901 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-2xl py-1.5 max-h-[calc(100vh-32px)] overflow-y-auto"
       >
         <MenuItem
           icon={<LuStar className="w-4 h-4" style={project.isFavorite ? { fill: "currentColor", color: "#f59e0b" } : undefined} />}
@@ -216,7 +216,7 @@ export default function SpaceContextMenu({
         <div className="px-3 pt-2 pb-1">
           <button
             onClick={onClose}
-            className="w-full py-2 rounded-xl bg-brand-500 text-white text-sm font-normal hover:bg-brand-600 transition-colors"
+            className="w-full py-2 rounded-xl bg-brand-500 text-white text-sm font-normal dark:bg-gray-000 dark:hover:bg-gray-200 dark:text-black hover:bg-brand-600 transition-colors"
           >
             Sharing &amp; Permissions
           </button>

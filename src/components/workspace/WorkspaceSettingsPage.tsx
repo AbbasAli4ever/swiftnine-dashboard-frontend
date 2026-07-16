@@ -263,7 +263,7 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
               <button
                 type="button"
                 onClick={() => setInviteOpen(true)}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md bg-violet-500 px-3 py-1 text-sm font-normal text-white hover:bg-violet-600 dark:bg-gray-200 dark:text-black dark:hover:bg-gray-000"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md bg-violet-500 px-3 py-1 text-sm font-normal text-white hover:bg-violet-600 dark:bg-gray-000 dark:text-black dark:hover:bg-gray-200"
               >
                 + Invite people
               </button>
@@ -501,7 +501,7 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
                   type="button"
                   onClick={handleSave}
                   disabled={saving || !isDirty}
-                  className="rounded-lg bg-blue-500 px-4 py-2 text-sm font-normal dark:bg-gray-200 dark:text-black dark:hover:bg-gray-000 text-white transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-lg bg-blue-500 px-4 py-2 text-sm font-normal dark:bg-gray-000 dark:text-black dark:hover:bg-gray-200 text-white transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {saving ? "Saving..." : "Save changes"}
                 </button>
