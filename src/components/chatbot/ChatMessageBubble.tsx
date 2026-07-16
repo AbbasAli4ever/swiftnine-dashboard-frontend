@@ -30,7 +30,7 @@ export default function ChatMessageBubble({
   return (
     <div className="flex items-start gap-3 px-2 py-1">
       {isUser ? (
-        <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white text-xs font-normal shrink-0 mt-0.5">
+        <div className="w-8 h-8 rounded-full bg-indigo-500 dark:bg-gray-000 dark:text-black flex items-center justify-center text-white text-xs font-normal shrink-0 mt-0.5">
           {getInitials(userName)}
         </div>
       ) : (

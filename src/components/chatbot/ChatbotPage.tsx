@@ -43,9 +43,9 @@ function ChatWelcome({ onPrompt }: { onPrompt: (text: string) => void }) {
             key={prompt}
             type="button"
             onClick={() => onPrompt(prompt)}
-            className="flex items-center gap-2 text-left px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm text-gray-600 dark:text-gray-300 hover:border-brand-300 hover:bg-brand-50 dark:hover:bg-brand-500/10 transition-colors"
+            className="flex items-center gap-2 text-left px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm text-gray-600 dark:text-gray-300 hover:border-brand-300 dark:hover:border-gray-000 hover:bg-brand-50 dark:hover:bg-brand-500/10 transition-colors"
           >
-            <LuSparkles className="w-3.5 h-3.5 text-brand-500 shrink-0" />
+            <LuSparkles className="w-3.5 h-3.5 text-brand-500  shrink-0" />
             <span className="truncate">{prompt}</span>
           </button>
         ))}

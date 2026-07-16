@@ -48,7 +48,7 @@ export default function CourseLibrary() {
             className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors border ${
               activeCategoryValue === cat.value
                 ? "bg-[#7C3AED] text-white border-[#7C3AED]"
-                : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-[#7C3AED] hover:text-[#7C3AED]"
+                : "bg-white dark:bg-gray-901 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-[#7C3AED] hover:text-[#7C3AED]"
             }`}
           >
             {cat.label}
@@ -193,7 +193,7 @@ function CourseCard({ course }: { course: CatalogCourse }) {
   }
 
   return (
-    <div className="relative rounded-xl overflow-hidden bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md transition-all group flex flex-col h-[365px]">
+    <div className="relative rounded-xl overflow-hidden bg-white dark:bg-gray-901 border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md transition-all group flex flex-col h-[365px]">
       {/* Thumbnail */}
       <div
         className={`relative h-40 shrink-0 overflow-hidden ${!course.coverImageUrl ? `bg-linear-to-br ${gradient} flex items-center justify-center` : ""}`}
@@ -246,7 +246,7 @@ function CourseCard({ course }: { course: CatalogCourse }) {
 
       {/* Pinned progress bar — sits just above footer */}
       {progress && (
-        <div className="absolute bottom-[52px] left-0 right-0 px-4 pb-2 bg-white dark:bg-gray-800">
+        <div className="absolute bottom-[52px] left-0 right-0 px-4 pb-2 bg-white dark:bg-gray-901">
           <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
             <span>{progress.completedRequiredLessons} of {progress.totalRequiredLessons} completed</span>
             <span className="text-[#7C3AED]">{progress.percentage}%</span>
@@ -258,7 +258,7 @@ function CourseCard({ course }: { course: CatalogCourse }) {
       )}
 
       {/* Pinned footer — always at bottom */}
-      <div className="absolute bottom-0 left-0 right-0 px-4 py-3 border-t border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 flex items-center justify-between">
+      <div className="absolute bottom-0 left-0 right-0 px-4 py-3 border-t border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-901 flex items-center justify-between">
         <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
           <span className="flex items-center gap-1">
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">

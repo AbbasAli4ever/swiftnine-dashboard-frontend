@@ -192,7 +192,7 @@ export default function UniversityDashboard() {
                     return (
                       <Card
                         key={course.id}
-                        className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-none dark:border-gray-700 dark:bg-gray-800"
+                        className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-none dark:border-gray-700 dark:bg-gray-901"
                       >
                         <CardContent className="p-0">
                           {/* Thumbnail */}
