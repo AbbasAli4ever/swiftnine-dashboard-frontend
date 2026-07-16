@@ -245,6 +245,7 @@ function BoardColumn({
   disableAutoFetch,
   overrideTasks,
   defaultListId,
+  initialLoading,
 }: {
   status: StatusItem;
   statuses: StatusItem[];
@@ -261,6 +262,7 @@ function BoardColumn({
   disableAutoFetch?: boolean;
   overrideTasks?: TaskListItem[];
   defaultListId?: string;
+  initialLoading?: boolean;
 }) {
   const { tasksByList, loadingLists, fetchTasks, createTask } = useTaskStore();
   const { theme } = useTheme();
@@ -364,7 +366,7 @@ function BoardColumn({
 
       {/* Task cards */}
       <div className="space-y-2" style={{ userSelect: dragState ? "none" : undefined }}>
-        {loadingLists.has(list.id) && tasks.length === 0 && (
+        {(loadingLists.has(list.id) || initialLoading) && tasks.length === 0 && (
           <p className="px-2 py-3 text-xs text-gray-400">Loading...</p>
         )}
         {tasks.map((task, idx) => {
@@ -444,6 +446,10 @@ interface TaskBoardProps {
   disableAutoFetch?: boolean;
   disableSameStatusReorder?: boolean;
   taskSearchParams?: import("@/services/task.service").TaskSearchParams;
+  fetchNextPage?: () => void;
+  hasNextPage?: boolean;
+  isFetchingNextPage?: boolean;
+  boardInitialLoading?: boolean;
 }
 
 export default function TaskBoard({
@@ -456,6 +462,10 @@ export default function TaskBoard({
   disableAutoFetch = false,
   disableSameStatusReorder = false,
   taskSearchParams,
+  fetchNextPage,
+  hasNextPage = false,
+  isFetchingNextPage = false,
+  boardInitialLoading = false,
 }: TaskBoardProps) {
   const resolvedStatuses = statuses.length > 0 ? statuses : FALLBACK_STATUSES;
   const isProjectBoard = lists.length > 1;
@@ -715,6 +725,26 @@ export default function TaskBoard({
     };
   }, [isProjectBoard, tasksByList]);
 
+  // ── Infinite scroll: prefetch the next page of a single-list board well
+  // before the sentinel is actually on-screen, so scrolling never stalls. ──
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (isProjectBoard) return;
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting || !hasNextPage || isFetchingNextPage) return;
+        fetchNextPage?.();
+      },
+      { rootMargin: "0px 0px 600px 0px" }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [isProjectBoard, hasNextPage, isFetchingNextPage, fetchNextPage]);
+
   // ── Render ─────────────────────────────────────────────────────────────────
   const defaultListId = lists[0]?.id ?? "";
 
@@ -783,6 +813,7 @@ export default function TaskBoard({
               onDragStart={handleDragStart}
               onRefetchMembers={onRefetchMembers}
               disableAutoFetch={disableAutoFetch}
+              initialLoading={boardInitialLoading}
             />
           ))
         )}
@@ -797,6 +828,9 @@ export default function TaskBoard({
           </button>
         </div>
       </div>
+
+      {/* Sentinel for infinite-scroll prefetch — observed well before it's on-screen */}
+      <div ref={sentinelRef} className="h-1 w-full" aria-hidden />
 
       {/* Floating ghost card */}
       {activeDrag && (

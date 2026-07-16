@@ -1,8 +1,13 @@
+import type { TaskSearchScope } from "@/stores/task-search.store";
+import type { TaskSearchParams } from "@/services/task.service";
+
 export const queryKeys = {
   workspaceMembers: (workspaceId: string | null) =>
     ["workspace-members", workspaceId] as const,
   taskLists: (projectId: string, includeArchived = false) =>
     ["task-lists", projectId, { includeArchived }] as const,
+  taskBoardInfinite: (scope: TaskSearchScope, params: TaskSearchParams) =>
+    ["task-board-infinite", scope, params] as const,
 
   universityDashboard: () => ["university", "dashboard"] as const,
   universityCourses: (params: unknown) =>
@@ -31,4 +36,8 @@ export const queryKeys = {
     ["favorites", workspaceId] as const,
   statuses: (projectId: string) => ["statuses", projectId] as const,
   tags: (workspaceId: string | null) => ["tags", workspaceId] as const,
+  aiConversations: (workspaceId: string | null) =>
+    ["ai-conversations", workspaceId] as const,
+  aiConversation: (workspaceId: string | null, id: string | null) =>
+    ["ai-conversations", workspaceId, id] as const,
 } as const;

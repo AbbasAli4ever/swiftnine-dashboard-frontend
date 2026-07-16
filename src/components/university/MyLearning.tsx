@@ -171,10 +171,16 @@ export default function MyLearning() {
   }
 
   return (
-    <div className="flex flex-col lg:flex-row">
+    <div className="my-learning-root flex flex-col lg:flex-row lg:h-[calc(100vh-3rem)] lg:overflow-hidden">
+      {/* Hide the outer <main> scrollbar for the My Learning page only.
+          This <style> unmounts on navigation, so it stays scoped to this page. */}
+      <style>{`
+        main:has(> div > .my-learning-root) { scrollbar-width: none; -ms-overflow-style: none; }
+        main:has(> div > .my-learning-root)::-webkit-scrollbar { display: none; }
+      `}</style>
 
       {/* ── Main content ───────────────────────────────────────────────────── */}
-      <div className="flex-1 min-w-0 overflow-y-auto p-6 space-y-6 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-800">
+      <div className="flex-1 min-w-0 p-6 space-y-6 lg:overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-800">
 
         {error && (
           <div className="rounded-lg bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-600 dark:text-red-400">
@@ -396,7 +402,7 @@ export default function MyLearning() {
       </div>
 
       {/* ── Right sidebar ──────────────────────────────────────────────────── */}
-      <div className="lg:w-80 shrink-0 p-6 space-y-5 border-t lg:border-t-0 lg:border-l border-gray-200 dark:border-gray-800 bg-[#f9f9f9] dark:bg-gray-901 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-800">
+      <div className="lg:w-80 shrink-0 p-6 space-y-5 border-t lg:border-t-0 lg:border-l border-gray-200 dark:border-gray-800 bg-[#f9f9f9] dark:bg-gray-901 lg:h-full lg:overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-800">
 
         {/* My Notes */}
         <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-700/50 p-4">

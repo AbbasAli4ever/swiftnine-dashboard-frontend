@@ -47,7 +47,7 @@ export default function SignInForm() {
       const safeRedirect =
         redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//")
           ? redirectTo
-          : "/";
+          : "/university";
       toast.success("Welcome back!");
       window.location.replace(safeRedirect);
     } catch (err) {

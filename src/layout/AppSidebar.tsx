@@ -24,9 +24,10 @@ import ListContextMenu from "@/components/projects/ListContextMenu";
 import DocsListSidebarSection from "@/components/docs/DocsListSidebarSection";
 import DmSidebarSection from "@/components/dm/DmSidebarSection";
 import ChannelSidebarSection from "@/components/channels/ChannelSidebarSection";
+import ChatbotPanelContent from "@/components/chatbot/ChatbotPanelContent";
 import { ICON_MAP } from "@/components/projects/IconColorPicker";
 import { toast } from "sonner";
-import { RiHomeSmileFill,RiInbox2Fill } from "react-icons/ri";
+import { RiInbox2Fill } from "react-icons/ri";
 import { BsReply,BsPersonCheck,BsPersonWorkspace  } from "react-icons/bs";
 import { GoPersonAdd } from "react-icons/go";
 import {
@@ -48,20 +49,25 @@ import {
   LuLayoutGrid,
   LuBookOpen,
   LuPlay,
+  LuBotMessageSquare,
+  LuKanban,
+  LuBriefcase,
 } from "react-icons/lu";
 import { MdChecklist } from "react-icons/md";
+import { ssoService } from "@/services/sso.service";
 
 // ── Icon Rail items ──────────────────────────────────────────────────────────
 type RailItem = {
   id: string;
   label: string;
   icon: React.ReactNode;
-  panel: "home" | "lms" | "ai" | "teams" | "clips" | "more";
+  panel: "home" | "lms" | "chatbot" | "ai" | "teams" | "clips" | "more";
 };
 
 const railItems: RailItem[] = [
-  { id: "home", label: "Home", icon: <RiHomeSmileFill className="w-5 h-5" />, panel: "home" },
-  { id: "lms",  label: "LMS",  icon: <LuBookOpen className="w-5 h-5" />,      panel: "lms" },
+  { id: "lms",  label: "UNI",  icon: <LuBookOpen className="w-5 h-5" />,      panel: "lms" },
+  { id: "home", label: "Board", icon: <LuKanban className="w-5 h-5" />, panel: "home" },
+  { id: "chatbot", label: "SwiftBot", icon: <LuBotMessageSquare className="w-5 h-5" />, panel: "chatbot" },
 ];
 
 // ── Nav link definitions ─────────────────────────────────────────────────────
@@ -789,7 +795,7 @@ function HomePanelContent() {
       <div className="flex-1 space-y-0.5 overflow-y-auto pb-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-800">
 
         {/* Home links */}
-        <p className="px-2 pb-2 text-[16px] font-semibold text-gray-900 dark:text-gray-100">Home</p>
+        <p className="px-2 pb-2 text-[16px] font-semibold text-gray-900 dark:text-gray-100">Board</p>
         {inboxLinks.map((item) => {
           const active = item.path === pathname || (item.path === "/" && pathname === "/");
           return (
@@ -911,8 +917,9 @@ function HomePanelContent() {
         {/* Channels */}
         <ChannelSidebarSection />
 
-        {/* Direct Messages */}
+        {/* Direct Messages - commented out for now
         <DmSidebarSection />
+        */}
       </div>
 
       {/* <div className="border-t border-gray-100 px-1 pt-3 dark:border-gray-800">
@@ -995,8 +1002,8 @@ function SettingsPanelContent() {
 }
 
 const lmsMainItems = [
-    { label: "Course Library", icon: LuBookOpen,    href: "/university/course-library", exact: false },
   { label: "Dashboard",     icon: LuLayoutGrid,  href: "/university",                exact: true },
+  { label: "Course Library", icon: LuBookOpen,    href: "/university/course-library", exact: false },
   { label: "My Learning",   icon: LuPlay,        href: "/university/my-learning",    exact: false },
 ];
 
@@ -1006,7 +1013,7 @@ function LmsPanelContent() {
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto no-scrollbar px-2 py-3 text-[13px]">
-      <p className="px-2 pb-3 text-sm font-semibold text-gray-900 dark:text-gray-100">LMS</p>
+      <p className="px-2 pb-3 text-sm font-semibold text-gray-900 dark:text-gray-100">University</p>
 
       <div className="space-y-0.5">
         <p className="px-2 pb-1 text-[11px] uppercase tracking-wide text-gray-400 font-normal">Main</p>
@@ -1056,16 +1063,19 @@ function LmsPanelHeader() {
 const AppSidebar: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => {
   const router = useRouter();
   const pathname = usePathname();
-  const [activeRail, setActiveRail] = useState<string>("home");
+  const [activeRail, setActiveRail] = useState<string>("lms");
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [isOpeningClientHub, setIsOpeningClientHub] = useState(false);
   const isSettingsRoute = pathname.startsWith("/settings");
   const isLmsRoute = pathname.startsWith("/university");
+  const isChatRoute = pathname.startsWith("/chat");
 
   // Keep rail in sync with route on first load / direct navigation
   React.useEffect(() => {
     if (isLmsRoute) setActiveRail("lms");
+    else if (isChatRoute) setActiveRail("chatbot");
     else if (!isSettingsRoute) setActiveRail("home");
-  }, [isLmsRoute, isSettingsRoute]);
+  }, [isLmsRoute, isChatRoute, isSettingsRoute]);
 
   const isSettingsActive = isSettingsRoute && activeRail !== "lms";
 
@@ -1080,12 +1090,45 @@ const AppSidebar: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => 
       router.push("/university");
       return;
     }
+    if (id === "chatbot") {
+      setActiveRail("chatbot");
+      router.push("/chat");
+      return;
+    }
     setActiveRail(id);
   };
 
   const handleSettingsClick = () => {
     setActiveRail("home");
     router.push("/settings");
+  };
+
+  const handleClientHubClick = async () => {
+    if (isOpeningClientHub) return;
+    // Open the tab synchronously, inside the trusted click handler — doing
+    // this after the await below would get silently blocked by popup
+    // blockers in most browsers. Must not pass noopener/noreferrer here:
+    // those force window.open to always return null, which would make the
+    // popup-blocked check below fire even when the tab opened successfully.
+    const odooTab = window.open("", "_blank");
+    if (odooTab) {
+      odooTab.opener = null;
+    }
+    setIsOpeningClientHub(true);
+    try {
+      const { data } = await ssoService.redirectToOdoo();
+      if (odooTab) {
+        odooTab.location.href = data.redirectUrl;
+      } else {
+        toast.error("Please allow pop-ups to open Client Hub.");
+      }
+    } catch (error) {
+      odooTab?.close();
+      const { message } = parseApiError(error);
+      toast.error(message);
+    } finally {
+      setIsOpeningClientHub(false);
+    }
   };
 
   return (
@@ -1112,6 +1155,19 @@ const AppSidebar: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => 
               </button>
             );
           })}
+          <button
+            onClick={handleClientHubClick}
+            disabled={isOpeningClientHub}
+            title="Client Hub"
+            className="relative flex flex-col items-center justify-center w-10 h-10 rounded-xl text-gray-400 hover:bg-white/10 hover:text-white transition-all duration-150 disabled:opacity-60"
+          >
+            {isOpeningClientHub ? (
+              <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <LuBriefcase className="w-5 h-5" />
+            )}
+            <span className="text-[9px] mt-0.5 leading-none">Client Hub</span>
+          </button>
         </nav>
 
         {/* Bottom rail actions */}
@@ -1147,8 +1203,9 @@ const AppSidebar: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => 
           <SettingsPanelContent />
         ) : (
           <>
-            {activeRail === "home" && <HomePanelContent />}
-            {activeRail === "lms"  && <LmsPanelContent />}
+            {activeRail === "home"    && <HomePanelContent />}
+            {activeRail === "lms"     && <LmsPanelContent />}
+            {activeRail === "chatbot" && <ChatbotPanelContent />}
           </>
         )}
       </div>

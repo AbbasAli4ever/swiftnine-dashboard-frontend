@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useModal } from "@/hooks/useModal";
 import { useProjects } from "@/context/ProjectContext";
@@ -14,23 +15,26 @@ import { TaskListItem } from "@/services/task.service";
 import { useWorkspaceMembers } from "@/hooks/useWorkspaceMembers";
 import { getTaskSearchCacheKey, useTaskSearchStore } from "@/stores/task-search.store";
 import { useTaskStore } from "@/stores/task.store";
+import { useInfiniteTaskSearch } from "@/hooks/useInfiniteTaskSearch";
 import TaskListView, { TaskListSectionData } from "./TaskListView";
 import TaskBoard from "./TaskBoard";
 import TaskDashboardHome from "./TaskDashboardHome";
 import TaskCalendarView from "./TaskCalendarView";
-import TaskForm from "./TaskForm";
-import TaskDetailModal from "./TaskDetailModal";
 import MinimizedTaskBar from "./MinimizedTaskBar";
-import CreateListModal from "./CreateListModal";
-import RenameListModal from "./RenameListModal";
-import ConfirmActionModal from "@/components/common/ConfirmActionModal";
-import TaskFiltersModal from "./TaskFiltersModal";
 import ProjectTaskHeader from "./ProjectTaskHeader";
 import ListTaskHeader from "./ListTaskHeader";
 import ProjectAttachments from "./ProjectAttachments";
 import ListAttachments from "./ListAttachments";
-import ProjectUnlockModal from "./ProjectUnlockModal";
 import TaskPagination from "./TaskPagination";
+
+// Opened on demand only — never visible on first paint, so defer their bundle cost.
+const TaskForm = dynamic(() => import("./TaskForm"), { ssr: false });
+const TaskDetailModal = dynamic(() => import("./TaskDetailModal"), { ssr: false });
+const CreateListModal = dynamic(() => import("./CreateListModal"), { ssr: false });
+const RenameListModal = dynamic(() => import("./RenameListModal"), { ssr: false });
+const ConfirmActionModal = dynamic(() => import("@/components/common/ConfirmActionModal"), { ssr: false });
+const TaskFiltersModal = dynamic(() => import("./TaskFiltersModal"), { ssr: false });
+const ProjectUnlockModal = dynamic(() => import("./ProjectUnlockModal"), { ssr: false });
 import {
   clearTaskSearchPatch,
   countActiveTaskSearchFilters,
@@ -161,6 +165,33 @@ export default function TasksPage() {
     return { type: "project" as const, projectId };
   }, [projectId, selectedList, isProjectLocked]);
 
+  // Mirrors TaskBoard's own isProjectBoard check — a project with exactly one
+  // active list and no list selected still takes the single-list board path.
+  const boardLists = selectedList ? [selectedList] : activeLists;
+  const isProjectBoardView = boardLists.length > 1;
+  const boardScope = currentView === "board" && !isProjectBoardView && boardLists.length === 1
+    ? taskScope
+    : null;
+  const boardQuery = useInfiniteTaskSearch(boardScope, taskSearchParams);
+  const lastBoardKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!boardScope || boardQuery.isLoading) return;
+    const boardListId = boardLists[0].id;
+    if (lastBoardKeyRef.current !== boardQuery.queryKeyString) {
+      lastBoardKeyRef.current = boardQuery.queryKeyString;
+      useTaskStore.getState().setTasksForLists({ [boardListId]: boardQuery.items });
+      return;
+    }
+    const existing = useTaskStore.getState().tasksByList[boardListId] ?? [];
+    const existingIds = new Set(existing.map((t) => t.id));
+    const toAppend = boardQuery.items.filter((t) => !existingIds.has(t.id));
+    if (toAppend.length > 0) {
+      useTaskStore.getState().setTasksForLists({ [boardListId]: [...existing, ...toAppend] });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boardScope, boardQuery.items, boardQuery.isLoading, boardQuery.queryKeyString]);
+
   const pagedCacheKey = useMemo(() => (
     taskScope ? getTaskSearchCacheKey(taskScope, taskSearchParams, "page") : null
   ), [taskScope, taskSearchParams]);
@@ -172,17 +203,20 @@ export default function TasksPage() {
   const pagedCache = useTaskSearchStore((state) => (pagedCacheKey ? state.caches[pagedCacheKey] : undefined));
   const fullCache = useTaskSearchStore((state) => (fullCacheKey ? state.caches[fullCacheKey] : undefined));
 
+  // Paginated cache only backs the List tab (TaskListView + TaskPagination).
   useEffect(() => {
-    if (!taskScope) return;
+    if (!taskScope || currentView !== "list") return;
     if (taskScope.type === "list") {
       void searchList(taskScope.projectId, taskScope.listId, taskSearchParams, "page");
       return;
     }
     void searchProject(taskScope.projectId, taskSearchParams, "page");
-  }, [taskScope, taskSearchParams, searchList, searchProject]);
+  }, [currentView, taskScope, taskSearchParams, searchList, searchProject]);
 
+  // Full (all-pages) cache only backs Calendar — Board uses useInfiniteTaskSearch instead
+  // (see boardQuery above) so it never eagerly downloads every page.
   useEffect(() => {
-    if (!taskScope || currentView === "list") return;
+    if (!taskScope || currentView !== "calendar") return;
     if (taskScope.type === "list") {
       void searchList(taskScope.projectId, taskScope.listId, taskSearchParams, "all");
       return;
@@ -205,9 +239,14 @@ export default function TasksPage() {
   }, [activeLists, activeSearchItems]);
 
   useEffect(() => {
-    if (!projectId) return;
+    // Overview/Attachments don't fetch pagedCache/fullCache, so groupedTasksByList would
+    // be empty placeholders here — only sync into the shared task store for views that
+    // actually populate it (List/Calendar). Board is excluded: it's synced separately by
+    // the boardQuery effect above, and groupedTasksByList (derived from the now Calendar-only
+    // fullCache) would otherwise race with and wipe that data.
+    if (!projectId || currentView === "overview" || currentView === "attachments" || currentView === "board") return;
     setTasksForLists(groupedTasksByList);
-  }, [groupedTasksByList, projectId, setTasksForLists]);
+  }, [currentView, groupedTasksByList, projectId, setTasksForLists]);
 
   const listSections = useMemo<TaskListSectionData[]>(() => {
     return allLists.map((list) => ({
@@ -409,7 +448,9 @@ export default function TasksPage() {
   const isLoadingTasks = taskScope
     ? currentView === "list"
       ? !pagedCache || pagedCache.loading
-      : !fullCache || fullCache.loading
+      : currentView === "calendar"
+        ? !fullCache || fullCache.loading
+        : false
     : false;
 
   return (
@@ -534,14 +575,18 @@ export default function TasksPage() {
         {!isLoadingTasks && currentView === "board" ? (
           <TaskBoard
             projectId={project.id}
-            lists={selectedList ? [selectedList] : activeLists}
+            lists={boardLists}
             statuses={statuses}
             members={members}
             onOpenTaskDetail={(taskId) => void openTaskDetailById(taskId)}
             onRefetchMembers={refetchMembers}
             disableAutoFetch
-            disableSameStatusReorder={disableBoardReorder}
-            taskSearchParams={selectedList ? undefined : taskSearchParams}
+            disableSameStatusReorder={disableBoardReorder || (boardQuery.hasNextPage ?? false)}
+            taskSearchParams={taskSearchParams}
+            fetchNextPage={boardQuery.fetchNextPage}
+            hasNextPage={boardQuery.hasNextPage}
+            isFetchingNextPage={boardQuery.isFetchingNextPage}
+            boardInitialLoading={boardQuery.isLoading}
           />
         ) : null}
 

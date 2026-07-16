@@ -1,4 +1,4 @@
-import { api } from "@/lib/api";
+import { api, refreshSession, redirectToLogin } from "@/lib/api";
 import { getAccessToken } from "@/stores/auth.store";
 import { getActiveWorkspaceId } from "@/stores/workspace.store";
 import { Notification, NotificationSSEHandlers } from "@/types/notification";
@@ -104,8 +104,18 @@ export const notificationService = {
           signal,
         });
 
-        // 401/403 = auth failure — stop retrying, nothing will change without a page reload.
-        if (res.status === 401 || res.status === 403) return "done";
+        // 401 = expired JWT — refresh and let the retry loop pick up the new token.
+        if (res.status === 401) {
+          try {
+            await refreshSession();
+            return "reconnect";
+          } catch {
+            redirectToLogin();
+            return "done";
+          }
+        }
+        // 403 = authorization failure — refreshing won't help, stop retrying.
+        if (res.status === 403) return "done";
         // Other non-ok (5xx, network hiccup) → reconnect with backoff.
         if (!res.ok || !res.body) return "reconnect";
 

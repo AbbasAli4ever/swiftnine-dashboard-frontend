@@ -327,6 +327,81 @@
   }
 }
 
+/* Signature rail gradient — reused for AI/SwiftBot branding accents */
+@utility bg-swiftnine-gradient {
+  background: linear-gradient(180deg, #FB64B6 0%, #AD46FF 50%, #2B7FFF 100%);
+}
+
+/* SwiftBot code-block syntax highlighting (rehype-highlight token classes).
+   Hand-rolled rather than importing a prebuilt highlight.js theme so it uses
+   this app's own palette and doesn't ship its own background/border. */
+.hljs {
+  color: var(--color-gray-700);
+  background: transparent;
+}
+.dark .hljs {
+  color: var(--color-gray-300);
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-operator {
+  color: var(--color-brand-600);
+}
+.dark .hljs-keyword,
+.dark .hljs-selector-tag,
+.dark .hljs-literal,
+.dark .hljs-operator {
+  color: var(--color-brand-400);
+}
+.hljs-string,
+.hljs-attr,
+.hljs-symbol,
+.hljs-addition {
+  color: var(--color-success-600);
+}
+.dark .hljs-string,
+.dark .hljs-attr,
+.dark .hljs-symbol,
+.dark .hljs-addition {
+  color: var(--color-success-400);
+}
+.hljs-number,
+.hljs-built_in {
+  color: var(--color-orange-600);
+}
+.dark .hljs-number,
+.dark .hljs-built_in {
+  color: var(--color-orange-400);
+}
+.hljs-title,
+.hljs-title.function_,
+.hljs-title.class_ {
+  color: var(--color-blue-light-600);
+}
+.dark .hljs-title,
+.dark .hljs-title.function_,
+.dark .hljs-title.class_ {
+  color: var(--color-blue-light-400);
+}
+.hljs-comment,
+.hljs-quote {
+  color: var(--color-gray-400);
+  font-style: italic;
+}
+.hljs-deletion {
+  color: var(--color-error-600);
+}
+.dark .hljs-deletion {
+  color: var(--color-error-400);
+}
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: 600;
+}
+
 
 
 /* ── Autofill override — remove browser yellow/white highlight ── */
