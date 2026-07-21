@@ -71,7 +71,7 @@ export default function TasksPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { projects, isLoading: projectsLoading, patchLocalProject, refetch: refetchProjects } = useProjects();
-  const { getLists, getProjectLists, renameList, archiveList, restoreList, deleteList } = useTaskLists();
+  const { getLists, getProjectLists, isProjectLoading, renameList, archiveList, restoreList, deleteList } = useTaskLists();
   const { members, refetch: refetchMembers } = useWorkspaceMembers();
   const {
     openTaskDetail,
@@ -138,10 +138,12 @@ export default function TasksPage() {
 
   useEffect(() => {
     if (!projectId || isProjectLocked) return;
-    void getLists(projectId, {
-      includeArchived: currentView === "list",
-    }).catch(() => {});
-  }, [currentView, getLists, listId, projectId, isProjectLocked]);
+    // Always request the archived-inclusive set: `allLists` (and therefore
+    // `selectedList`) reads the { includeArchived: true } cache regardless of
+    // the current view, so fetching a narrower set here would leave the read
+    // cache empty on a restored board/calendar URL.
+    void getLists(projectId, { includeArchived: true }).catch(() => {});
+  }, [getLists, listId, projectId, isProjectLocked]);
 
   useEffect(() => {
     if (!projectId || isProjectLocked) return;
@@ -152,10 +154,13 @@ export default function TasksPage() {
   }, [projectId, isProjectLocked]);
 
   useEffect(() => {
+    // Wait until lists have finished loading before treating a listId as stale;
+    // otherwise a mid-hydration render would discard the persisted listId.
+    if (isProjectLoading(projectId ?? "")) return;
     if (listId && !selectedList && activeLists.length > 0) {
       router.replace(`/projects?projectId=${projectId}`);
     }
-  }, [activeLists.length, listId, projectId, router, selectedList]);
+  }, [activeLists.length, isProjectLoading, listId, projectId, router, selectedList]);
 
   const taskScope = useMemo(() => {
     if (!projectId || isProjectLocked) return null;

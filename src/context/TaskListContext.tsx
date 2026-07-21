@@ -6,6 +6,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -73,8 +74,22 @@ export function TaskListProvider({ children }: { children: React.ReactNode }) {
   // synchronously since queries are keyed per-project, but we keep clearing
   // on workspace switch since project ids aren't guaranteed unique across
   // workspaces in every backend implementation.
+  //
+  // Only clear when leaving a previously-known workspace (a real switch or
+  // logout). Skip the initial undefined -> id hydration on page load: the
+  // active workspace id is restored synchronously from localStorage while the
+  // workspaces array is fetched async, so activeWorkspace flips null -> real
+  // shortly after mount. Clearing on that flip would wipe lists that were
+  // already fetched from the restored URL, leaving the selected list unable to
+  // resolve after a reload.
+  const prevWorkspaceIdRef = useRef<string | undefined>(activeWorkspace?.id);
   useEffect(() => {
-    clearLists();
+    const prev = prevWorkspaceIdRef.current;
+    const current = activeWorkspace?.id;
+    prevWorkspaceIdRef.current = current;
+    if (prev !== undefined && prev !== current) {
+      clearLists();
+    }
   }, [activeWorkspace?.id, clearLists]);
 
   const getLists = useCallback(
