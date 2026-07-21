@@ -1155,6 +1155,7 @@ const AppSidebar: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => 
               </button>
             );
           })}
+          {/* Client Hub — commented out for now
           <button
             onClick={handleClientHubClick}
             disabled={isOpeningClientHub}
@@ -1168,6 +1169,7 @@ const AppSidebar: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => 
             )}
             <span className="text-[9px] mt-0.5 leading-none">Client Hub</span>
           </button>
+          */}
         </nav>
 
         {/* Bottom rail actions */}
