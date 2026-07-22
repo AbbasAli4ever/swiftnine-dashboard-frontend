@@ -71,6 +71,11 @@ export interface TaskListItem {
   _count: { children: number };
 }
 
+// Returned by the bulk GET /tasks/batch endpoint — a list item plus creator.
+export interface TaskListItemWithCreator extends TaskListItem {
+  creator: TaskUserInfo;
+}
+
 export interface TaskDetail {
   id: string;
   taskId: string;
@@ -243,6 +248,17 @@ export const taskService = {
     api
       .get<ApiWrapper<TaskDetail>>(`/tasks/${taskId}`)
       .then((r) => r.data.data),
+
+  // Bulk lookup by id in one request (avoids N+1 GET /tasks/:id calls).
+  // Returns list items augmented with `creator` (used by the Inbox actor map).
+  getByIds: (ids: string[]) =>
+    ids.length === 0
+      ? Promise.resolve([] as TaskListItemWithCreator[])
+      : api
+          .get<ApiWrapper<TaskListItemWithCreator[]>>("/tasks/batch", {
+            params: { ids: ids.join(",") },
+          })
+          .then((r) => r.data.data),
 
   create: (projectId: string, listId: string, payload: CreateTaskPayload) =>
     api

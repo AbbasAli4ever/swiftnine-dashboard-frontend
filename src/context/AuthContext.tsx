@@ -4,6 +4,8 @@ import { api, refreshSession } from "@/lib/api";
 import { AuthUser, useAuthStore, hasSessionExists } from "@/stores/auth.store";
 import { usePathname } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
+import { clearPersistedQueryCache } from "@/lib/queryPersister";
+import { clearPersistedTaskCaches } from "@/stores/clearTaskCaches";
 import React, {
   createContext,
   useCallback,
@@ -136,6 +138,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // QueryClient today, but clear explicitly so a future switch to
       // client-side redirect can't leak cached data into the next session.
       queryClient.clear();
+      // The persisted caches live in IndexedDB and survive navigation/reload,
+      // so they must be wiped explicitly or the next user on this browser would
+      // restore the previous user's task data before their own loads.
+      void clearPersistedQueryCache();
+      clearPersistedTaskCaches();
       // Hard navigation so the middleware re-evaluates with the cleared cookie
       // and no RSC prefetch races occur. router.replace would trigger an RSC
       // fetch against the protected route before the redirect completes.

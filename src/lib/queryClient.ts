@@ -14,11 +14,14 @@ export function makeQueryClient() {
   return new QueryClient({
     defaultOptions: {
       queries: {
-        staleTime: 30_000,
-        gcTime: 5 * 60_000,
+        // Structural data changes rarely and realtime updates arrive via
+        // SSE/sockets, so keep data fresh for a minute and don't refetch just
+        // because the tab regained focus. Persistence (IndexedDB) covers reloads.
+        staleTime: 60_000,
+        gcTime: 30 * 60_000,
         retry: shouldRetry,
         retryDelay: 1000,
-        refetchOnWindowFocus: true,
+        refetchOnWindowFocus: false,
         refetchOnReconnect: true,
       },
       mutations: {

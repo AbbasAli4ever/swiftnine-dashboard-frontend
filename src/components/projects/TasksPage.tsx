@@ -8,7 +8,7 @@ import { useProjects } from "@/context/ProjectContext";
 import { projectService } from "@/services/project.service";
 import { useTaskLists } from "@/context/TaskListContext";
 import { parseApiError } from "@/lib/api";
-import { StatusItem, flattenGroupedStatuses, statusService } from "@/services/status.service";
+import { useStatuses } from "@/hooks/useStatuses";
 import { TaskList } from "@/services/task-list.service";
 import { useWorkspaceTags } from "@/hooks/useWorkspaceTags";
 import { TaskListItem } from "@/services/task.service";
@@ -83,7 +83,6 @@ export default function TasksPage() {
   } = useTaskStore();
   const { searchProject, searchList } = useTaskSearchStore();
   const { tags } = useWorkspaceTags();
-  const [statuses, setStatuses] = useState<StatusItem[]>([]);
   const [pendingDefaults, setPendingDefaults] = useState<PendingCreateDefaults>({});
   const [createListOpen, setCreateListOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<TaskList | null>(null);
@@ -145,13 +144,7 @@ export default function TasksPage() {
     void getLists(projectId, { includeArchived: true }).catch(() => {});
   }, [getLists, listId, projectId, isProjectLocked]);
 
-  useEffect(() => {
-    if (!projectId || isProjectLocked) return;
-    statusService
-      .list(projectId)
-      .then((grouped) => setStatuses(flattenGroupedStatuses(grouped)))
-      .catch(() => setStatuses([]));
-  }, [projectId, isProjectLocked]);
+  const { statuses } = useStatuses(projectId, !isProjectLocked);
 
   useEffect(() => {
     // Wait until lists have finished loading before treating a listId as stale;

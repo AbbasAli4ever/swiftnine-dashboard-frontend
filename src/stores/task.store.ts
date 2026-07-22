@@ -1,4 +1,6 @@
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { idbStateStorage } from "@/lib/idbStorage";
 import {
   taskService,
   TaskListItem,
@@ -57,7 +59,9 @@ interface TaskState {
   updateTagInStore: (tag: { id: string; name: string; color: string }) => void;
 }
 
-export const useTaskStore = create<TaskState>((set, get) => ({
+export const useTaskStore = create<TaskState>()(
+  persist(
+    (set, get) => ({
   minimizedTasks: [],
   tasksByList: {},
   subtasksByParent: {},
@@ -871,4 +875,18 @@ export const useTaskStore = create<TaskState>((set, get) => ({
         : null,
     }));
   },
-}));
+    }),
+    {
+      name: "task-store-cache",
+      version: 1,
+      storage: createJSONStorage(() => idbStateStorage),
+      // Persist only the resolved task lists. Everything else is session-only:
+      // the Set fields don't survive JSON, and open/minimized/expanded state is
+      // transient UI that shouldn't be restored across a reload.
+      partialize: (state) => ({
+        tasksByList: state.tasksByList,
+        subtasksByParent: state.subtasksByParent,
+      }),
+    }
+  )
+);

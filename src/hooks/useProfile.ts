@@ -35,6 +35,7 @@ export function useProfile() {
       return data;
     },
     enabled: !!accessToken,
+    staleTime: 5 * 60_000,
   });
 
   const fetch = async () => {

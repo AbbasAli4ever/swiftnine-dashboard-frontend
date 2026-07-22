@@ -17,8 +17,9 @@ import {
   UpdateTaskListPayload,
 } from "@/services/task-list.service";
 import { useWorkspace } from "@/context/WorkspaceContext";
-import { useProjects } from "@/context/ProjectContext";
 import { queryKeys } from "@/queries/keys";
+import { clearPersistedQueryCache } from "@/lib/queryPersister";
+import { clearPersistedTaskCaches } from "@/stores/clearTaskCaches";
 
 type GetListsOptions = {
   includeArchived?: boolean;
@@ -50,7 +51,6 @@ function sortLists(items: TaskList[]) {
 
 export function TaskListProvider({ children }: { children: React.ReactNode }) {
   const { activeWorkspace } = useWorkspace();
-  const { refetch: refetchProjects } = useProjects();
   const queryClient = useQueryClient();
 
   // Mirrors the query cache for synchronous reads in render (getProjectLists/
@@ -68,6 +68,17 @@ export function TaskListProvider({ children }: { children: React.ReactNode }) {
 
   const clearLists = useCallback(() => {
     queryClient.removeQueries({ queryKey: ["task-lists"] });
+  }, [queryClient]);
+
+  // On a real workspace switch, also drop the other project-scoped task caches
+  // (board queries + the persisted Zustand task stores + the persisted RQ
+  // snapshot) so stale cross-workspace task data can't be restored after a
+  // reload. Project ids aren't guaranteed unique across workspaces.
+  const clearProjectTaskCaches = useCallback(() => {
+    queryClient.removeQueries({ queryKey: ["task-board"] });
+    queryClient.removeQueries({ queryKey: ["task-board-infinite"] });
+    clearPersistedTaskCaches();
+    void clearPersistedQueryCache();
   }, [queryClient]);
 
   // Previously a setTimeout(0) full-wipe; now scoped removal is safe to run
@@ -89,8 +100,9 @@ export function TaskListProvider({ children }: { children: React.ReactNode }) {
     prevWorkspaceIdRef.current = current;
     if (prev !== undefined && prev !== current) {
       clearLists();
+      clearProjectTaskCaches();
     }
-  }, [activeWorkspace?.id, clearLists]);
+  }, [activeWorkspace?.id, clearLists, clearProjectTaskCaches]);
 
   const getLists = useCallback(
     async (projectId: string, options?: GetListsOptions) => {
@@ -105,6 +117,7 @@ export function TaskListProvider({ children }: { children: React.ReactNode }) {
       const items = await queryClient.fetchQuery({
         queryKey: key,
         queryFn: () => taskListService.list(projectId, includeArchived),
+        staleTime: 5 * 60_000,
       });
       return sortLists(items);
     },
@@ -150,10 +163,9 @@ export function TaskListProvider({ children }: { children: React.ReactNode }) {
     async (projectId: string, payload: CreateTaskListPayload) => {
       const created = await taskListService.create(projectId, payload);
       setListsData(projectId, (items) => [...items, created]);
-      await refetchProjects();
       return created;
     },
-    [refetchProjects, setListsData]
+    [setListsData]
   );
 
   const renameList = useCallback(
@@ -183,10 +195,9 @@ export function TaskListProvider({ children }: { children: React.ReactNode }) {
           )
         );
       }
-      await refetchProjects();
       return archived;
     },
-    [queryClient, refetchProjects]
+    [queryClient]
   );
 
   const restoreList = useCallback(
@@ -199,10 +210,9 @@ export function TaskListProvider({ children }: { children: React.ReactNode }) {
         updated[existingIndex] = restored;
         return updated;
       });
-      await refetchProjects();
       return restored;
     },
-    [refetchProjects, setListsData]
+    [setListsData]
   );
 
   const reorderLists = useCallback(
@@ -230,9 +240,8 @@ export function TaskListProvider({ children }: { children: React.ReactNode }) {
       setListsData(projectId, (items) =>
         items.filter((item) => item.id !== listId)
       );
-      await refetchProjects();
     },
-    [refetchProjects, setListsData]
+    [setListsData]
   );
 
   const value = useMemo<TaskListContextValue>(

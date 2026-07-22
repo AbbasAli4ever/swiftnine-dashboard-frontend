@@ -266,7 +266,7 @@ export default function ChannelChatView({ channelId, channelName, members, priva
     clearChannelUnread,
   } = useChannelStore();
 
-  const { members: workspaceMembers, refetch: fetchWorkspaceMembers } = useWorkspaceMembers();
+  const { members: workspaceMembers } = useWorkspaceMembers();
 
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -282,10 +282,6 @@ export default function ChannelChatView({ channelId, channelName, members, priva
   const [membersTab, setMembersTab] = useState<"followers" | "access">("followers");
   const [memberSearch, setMemberSearch] = useState("");
   const [addingUserId, setAddingUserId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (showMembersSidebar) fetchWorkspaceMembers();
-  }, [showMembersSidebar, fetchWorkspaceMembers]);
 
   const memberCount = members.length;
   const memberUserIds = new Set(members.map((m) => m.userId));

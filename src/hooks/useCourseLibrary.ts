@@ -21,6 +21,7 @@ export function useCourseLibrary(params: CoursesParams) {
       };
     },
     enabled: !!accessToken,
+    staleTime: 5 * 60_000,
   });
 
   return {

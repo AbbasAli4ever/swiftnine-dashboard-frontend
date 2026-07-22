@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 import {
   taskService,
   TaskListItem,
@@ -9,6 +10,7 @@ import {
   TaskSearchResult,
 } from "@/services/task.service";
 import { parseApiError } from "@/lib/api";
+import { idbStateStorage } from "@/lib/idbStorage";
 
 export type TaskSearchScope =
   | { type: "workspace" }
@@ -104,7 +106,9 @@ function matchesScope(scope: TaskSearchScope, context: { projectId?: string; lis
   return true;
 }
 
-export const useTaskSearchStore = create<TaskSearchState>((set, get) => {
+export const useTaskSearchStore = create<TaskSearchState>()(
+  persist(
+    (set, get) => {
   const runSearch = async (
     scope: TaskSearchScope,
     params?: TaskSearchParams,
@@ -285,6 +289,25 @@ export const useTaskSearchStore = create<TaskSearchState>((set, get) => {
       }));
     },
   };
-});
+    },
+    {
+      name: "task-search-cache",
+      version: 1,
+      storage: createJSONStorage(() => idbStateStorage),
+      // Only the resolved cache map is worth persisting.
+      partialize: (state) => ({ caches: state.caches }),
+      // Restored entries must not carry a stale `loading`/`error` state, or a
+      // cache persisted mid-fetch would show a spinner forever after reload.
+      merge: (persisted, current) => {
+        const restored = (persisted as { caches?: Record<string, TaskSearchCacheEntry> } | undefined)?.caches ?? {};
+        const caches: Record<string, TaskSearchCacheEntry> = {};
+        for (const [key, entry] of Object.entries(restored)) {
+          caches[key] = { ...entry, loading: false, error: null };
+        }
+        return { ...current, caches };
+      },
+    }
+  )
+);
 
 export { getTaskSearchCacheKey, normalizeParams };

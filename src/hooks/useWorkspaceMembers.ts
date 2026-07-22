@@ -16,7 +16,7 @@ export function useWorkspaceMembers() {
       return all.filter((m) => m.inviteStatus !== "PENDING");
     },
     enabled: !!workspaceId,
-    staleTime: 10_000,
+    staleTime: 60_000,
   });
 
   return {

@@ -42,6 +42,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     queryKey,
     queryFn: () => projectService.list(),
     enabled: !!workspaceId,
+    staleTime: 5 * 60_000,
   });
   const projects = useMemo(() => query.data ?? [], [query.data]);
 

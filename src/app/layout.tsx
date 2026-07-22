@@ -4,9 +4,6 @@ import { TaskProvider } from "@/context/TaskContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { WorkspaceProvider } from "@/context/WorkspaceContext";
-import { ProjectProvider } from "@/context/ProjectContext";
-import { TaskListProvider } from "@/context/TaskListContext";
-import { DocsProvider } from "@/context/DocsContext";
 import { QueryProvider } from "@/app/providers/QueryProvider";
 import "./globals.css";
 import "flatpickr/dist/flatpickr.css";
@@ -40,15 +37,9 @@ export default function RootLayout({
           <ThemeProvider>
             <AuthProvider>
               <WorkspaceProvider>
-                <ProjectProvider>
-                  <TaskListProvider>
-                    <DocsProvider>
-                      <SidebarProvider>
-                        <TaskProvider>{children}</TaskProvider>
-                      </SidebarProvider>
-                    </DocsProvider>
-                  </TaskListProvider>
-                </ProjectProvider>
+                <SidebarProvider>
+                  <TaskProvider>{children}</TaskProvider>
+                </SidebarProvider>
               </WorkspaceProvider>
             </AuthProvider>
           </ThemeProvider>

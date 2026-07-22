@@ -282,6 +282,7 @@ export default function TaskDashboardHome({
     queryKey: dashboardQueryKey,
     queryFn: () => dashboardService.get(projectId),
     enabled: !!projectId,
+    staleTime: 5 * 60_000,
   });
   const data = dashboardQuery.data ?? null;
   const loading = dashboardQuery.isLoading;

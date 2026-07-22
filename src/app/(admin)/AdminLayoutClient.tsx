@@ -4,6 +4,9 @@ import { useAuth } from "@/context/AuthContext";
 import { hasSessionExists } from "@/stores/auth.store";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { NotificationProvider } from "@/context/NotificationContext";
+import { ProjectProvider } from "@/context/ProjectContext";
+import { TaskListProvider } from "@/context/TaskListContext";
+import { DocsProvider } from "@/context/DocsContext";
 import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
 import CreateWorkspaceModal from "@/components/workspace/CreateWorkspaceModal";
@@ -44,6 +47,12 @@ export default function AdminLayoutClient({
   const forcedModal = !workspacesLoading && isAuthenticated && workspaces.length === 0;
 
   return (
+    // Projects/lists/docs are only used by the dashboard (admin) area, so scope
+    // their providers here instead of the root layout — otherwise they'd fetch
+    // GET /projects and GET /docs on every route, including the university pages.
+    <ProjectProvider>
+    <TaskListProvider>
+    <DocsProvider>
     <NotificationProvider>
     <div className="flex flex-col h-screen overflow-hidden bg-white dark:bg-gray-907">
       {/* Header — full width, above everything */}
@@ -75,5 +84,8 @@ export default function AdminLayoutClient({
       <CreateWorkspaceModal isOpen={forcedModal} />
     </div>
     </NotificationProvider>
+    </DocsProvider>
+    </TaskListProvider>
+    </ProjectProvider>
   );
 }

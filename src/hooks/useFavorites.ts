@@ -27,6 +27,7 @@ export function useFavorites() {
       return { projects, tasks };
     },
     enabled: !!workspaceId,
+    staleTime: 5 * 60_000,
   });
 
   // invalidateFavorites() (called imperatively from several mutation sites)

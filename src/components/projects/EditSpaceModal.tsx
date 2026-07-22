@@ -2,10 +2,12 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { useProjects } from "@/context/ProjectContext";
 import { Project } from "@/services/project.service";
 import { statusService } from "@/services/status.service";
+import { queryKeys } from "@/queries/keys";
 import { parseApiError } from "@/lib/api";
 import { syncProjectStatuses } from "@/components/projects/project-status-sync";
 import {
@@ -35,6 +37,7 @@ interface Props {
 
 export default function EditSpaceModal({ isOpen, onClose, project }: Props) {
   const { updateProject, refetch } = useProjects();
+  const queryClient = useQueryClient();
 
   const [step, setStep] = useState<EditStep>("details");
   const [name, setName] = useState(project.name);
@@ -355,6 +358,9 @@ export default function EditSpaceModal({ isOpen, onClose, project }: Props) {
 
       const initialGroupedStatuses = await statusService.list(project.id);
       await syncProjectStatuses(project.id, initialGroupedStatuses, groups);
+      // Statuses were just edited — drop the shared cache so the board/task
+      // views pick up the changes (they now hold statuses for up to 5 min).
+      await queryClient.invalidateQueries({ queryKey: queryKeys.statuses(project.id) });
 
       if (Object.keys(projectPayload).length > 0) {
         await updateProject(project.id, projectPayload);

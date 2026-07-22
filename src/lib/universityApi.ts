@@ -28,7 +28,6 @@ export const universityApi = axios.create({
 // ── Request: attach dashboard bearer token ────────────────────────────────────
 universityApi.interceptors.request.use((config) => {
   const token = getAccessToken();
-  console.debug("[universityApi] token present:", !!token, "| url:", config.url);
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }

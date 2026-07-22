@@ -17,7 +17,7 @@ const AppHeader: React.FC = () => {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { openProfilePanel } = useUiStore();
-  const { profile, fetch: fetchProfile } = useProfileStore();
+  const { profile } = useProfileStore();
   const { activeWorkspace } = useWorkspace();
   const status = profile?.status ?? "OFFLINE";
   const [switcherOpen, setSwitcherOpen] = useState(false);
@@ -26,9 +26,7 @@ const AppHeader: React.FC = () => {
   const wsName = activeWorkspace?.name ?? "Workspace";
   const wsInitial = wsName.charAt(0).toUpperCase();
 
-  useEffect(() => {
-    fetchProfile();
-  }, [fetchProfile]);
+  // useProfile() already fetches on mount; no forced refetch needed here.
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);

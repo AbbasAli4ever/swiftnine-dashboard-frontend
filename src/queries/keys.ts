@@ -8,6 +8,8 @@ export const queryKeys = {
     ["task-lists", projectId, { includeArchived }] as const,
   taskBoardInfinite: (scope: TaskSearchScope, params: TaskSearchParams) =>
     ["task-board-infinite", scope, params] as const,
+  taskBoard: (projectId: string, params: TaskSearchParams) =>
+    ["task-board", projectId, params] as const,
 
   universityDashboard: () => ["university", "dashboard"] as const,
   universityCourses: (params: unknown) =>

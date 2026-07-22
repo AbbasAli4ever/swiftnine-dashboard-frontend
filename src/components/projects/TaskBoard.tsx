@@ -2,11 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { LuPlus, LuEllipsis } from "react-icons/lu";
 import { StatusItem } from "@/services/status.service";
 import { WorkspaceMember } from "@/services/workspace.service";
-import { TaskListItem, TaskPriority, BoardColumn as BoardColumnData, taskService } from "@/services/task.service";
+import { TaskListItem, TaskPriority, BoardColumn as BoardColumnData, BoardResponse, taskService } from "@/services/task.service";
 import { TaskList } from "@/services/task-list.service";
+import { queryKeys } from "@/queries/keys";
+import { normalizeParams } from "@/stores/task-search.store";
 import { useTaskStore } from "@/stores/task.store";
 import { useTheme } from "@/context/ThemeContext";
 import { parseApiError } from "@/lib/api";
@@ -471,30 +474,49 @@ export default function TaskBoard({
   const isProjectBoard = lists.length > 1;
 
   // ── Project board state (multi-list) ──────────────────────────────────────
-  const [boardColumns, setBoardColumns] = useState<BoardColumnData[]>([]);
-  const [boardLoading, setBoardLoading] = useState(false);
-  const boardColumnsRef = useRef<BoardColumnData[]>([]);
+  // The board lives in the React Query cache (keyed per project + filters) so it
+  // is deduped/served across navigation and eligible for cross-refresh
+  // persistence, rather than refetching on every mount.
+  const queryClient = useQueryClient();
+  const boardParams = useMemo(() => normalizeParams(taskSearchParams), [taskSearchParams]);
+  const boardKey = useMemo(() => queryKeys.taskBoard(projectId, boardParams), [projectId, boardParams]);
 
-  useEffect(() => {
-    if (!isProjectBoard) return;
-    setBoardLoading(true);
-    taskService.getBoard(projectId, taskSearchParams)
-      .then((data) => {
-        setBoardColumns(data.columns);
-        boardColumnsRef.current = data.columns;
-      })
-      .catch(() => {})
-      .finally(() => setBoardLoading(false));
-  }, [isProjectBoard, projectId, taskSearchParams]);
+  const boardQuery = useQuery({
+    queryKey: boardKey,
+    queryFn: () => taskService.getBoard(projectId, boardParams),
+    enabled: isProjectBoard,
+    // Fresh for 60s so quick tab switches serve straight from cache (no refetch);
+    // after that a remount/refresh shows the cached/persisted board instantly and
+    // revalidates in the background (refetchOnMount defaults to true).
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
+
+  const boardColumns = useMemo<BoardColumnData[]>(() => boardQuery.data?.columns ?? [], [boardQuery.data]);
+  const boardLoading = boardQuery.isLoading;
+
+  // Mirror of the cached columns for synchronous reads inside pointer handlers.
+  const boardColumnsRef = useRef<BoardColumnData[]>([]);
+  useEffect(() => { boardColumnsRef.current = boardColumns; }, [boardColumns]);
+
+  // Write-through optimistic update: patch the cached board columns in place.
+  const setBoardColumns = useCallback(
+    (updater: BoardColumnData[] | ((prev: BoardColumnData[]) => BoardColumnData[])) => {
+      queryClient.setQueryData<BoardResponse>(boardKey, (prev) => {
+        if (!prev) return prev;
+        const nextColumns = typeof updater === "function"
+          ? (updater as (p: BoardColumnData[]) => BoardColumnData[])(prev.columns)
+          : updater;
+        boardColumnsRef.current = nextColumns;
+        return { ...prev, columns: nextColumns };
+      });
+    },
+    [queryClient, boardKey]
+  );
 
   const refetchBoard = useCallback(() => {
-    taskService.getBoard(projectId, taskSearchParams)
-      .then((data) => {
-        setBoardColumns(data.columns);
-        boardColumnsRef.current = data.columns;
-      })
-      .catch(() => {});
-  }, [projectId, taskSearchParams]);
+    void queryClient.invalidateQueries({ queryKey: boardKey });
+  }, [queryClient, boardKey]);
 
   // ── Single-list board state ────────────────────────────────────────────────
   const { tasksByList, updateTask, reorderTasks, fetchTasks } = useTaskStore();
@@ -629,7 +651,7 @@ export default function TaskBoard({
           toStatusId: targetStatusId,
           orderedTaskIds: destTasks.map((t) => t.id),
         }).then((data) => {
-          setBoardColumns(data.columns);
+          queryClient.setQueryData<BoardResponse>(boardKey, data);
           boardColumnsRef.current = data.columns;
         }).catch((err) => {
           toast.error(parseApiError(err).message);
@@ -683,7 +705,7 @@ export default function TaskBoard({
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
     };
-  }, [isProjectBoard, disableAutoFetch, disableSameStatusReorder, projectId, updateTask, reorderTasks, fetchTasks, refetchBoard]);
+  }, [isProjectBoard, disableAutoFetch, disableSameStatusReorder, projectId, updateTask, reorderTasks, fetchTasks, refetchBoard, setBoardColumns, queryClient, boardKey]);
 
   const dragOverStatusIdRef = useRef<string | null>(null);
   const dropIdxRef = useRef<number | null>(null);

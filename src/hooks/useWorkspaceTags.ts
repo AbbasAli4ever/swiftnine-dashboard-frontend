@@ -15,6 +15,7 @@ export function useWorkspaceTags() {
     queryKey,
     queryFn: () => tagService.list(),
     enabled: !!workspaceId,
+    staleTime: 5 * 60_000,
   });
 
   const createTag = useCallback(

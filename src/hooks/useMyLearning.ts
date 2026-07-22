@@ -40,6 +40,7 @@ export function useMyLearning() {
     queryKey: queryKeys.universityMyCourses(),
     queryFn: () => getMyCourses(1, 20),
     enabled: !!accessToken,
+    staleTime: 5 * 60_000,
   });
   const myCourses = coursesQuery.data?.data ?? [];
 
@@ -63,6 +64,7 @@ export function useMyLearning() {
     queryKey: queryKeys.universityCourseDetail(activeCourseId ?? ""),
     queryFn: () => getCourseDetail(activeCourseId!),
     enabled: !!activeCourseId,
+    staleTime: 5 * 60_000,
   });
   const courseDetail = courseDetailQuery.data ?? null;
 

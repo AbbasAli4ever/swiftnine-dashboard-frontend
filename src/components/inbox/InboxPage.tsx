@@ -460,21 +460,20 @@ export default function InboxPage() {
 
     unique.forEach((taskId) => fetchingRef.current.add(taskId));
 
-    Promise.allSettled(unique.map((taskId) => taskService.get(taskId))).then((results) => {
+    // One batched request instead of one GET /tasks/:id per referenced task.
+    taskService.getByIds(unique).then((tasks) => {
       const updates: Record<string, TaskMeta> = {};
-      results.forEach((r, i) => {
-        if (r.status === "fulfilled") {
-          const task = r.value;
-          const users: Record<string, TaskUserInfo> = {};
-          users[task.creator.id] = task.creator;
-          task.assignees.forEach((a) => { users[a.user.id] = a.user; });
-          updates[unique[i]] = { title: task.title, status: task.status, users };
-        }
-        fetchingRef.current.delete(unique[i]);
+      tasks.forEach((task) => {
+        const users: Record<string, TaskUserInfo> = {};
+        users[task.creator.id] = task.creator;
+        task.assignees.forEach((a) => { users[a.user.id] = a.user; });
+        updates[task.id] = { title: task.title, status: task.status, users };
       });
       if (Object.keys(updates).length) {
         setTaskMetaMap((prev) => ({ ...prev, ...updates }));
       }
+    }).finally(() => {
+      unique.forEach((taskId) => fetchingRef.current.delete(taskId));
     });
   }, [notifications, snoozed, cleared]);
 

@@ -207,26 +207,34 @@ function MyStatusGroup({
   );
 }
 
+const MY_TASKS_MAX_PAGES = 5;
+
 async function fetchMyTasks(): Promise<{ items: TaskListItem[]; total: number }> {
-  const allItems: TaskListItem[] = [];
-  let page = 1;
   const limit = 100;
-  let total = 0;
-  while (page <= 5) {
-    const result = await taskService.searchWorkspace({
-      me: true,
-      include_closed: true,
-      include_archived: false,
-      include_subtasks: false,
-      limit,
-      page,
-    });
-    allItems.push(...result.items);
-    total = result.meta.total;
-    if (!result.meta.has_next || page === 5) break;
-    page++;
+  const baseParams = {
+    me: true,
+    include_closed: true,
+    include_archived: false,
+    include_subtasks: false,
+    limit,
+  } as const;
+
+  // Fetch page 1 to learn the page count, then request the rest in parallel
+  // instead of awaiting each page serially.
+  const first = await taskService.searchWorkspace({ ...baseParams, page: 1 });
+  const items = [...first.items];
+  const pageCount = Math.min(first.meta.total_pages || 1, MY_TASKS_MAX_PAGES);
+
+  if (pageCount > 1) {
+    const rest = await Promise.all(
+      Array.from({ length: pageCount - 1 }, (_, i) =>
+        taskService.searchWorkspace({ ...baseParams, page: i + 2 })
+      )
+    );
+    rest.forEach((result) => items.push(...result.items));
   }
-  return { items: allItems, total };
+
+  return { items, total: first.meta.total };
 }
 
 export default function MyTasksPage() {

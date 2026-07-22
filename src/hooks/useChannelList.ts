@@ -15,6 +15,7 @@ export function useChannelList() {
     queryKey,
     queryFn: () => channelService.getChannels(workspaceId!),
     enabled: !!workspaceId,
+    staleTime: 5 * 60_000,
   });
 
   const refetch = useCallback(

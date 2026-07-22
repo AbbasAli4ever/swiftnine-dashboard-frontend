@@ -42,6 +42,7 @@ export function DocsProvider({ children }: { children: React.ReactNode }) {
     queryKey,
     queryFn: () => docsService.list({ workspaceId: workspaceId! }),
     enabled: !!workspaceId,
+    staleTime: 5 * 60_000,
   });
   const docs = useMemo(() => query.data ?? [], [query.data]);
 
