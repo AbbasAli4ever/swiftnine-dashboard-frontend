@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { useProjects } from "@/context/ProjectContext";
+import { useOptionalProjects } from "@/context/ProjectContext";
 import { useTaskLists } from "@/context/TaskListContext";
 import { Project, projectService } from "@/services/project.service";
 import { taskService } from "@/services/task.service";
@@ -299,7 +299,7 @@ function SpaceRow({
   showArchivedLists?: boolean;
 }) {
   const router = useRouter();
-  const { deleteProject, updateProject, patchLocalProject, refetch: refetchProjects } = useProjects();
+  const { deleteProject, updateProject, patchLocalProject, refetch: refetchProjects } = useOptionalProjects();
   const { getProjectLists, reorderLists } = useTaskLists();
   const [menuOpen, setMenuOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -636,7 +636,7 @@ function SpaceRow({
 // ── Favorites section ────────────────────────────────────────────────────────
 function FavoritesSidebarSection() {
   const router = useRouter();
-  const { patchLocalProject } = useProjects();
+  const { patchLocalProject } = useOptionalProjects();
   const [expanded, setExpanded] = useState(true);
   const {
     favoriteProjects: favProjects,
@@ -758,7 +758,7 @@ function HomePanelContent() {
   const [spacesMenuOpen, setSpacesMenuOpen] = useState(false);
   const spacesMenuRef = useRef<HTMLDivElement>(null);
   const spacesMenuBtnRef = useRef<HTMLButtonElement>(null);
-  const { projects, isLoading: projectsLoading, fetchArchivedProjects } = useProjects();
+  const { projects, isLoading: projectsLoading, fetchArchivedProjects } = useOptionalProjects();
   const { getLists } = useTaskLists();
   const activeProjectId = searchParams.get("projectId");
   const activeListId = searchParams.get("listId");

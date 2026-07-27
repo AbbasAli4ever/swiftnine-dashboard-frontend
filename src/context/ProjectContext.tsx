@@ -143,3 +143,31 @@ export function useProjects(): ProjectContextValue {
     throw new Error("useProjects must be used within <ProjectProvider>");
   return ctx;
 }
+
+// Safe defaults for consumers that may render outside a <ProjectProvider> —
+// e.g. AppSidebar, which is shared by the admin layout (has the provider) and
+// the university layout (intentionally does NOT, to avoid fetching /projects
+// there). In that case the project-related UI simply renders empty instead of
+// throwing a client-side exception that white-screens the whole page.
+const EMPTY_PROJECTS: Project[] = [];
+const NOOP_PROJECT_CONTEXT: ProjectContextValue = {
+  projects: EMPTY_PROJECTS,
+  isLoading: false,
+  createProject: async () => {
+    throw new Error("createProject is unavailable outside <ProjectProvider>");
+  },
+  updateProject: async () => {},
+  patchLocalProject: () => {},
+  deleteProject: async () => {},
+  refetch: async () => {},
+  fetchArchivedProjects: async () => {},
+};
+
+/**
+ * Like useProjects(), but returns inert defaults instead of throwing when there
+ * is no <ProjectProvider> above in the tree. Use this in components that render
+ * in both provider-wrapped and provider-less layouts.
+ */
+export function useOptionalProjects(): ProjectContextValue {
+  return useContext(ProjectContext) ?? NOOP_PROJECT_CONTEXT;
+}
