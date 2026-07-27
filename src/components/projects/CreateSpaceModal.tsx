@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
-import { useProjects } from "@/context/ProjectContext";
+import { useOptionalProjects } from "@/context/ProjectContext";
 import { parseApiError } from "@/lib/api";
 import { statusService } from "@/services/status.service";
 import { taskListService } from "@/services/task-list.service";
@@ -40,7 +40,7 @@ interface Props {
 }
 
 export default function CreateSpaceModal({ isOpen, onClose }: Props) {
-  const { createProject, refetch } = useProjects();
+  const { createProject, refetch } = useOptionalProjects();
 
   // Step 1 state
   const [step, setStep] = useState<CreateStep>("details");

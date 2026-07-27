@@ -4,8 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Modal } from "@/components/ui/modal";
 import Select from "@/components/form/Select";
-import { useProjects } from "@/context/ProjectContext";
-import { useTaskLists } from "@/context/TaskListContext";
+import { useOptionalProjects } from "@/context/ProjectContext";
+import { useOptionalTaskLists } from "@/context/TaskListContext";
 import { parseApiError } from "@/lib/api";
 import { TaskList } from "@/services/task-list.service";
 import { toast } from "sonner";
@@ -26,8 +26,8 @@ export default function CreateListModal({
   onCreated,
 }: CreateListModalProps) {
   const router = useRouter();
-  const { projects } = useProjects();
-  const { createList } = useTaskLists();
+  const { projects } = useOptionalProjects();
+  const { createList } = useOptionalTaskLists();
   const [name, setName] = useState("");
   const [projectId, setProjectId] = useState(initialProjectId ?? "");
   const [loading, setLoading] = useState(false);

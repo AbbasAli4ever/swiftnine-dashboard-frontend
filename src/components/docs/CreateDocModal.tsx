@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { LuX, LuLock, LuUsers, LuFolder } from "react-icons/lu";
 import { toast } from "sonner";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
-import { useDocs } from "@/context/DocsContext";
+import { useOptionalDocs } from "@/context/DocsContext";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { parseApiError } from "@/lib/api";
 import type { DocScope } from "@/services/docs.service";
@@ -28,7 +28,7 @@ export default function CreateDocModal({
   fixedScope,
 }: Props) {
   const { activeWorkspace } = useWorkspace();
-  const { createDoc } = useDocs();
+  const { createDoc } = useOptionalDocs();
   const containerRef = useRef<HTMLDivElement>(null);
   useFocusTrap(containerRef, isOpen);
 

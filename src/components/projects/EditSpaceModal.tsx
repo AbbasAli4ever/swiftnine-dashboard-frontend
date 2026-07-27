@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
-import { useProjects } from "@/context/ProjectContext";
+import { useOptionalProjects } from "@/context/ProjectContext";
 import { Project } from "@/services/project.service";
 import { statusService } from "@/services/status.service";
 import { queryKeys } from "@/queries/keys";
@@ -36,7 +36,7 @@ interface Props {
 }
 
 export default function EditSpaceModal({ isOpen, onClose, project }: Props) {
-  const { updateProject, refetch } = useProjects();
+  const { updateProject, refetch } = useOptionalProjects();
   const queryClient = useQueryClient();
 
   const [step, setStep] = useState<EditStep>("details");
