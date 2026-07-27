@@ -122,3 +122,32 @@ export function useDocs(): DocsContextValue {
   if (!ctx) throw new Error("useDocs must be used within <DocsProvider>");
   return ctx;
 }
+
+// Inert defaults for consumers that may render outside a <DocsProvider> —
+// e.g. AppSidebar's DocsListSidebarSection, shared by the admin layout (has the
+// provider) and the university layout (intentionally does NOT). Returns empty
+// results / no-ops instead of throwing a client-side exception that
+// white-screens the page.
+const EMPTY_DOCS: Doc[] = [];
+const NOOP_DOCS_CONTEXT: DocsContextValue = {
+  docs: EMPTY_DOCS,
+  isLoading: false,
+  createDoc: async () => {
+    throw new Error("createDoc is unavailable outside <DocsProvider>");
+  },
+  updateDoc: async () => {
+    throw new Error("updateDoc is unavailable outside <DocsProvider>");
+  },
+  deleteDoc: async () => {},
+  refetch: async () => {},
+  upsertLocal: () => {},
+};
+
+/**
+ * Like useDocs(), but returns inert defaults instead of throwing when there is
+ * no <DocsProvider> above in the tree. Use in components that render in both
+ * provider-wrapped and provider-less layouts.
+ */
+export function useOptionalDocs(): DocsContextValue {
+  return useContext(DocsContext) ?? NOOP_DOCS_CONTEXT;
+}

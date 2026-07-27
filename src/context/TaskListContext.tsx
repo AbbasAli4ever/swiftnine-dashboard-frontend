@@ -285,3 +285,37 @@ export function useTaskLists() {
   }
   return context;
 }
+
+// Inert defaults for consumers that may render outside a <TaskListProvider> —
+// e.g. AppSidebar, shared by the admin layout (has the provider) and the
+// university layout (intentionally does NOT). Returns empty results / no-ops
+// instead of throwing a client-side exception that white-screens the page.
+const NOOP_TASK_LIST_CONTEXT: TaskListContextValue = {
+  getLists: async () => [],
+  getProjectLists: () => [],
+  isProjectLoading: () => false,
+  createList: async () => {
+    throw new Error("createList is unavailable outside <TaskListProvider>");
+  },
+  renameList: async () => {
+    throw new Error("renameList is unavailable outside <TaskListProvider>");
+  },
+  archiveList: async () => {
+    throw new Error("archiveList is unavailable outside <TaskListProvider>");
+  },
+  restoreList: async () => {
+    throw new Error("restoreList is unavailable outside <TaskListProvider>");
+  },
+  reorderLists: async () => [],
+  deleteList: async () => {},
+  clearLists: () => {},
+};
+
+/**
+ * Like useTaskLists(), but returns inert defaults instead of throwing when there
+ * is no <TaskListProvider> above in the tree. Use in components that render in
+ * both provider-wrapped and provider-less layouts.
+ */
+export function useOptionalTaskLists(): TaskListContextValue {
+  return useContext(TaskListContext) ?? NOOP_TASK_LIST_CONTEXT;
+}

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useOptionalProjects } from "@/context/ProjectContext";
-import { useTaskLists } from "@/context/TaskListContext";
+import { useOptionalTaskLists } from "@/context/TaskListContext";
 import { Project, projectService } from "@/services/project.service";
 import { taskService } from "@/services/task.service";
 import { useUiStore } from "@/stores/ui.store";
@@ -112,7 +112,7 @@ function SidebarListRow({
   onDrop: (targetListId: string) => void;
 }) {
   const router = useRouter();
-  const { renameList, archiveList, restoreList, deleteList } = useTaskLists();
+  const { renameList, archiveList, restoreList, deleteList } = useOptionalTaskLists();
   const [menuOpen, setMenuOpen] = useState(false);
   const [renamingInline, setRenamingInline] = useState(false);
   const [renameValue, setRenameValue] = useState("");
@@ -300,7 +300,7 @@ function SpaceRow({
 }) {
   const router = useRouter();
   const { deleteProject, updateProject, patchLocalProject, refetch: refetchProjects } = useOptionalProjects();
-  const { getProjectLists, reorderLists } = useTaskLists();
+  const { getProjectLists, reorderLists } = useOptionalTaskLists();
   const [menuOpen, setMenuOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -759,7 +759,7 @@ function HomePanelContent() {
   const spacesMenuRef = useRef<HTMLDivElement>(null);
   const spacesMenuBtnRef = useRef<HTMLButtonElement>(null);
   const { projects, isLoading: projectsLoading, fetchArchivedProjects } = useOptionalProjects();
-  const { getLists } = useTaskLists();
+  const { getLists } = useOptionalTaskLists();
   const activeProjectId = searchParams.get("projectId");
   const activeListId = searchParams.get("listId");
 

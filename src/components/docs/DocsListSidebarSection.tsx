@@ -4,12 +4,12 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LuFileText, LuPlus, LuLock } from "react-icons/lu";
-import { useDocs } from "@/context/DocsContext";
+import { useOptionalDocs } from "@/context/DocsContext";
 import CreateDocModal from "./CreateDocModal";
 
 export default function DocsListSidebarSection() {
   const pathname = usePathname();
-  const { docs, isLoading } = useDocs();
+  const { docs, isLoading } = useOptionalDocs();
   const [createOpen, setCreateOpen] = useState(false);
 
   // Show workspace + personal docs in sidebar (project docs live on the project overview)
