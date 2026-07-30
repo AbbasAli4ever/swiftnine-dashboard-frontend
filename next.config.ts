@@ -3,7 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
-      { protocol: "https", hostname: "cdn.swiftnine.com" },  
+      { protocol: "https", hostname: "cdn.swiftnine.com" },      
       { protocol: "https", hostname: "*.amazonaws.com" },
     ],
   },       
