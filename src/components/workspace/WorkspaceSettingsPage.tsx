@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/queries/keys";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { useAuth } from "@/context/AuthContext";
 import { parseApiError } from "@/lib/api";
@@ -13,13 +15,23 @@ import {
   LuEllipsis,
   LuSearch,
   LuShield,
+  LuSparkles,
+  LuCoins,
+  LuRotateCcw,
   LuTrash2,
 } from "react-icons/lu";
 import ProfileSettingsForm from "@/components/settings/ProfileSettingsForm";
 import ChangePasswordForm from "@/components/settings/ChangePasswordForm";
 import DeleteAccountSection from "@/components/settings/DeleteAccountSection";
-import { workspaceService, WorkspaceMember } from "@/services/workspace.service";
+import {
+  workspaceService,
+  WorkspaceMember,
+  type AiModelTier,
+  type TokenQuotaStatus,
+} from "@/services/workspace.service";
 import InvitePeopleModal from "@/components/workspace/InvitePeopleModal";
+import MemberTierSecretModal from "@/components/workspace/MemberTierSecretModal";
+import TokenAllowanceModal from "@/components/workspace/TokenAllowanceModal";
 
 const AVATAR_COLOR_STYLES = [
   { bg: "#18181b", text: "#ffffff" },
@@ -41,6 +53,13 @@ function workspaceInitial(name: string) {
   return name.trim().charAt(0).toUpperCase();
 }
 
+/** Compact token count for tight table cells: 620000 -> "620k". */
+function formatTokenCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M`;
+  if (n >= 1_000) return `${Math.round(n / 1_000)}k`;
+  return String(n);
+}
+
 function memberAvatarStyle(id: string) {
   let hash = 0;
   for (let i = 0; i < id.length; i++) {
@@ -51,6 +70,7 @@ function memberAvatarStyle(id: string) {
 
 export function WorkspaceSettingsContent({ tab }: { tab: string }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { activeWorkspace, updateWorkspace, deleteWorkspace } = useWorkspace();
   const { user } = useAuth();
 
@@ -66,6 +86,13 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<WorkspaceMember | null>(null);
+  const [tierTarget, setTierTarget] = useState<WorkspaceMember | null>(null);
+  const [quotas, setQuotas] = useState<Record<string, TokenQuotaStatus>>({});
+  /** Set when an owner picks "Edit token limit" or "Reset tokens" from the menu. */
+  const [allowanceTarget, setAllowanceTarget] = useState<{
+    member: WorkspaceMember;
+    mode: "edit" | "reset";
+  } | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const currentTab = tab;
@@ -85,6 +112,33 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
       .finally(() => setMembersLoading(false));
   }, [activeWorkspace, tab]);
 
+  // Token usage for premium members only — standard members are unmetered, so
+  // fetching a quota for them would be a wasted request per row.
+  useEffect(() => {
+    if (!activeWorkspace || tab !== "people") return;
+    const premium = members.filter((m) => m.aiModelTier === "PREMIUM");
+    if (premium.length === 0) return;
+
+    let cancelled = false;
+    Promise.all(
+      premium.map((m) =>
+        workspaceService
+          .getTokenAllowance(activeWorkspace.id, m.id)
+          .then((quota) => [m.id, quota] as const)
+          // A failed quota read must not break the member list.
+          .catch(() => null),
+      ),
+    ).then((results) => {
+      if (cancelled) return;
+      setQuotas(
+        Object.fromEntries(results.filter((r): r is NonNullable<typeof r> => r !== null)),
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeWorkspace, tab, members]);
+
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -94,6 +148,20 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  // menuPos is captured once from the trigger button's position at click time
+  // and the table can now scroll horizontally (more columns than fit at once),
+  // so a scroll would otherwise leave the dropdown floating away from its
+  // button. Closing on scroll is simpler and safer than repositioning mid-scroll.
+  useEffect(() => {
+    if (!openMenuId) return;
+    const handleScroll = () => {
+      setOpenMenuId(null);
+      setMenuPos(null);
+    };
+    window.addEventListener("scroll", handleScroll, true);
+    return () => window.removeEventListener("scroll", handleScroll, true);
+  }, [openMenuId]);
 
   const isOwner = activeWorkspace?.createdBy === user?.id;
   const initial = workspaceInitial(name || activeWorkspace?.name || "W");
@@ -175,6 +243,24 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
     } catch (err) {
       toast.error(parseApiError(err).message);
     }
+  };
+
+  // The modal performs the secret-gated request itself; this only syncs the two
+  // caches. useWorkspaceMembers serves the same data via react-query elsewhere,
+  // so that key must be invalidated or other views show a stale tier.
+  const handleTierChanged = (member: WorkspaceMember, tier: AiModelTier) => {
+    setMembers(prev => prev.map(m => (m.id === member.id ? { ...m, aiModelTier: tier } : m)));
+    if (activeWorkspace) {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.workspaceMembers(activeWorkspace.id),
+      });
+    }
+    setTierTarget(null);
+    toast.success(
+      tier === "PREMIUM"
+        ? `${member.fullName} upgraded to SwiftNine Premium`
+        : `${member.fullName} moved to Standard`,
+    );
   };
 
   const handleRemoveMember = async () => {
@@ -277,22 +363,26 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
           </div>
 
           <div className="mt-4 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px] table-fixed">
+            <div className="overflow-x-auto [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white [&::-webkit-scrollbar-thumb]:border [&::-webkit-scrollbar-thumb]:border-gray-300 dark:[&::-webkit-scrollbar-thumb]:bg-black dark:[&::-webkit-scrollbar-thumb]:border-gray-700">
+              <table className="w-full min-w-[1180px] table-fixed">
                 <colgroup>
+                  <col className="w-[16%]" />
                   <col className="w-[18%]" />
-                  <col className="w-[20%]" />
-                  <col className="w-[10%]" />
-                  <col className="w-[10%]" />
-                  <col className="w-[10%]" />
                   <col className="w-[8%]" />
-                  <col className="w-[8%]" />
+                  <col className="w-[11%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[9%]" />
+                  <col className="w-[9%]" />
+                  <col className="w-[9%]" />
+                  <col className="w-[6%]" />
                 </colgroup>
                 <thead>
                   <tr className="border-b border-gray-200 text-xs font-normal text-gray-500 dark:border-gray-800 dark:text-gray-400">
                     <th className="px-4 py-3 text-left">Name</th>
                     <th className="px-4 py-3 text-left">Email</th>
                     <th className="px-4 py-3 text-left">Role</th>
+                    <th className="px-4 py-3 text-left">Subscription</th>
+                    <th className="px-4 py-3 text-left">Usage</th>
                     <th className="px-4 py-3 text-left">Last Active</th>
                     <th className="px-4 py-3 text-left">Invited By</th>
                     <th className="px-4 py-3 text-left">Invited On</th>
@@ -302,13 +392,13 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
                 <tbody>
                   {membersLoading ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-10 text-center text-sm text-gray-400">
+                      <td colSpan={9} className="px-4 py-10 text-center text-sm text-gray-400">
                         Loading members...
                       </td>
                     </tr>
                   ) : filteredMembers.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-10 text-center text-sm text-gray-400">
+                      <td colSpan={9} className="px-4 py-10 text-center text-sm text-gray-400">
                         No members found.
                       </td>
                     </tr>
@@ -351,6 +441,66 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
                             }`}>
                               {isOwner ? "Owner" : "Member"}
                             </span>
+                          </td>
+
+                          <td className="px-4 py-3">
+                            {member.aiModelTier === "PREMIUM" ? (
+                              <span
+                                title="Uses the premium AI model"
+                                className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-normal bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-300"
+                              >
+                                <LuSparkles className="h-3 w-3" />
+                                Premium
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center rounded px-2 py-0.5 text-xs font-normal text-gray-500 dark:text-gray-400">
+                                Standard
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="px-4 py-3">
+                            {(() => {
+                              if (member.aiModelTier !== "PREMIUM") {
+                                return <span className="text-xs text-gray-400 dark:text-gray-500">—</span>;
+                              }
+                              const quota = quotas[member.id];
+
+                              // Always show something for a premium member — a
+                              // freshly-upgraded member with no limit assigned
+                              // yet must not silently show nothing.
+                              if (!quota?.metered) {
+                                return (
+                                  <p className="text-[10px] text-gray-400 dark:text-gray-500">
+                                    No token limit set
+                                  </p>
+                                );
+                              }
+
+                              // Same three zones as the chat composer: green
+                              // below 50%, yellow from 50%, red from 85%.
+                              const barColor =
+                                quota.band === "critical"
+                                  ? "bg-red-500"
+                                  : quota.band === "warn"
+                                    ? "bg-amber-500"
+                                    : "bg-emerald-500";
+                              return (
+                                <div className="w-full max-w-[130px]">
+                                  <div className="h-1 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                                    <div
+                                      className={`h-full rounded-full ${barColor}`}
+                                      style={{ width: `${Math.min(100, quota.percentUsed)}%` }}
+                                    />
+                                  </div>
+                                  <p className="mt-1 text-[10px] text-gray-500 dark:text-gray-400">
+                                    {formatTokenCount(quota.consumedTokens)}/
+                                    {formatTokenCount(quota.tokenLimit)} ·{" "}
+                                    {formatTokenCount(quota.remainingTokens)} left
+                                  </p>
+                                </div>
+                              );
+                            })()}
                           </td>
 
                           <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
@@ -419,6 +569,49 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
               <div className="mx-3 border-t border-gray-100 dark:border-gray-800" />
               <button
                 type="button"
+                onClick={() => {
+                  setOpenMenuId(null);
+                  setMenuPos(null);
+                  setTierTarget(member);
+                }}
+                className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
+              >
+                <LuSparkles className="h-4 w-4 text-gray-400" />
+                {member.aiModelTier === "PREMIUM"
+                  ? "Downgrade to Standard"
+                  : "Upgrade to SwiftNine Premium"}
+              </button>
+              {member.aiModelTier === "PREMIUM" && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpenMenuId(null);
+                      setMenuPos(null);
+                      setAllowanceTarget({ member, mode: "edit" });
+                    }}
+                    className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
+                  >
+                    <LuCoins className="h-4 w-4 text-gray-400" />
+                    Edit token limit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpenMenuId(null);
+                      setMenuPos(null);
+                      setAllowanceTarget({ member, mode: "reset" });
+                    }}
+                    className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
+                  >
+                    <LuRotateCcw className="h-4 w-4 text-gray-400" />
+                    Reset tokens now
+                  </button>
+                </>
+              )}
+              <div className="mx-3 border-t border-gray-100 dark:border-gray-800" />
+              <button
+                type="button"
                 onClick={() => { setOpenMenuId(null); setMenuPos(null); setConfirmRemove(member); }}
                 className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-b-xl"
               >
@@ -433,6 +626,36 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
           isOpen={inviteOpen}
           onClose={() => setInviteOpen(false)}
         />
+
+        {activeWorkspace && (
+          <MemberTierSecretModal
+            isOpen={!!tierTarget}
+            member={tierTarget}
+            targetTier={tierTarget?.aiModelTier === "PREMIUM" ? "STANDARD" : "PREMIUM"}
+            workspaceId={activeWorkspace.id}
+            onClose={() => setTierTarget(null)}
+            onConfirmed={(tier) => handleTierChanged(tierTarget!, tier)}
+          />
+        )}
+
+        {activeWorkspace && allowanceTarget && (
+          <TokenAllowanceModal
+            isOpen={!!allowanceTarget}
+            member={allowanceTarget.member}
+            mode={allowanceTarget.mode}
+            workspaceId={activeWorkspace.id}
+            currentQuota={quotas[allowanceTarget.member.id]}
+            onClose={() => setAllowanceTarget(null)}
+            onSaved={(quota) => {
+              setQuotas((prev) => ({ ...prev, [allowanceTarget.member.id]: quota }));
+              toast.success(
+                allowanceTarget.mode === "edit"
+                  ? `Token limit updated for ${allowanceTarget.member.fullName}`
+                  : `Tokens reset for ${allowanceTarget.member.fullName}`,
+              );
+            }}
+          />
+        )}
 
         <ConfirmActionModal
           isOpen={!!confirmRemove}

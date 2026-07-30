@@ -1063,43 +1063,45 @@ function LmsPanelHeader() {
 const AppSidebar: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => {
   const router = useRouter();
   const pathname = usePathname();
-  const [activeRail, setActiveRail] = useState<string>("lms");
   const [inviteOpen, setInviteOpen] = useState(false);
   const [isOpeningClientHub, setIsOpeningClientHub] = useState(false);
   const isSettingsRoute = pathname.startsWith("/settings");
   const isLmsRoute = pathname.startsWith("/university");
   const isChatRoute = pathname.startsWith("/chat");
 
-  // Keep rail in sync with route on first load / direct navigation
-  React.useEffect(() => {
-    if (isLmsRoute) setActiveRail("lms");
-    else if (isChatRoute) setActiveRail("chatbot");
-    else if (!isSettingsRoute) setActiveRail("home");
-  }, [isLmsRoute, isChatRoute, isSettingsRoute]);
-
-  const isSettingsActive = isSettingsRoute && activeRail !== "lms";
+  // Derived directly from the URL on every render — never stored as its own
+  // state. The previous version tracked this in useState (defaulting to
+  // "lms") synced by a useEffect that explicitly skipped updating while
+  // already on a settings route. Since (university) and (admin) are separate
+  // route-group layouts, navigating from University to Settings remounts this
+  // component from scratch: activeRail was reborn as "lms" and the effect
+  // never got a chance to correct it, so the panel stayed on the University
+  // menu even though the page content had already switched to Settings.
+  const activeRail = isSettingsRoute
+    ? "settings"
+    : isLmsRoute
+      ? "lms"
+      : isChatRoute
+        ? "chatbot"
+        : "home";
+  const isSettingsActive = activeRail === "settings";
 
   const handleRailClick = (id: string) => {
     if (id === "home") {
-      setActiveRail("home");
       router.push("/");
       return;
     }
     if (id === "lms") {
-      setActiveRail("lms");
       router.push("/university");
       return;
     }
     if (id === "chatbot") {
-      setActiveRail("chatbot");
       router.push("/chat");
       return;
     }
-    setActiveRail(id);
   };
 
   const handleSettingsClick = () => {
-    setActiveRail("home");
     router.push("/settings");
   };
 

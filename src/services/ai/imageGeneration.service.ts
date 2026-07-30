@@ -1,9 +1,13 @@
-import { aiFetch, throwAiHttpError } from "@/services/ai/http";
+import { api } from "@/lib/api";
 
 export interface GeneratedImage {
   blob: Blob;
   mimeType: string;
   fileName: string;
+  /** The image model actually used — follows the caller's workspace AI tier. */
+  model: string;
+  /** Null when the rate for `model` is unmeasured, distinct from a free 0.00. */
+  estimatedCostUsd: number | null;
 }
 
 function base64ToBlob(b64: string, mimeType: string): Blob {
@@ -13,15 +17,18 @@ function base64ToBlob(b64: string, mimeType: string): Blob {
 
 export const imageGenerationService = {
   async generate(prompt: string, signal?: AbortSignal): Promise<GeneratedImage> {
-    const res = await aiFetch("/api/chat/image", { prompt }, signal);
-    if (!res.ok) throw await throwAiHttpError(res, "Image generation failed");
+    const { data } = await api.post<{
+      data: { b64Json: string; mimeType: string; model: string; estimatedCostUsd: number | null };
+    }>("/ai-generation/image", { prompt }, { signal });
 
-    const { b64Json, mimeType } = await res.json();
+    const { b64Json, mimeType, model, estimatedCostUsd } = data.data;
     const ext = mimeType.split("/")[1] ?? "png";
     return {
       blob: base64ToBlob(b64Json, mimeType),
       mimeType,
       fileName: `generated-image-${Date.now()}.${ext}`,
+      model,
+      estimatedCostUsd,
     };
   },
 };

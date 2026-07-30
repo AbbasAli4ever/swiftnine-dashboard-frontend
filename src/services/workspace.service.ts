@@ -32,11 +32,31 @@ export interface WorkspaceInviteClaimResult {
   workspaceId: string;
 }
 
+export type AiModelTier = "PREMIUM" | "STANDARD";
+
+export interface TokenQuotaStatus {
+  /** False for standard-tier members and premium members with no allowance set. */
+  metered: boolean;
+  tokenLimit: number;
+  consumedTokens: number;
+  remainingTokens: number;
+  percentUsed: number;
+  estimatedTokens: number;
+  costUsdUsed: number;
+  periodStart: string;
+  resetsAt: string;
+  exhausted: boolean;
+  fallbackOptIn: boolean;
+  band: "ok" | "warn" | "critical";
+}
+
 export interface WorkspaceMember {
   id: string;
   fullName: string;
   email: string;
   role: "OWNER" | "MEMBER";
+  /** AI model entitlement in this workspace. Separate from role. */
+  aiModelTier: AiModelTier;
   inviteStatus: "PENDING" | "ACCEPTED" | "REJECTED";
   lastActive: string | null;
   invitedBy: string | null;
@@ -65,6 +85,63 @@ export const workspaceService = {
         headers: { "x-workspace-id": workspaceId },
       })
       .then((r) => r.data),
+
+  // Requires the office-admin secret key in addition to OWNER role — the role
+  // gates who sees the action, the secret gates who can complete it.
+  changeMemberTier: (
+    workspaceId: string,
+    memberId: string,
+    tier: AiModelTier,
+    secret: string,
+  ) =>
+    api
+      .patch(`/workspaces/${workspaceId}/members/${memberId}/ai-tier`, { tier, secret }, {
+        headers: { "x-workspace-id": workspaceId },
+      })
+      .then((r) => r.data),
+
+  getTokenAllowance: (workspaceId: string, memberId: string) =>
+    api
+      .get<ApiWrapper<TokenQuotaStatus>>(
+        `/workspaces/${workspaceId}/members/${memberId}/token-allowance`,
+        { headers: { "x-workspace-id": workspaceId } },
+      )
+      .then((r) => r.data.data),
+
+  setTokenAllowance: (
+    workspaceId: string,
+    memberId: string,
+    tokenLimit: number,
+    secret: string,
+  ) =>
+    api
+      .patch<ApiWrapper<TokenQuotaStatus>>(
+        `/workspaces/${workspaceId}/members/${memberId}/token-allowance`,
+        { tokenLimit, secret },
+        { headers: { "x-workspace-id": workspaceId } },
+      )
+      .then((r) => r.data.data),
+
+  resetTokenAllowance: (workspaceId: string, memberId: string, secret: string) =>
+    api
+      .post<ApiWrapper<TokenQuotaStatus>>(
+        `/workspaces/${workspaceId}/members/${memberId}/token-allowance/reset`,
+        { secret },
+        { headers: { "x-workspace-id": workspaceId } },
+      )
+      .then((r) => r.data.data),
+
+  /**
+   * Cost bounds for an allowance. A single figure is impossible: the same tokens
+   * cost the input rate on prompts and the output rate on replies.
+   */
+  getTokenCostQuote: (tokens: number) =>
+    api
+      .get<ApiWrapper<{ tokens: number; model: string; minCostUsd: number; maxCostUsd: number }>>(
+        `/ai-tier/token-cost-quote`,
+        { params: { tokens } },
+      )
+      .then((r) => r.data.data),
 
   list: () =>
     api.get<ApiWrapper<Workspace[]>>("/workspaces").then((r) => r.data.data),

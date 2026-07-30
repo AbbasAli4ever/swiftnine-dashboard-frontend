@@ -2,7 +2,42 @@
 
 import React, { useRef, useState } from "react";
 import { useDropzone, type FileRejection } from "react-dropzone";
-import { LuPaperclip, LuImage, LuFileText, LuPresentation } from "react-icons/lu";
+import {
+  LuPaperclip,
+  LuImage,
+  LuFileText,
+  LuPresentation,
+  LuSparkles,
+  LuTriangleAlert,
+} from "react-icons/lu";
+
+/**
+ * Usage-bar colours. Green below 50%, yellow from 50%, red from 85% — the bands
+ * are decided by the backend so both this and the admin table agree.
+ */
+const BAND_BAR: Record<"ok" | "warn" | "critical", string> = {
+  ok: "bg-emerald-500",
+  warn: "bg-amber-500",
+  critical: "bg-red-500",
+};
+
+const BAND_TEXT: Record<"ok" | "warn" | "critical", string> = {
+  ok: "text-emerald-600 dark:text-emerald-400",
+  warn: "text-amber-600 dark:text-amber-400",
+  critical: "text-red-600 dark:text-red-400",
+};
+
+/** Compact token count for the composer badge: 620000 -> "620k". */
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M`;
+  if (n >= 1_000) return `${Math.round(n / 1_000)}k`;
+  return String(n);
+}
+
+/** "Mon" — the weekday the allowance resets. */
+function formatResetDay(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { weekday: "short" });
+}
 import { toast } from "sonner";
 import { parseApiError } from "@/lib/api";
 import { uploadChatAttachment } from "@/lib/uploadChatAttachment";
@@ -30,6 +65,28 @@ interface Props {
   disabled?: boolean;
   /** Lazily creates a conversation the first time a file is dropped, before any message is sent. */
   ensureConversationId: () => Promise<string>;
+  /**
+   * Model id this workspace member's chats resolve to, shown read-only.
+   * Resolved server-side — it is informational, never selectable.
+   */
+  modelLabel?: string;
+  /** Weekly token usage, when the member is metered. */
+  quota?: {
+    metered: boolean;
+    tokenLimit: number;
+    consumedTokens: number;
+    remainingTokens: number;
+    percentUsed: number;
+    resetsAt: string;
+    exhausted: boolean;
+    fallbackOptIn: boolean;
+    band: "ok" | "warn" | "critical";
+  };
+  /** Called when the member accepts the standard model after running out. */
+  onContinueOnStandard?: () => void;
+  /** True for premium members — used to show the usage badge even before a
+   * token limit has been assigned, rather than only once quota is metered. */
+  isPremium?: boolean;
 }
 
 const MODE_PLACEHOLDER: Record<ComposerMode, string> = {
@@ -53,6 +110,10 @@ export default function ChatMessageInput({
   onStop,
   disabled,
   ensureConversationId,
+  modelLabel,
+  quota,
+  onContinueOnStandard,
+  isPremium,
 }: Props) {
   const [text, setText] = useState("");
   const [drafts, setDrafts] = useState<AttachmentDraft[]>([]);
@@ -60,7 +121,10 @@ export default function ChatMessageInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const isBusy = isStreaming || isGeneratingImage || isGeneratingDocument;
-  const isDisabled = disabled || isBusy;
+  // Exhausted and not yet opted into the standard model: the backend will reject
+  // the request, so block here rather than letting it fail after sending.
+  const quotaBlocked = Boolean(quota?.metered && quota.exhausted && !quota.fallbackOptIn);
+  const isDisabled = disabled || isBusy || quotaBlocked;
   const hasBlockingAttachments = drafts.some((d) => d.status === "uploading");
   const hasUploadedAttachments = drafts.some((d) => d.status === "uploaded");
   const canSend =
@@ -175,6 +239,31 @@ export default function ChatMessageInput({
 
   return (
     <div className="border-t border-gray-100 dark:border-gray-800 px-4 py-3 shrink-0">
+      {quotaBlocked && (
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 dark:border-amber-500/30 dark:bg-amber-500/10">
+          <div className="flex items-start gap-2">
+            <LuTriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+            <div>
+              <p className="text-xs font-medium text-amber-800 dark:text-amber-200">
+                Weekly premium tokens used up
+              </p>
+              <p className="mt-0.5 text-[11px] text-amber-700/80 dark:text-amber-300/80">
+                Your allowance resets {formatResetDay(quota!.resetsAt)}. You can keep chatting on the
+                standard model until then.
+              </p>
+            </div>
+          </div>
+          {onContinueOnStandard && (
+            <button
+              type="button"
+              onClick={onContinueOnStandard}
+              className="shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-amber-700"
+            >
+              Continue on gpt-4o-mini
+            </button>
+          )}
+        </div>
+      )}
       <div
         {...getRootProps()}
         className="relative rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2.5 flex flex-col gap-2"
@@ -269,6 +358,49 @@ export default function ChatMessageInput({
             >
               <LuPresentation className="w-4 h-4" />
             </button>
+
+            {/* Read-only indicator: which model answers in this workspace. Not a
+                control — deliberately a <span>, with no handler or affordance. */}
+            {modelLabel && (
+              <span
+                title={`This chat is using ${modelLabel}`}
+                className="ml-1 inline-flex items-center gap-1 rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-medium text-brand-600 select-none dark:bg-brand-500/10 dark:text-brand-300"
+              >
+                <LuSparkles className="w-2.5 h-2.5" />
+                {modelLabel}
+              </span>
+            )}
+
+            {/* Weekly usage — always shown for premium members, not just once
+                metering has started, so the badge doesn't silently disappear
+                for a freshly-upgraded member with no limit assigned yet. */}
+            {isPremium && quota?.metered && (
+              <span
+                title={`${quota.consumedTokens.toLocaleString()} of ${quota.tokenLimit.toLocaleString()} weekly tokens used · resets ${formatResetDay(quota.resetsAt)}`}
+                className="ml-1 inline-flex items-center gap-1.5 select-none"
+              >
+                <span className="h-1.5 w-14 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                  <span
+                    className={`block h-full rounded-full transition-all ${BAND_BAR[quota.band]}`}
+                    style={{ width: `${Math.max(2, Math.min(100, quota.percentUsed))}%` }}
+                  />
+                </span>
+                <span className={`text-[10px] font-medium ${BAND_TEXT[quota.band]}`}>
+                  {formatTokens(quota.remainingTokens)} left
+                </span>
+                <span className="text-[10px] text-gray-400 dark:text-gray-500">
+                  · {formatTokens(quota.consumedTokens)}/{formatTokens(quota.tokenLimit)}
+                </span>
+              </span>
+            )}
+            {isPremium && !quota?.metered && (
+              <span
+                title="An administrator has not assigned a weekly token limit yet"
+                className="ml-1 inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500 select-none dark:bg-gray-800 dark:text-gray-400"
+              >
+                No token limit set
+              </span>
+            )}
           </div>
 
           {isBusy ? (

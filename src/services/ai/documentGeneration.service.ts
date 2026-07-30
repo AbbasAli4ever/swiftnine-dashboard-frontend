@@ -1,4 +1,3 @@
-import { aiFetch, throwAiHttpError } from "@/services/ai/http";
 import { api } from "@/lib/api";
 import type { ChatAttachment } from "@/services/chatAttachment.service";
 
@@ -22,16 +21,19 @@ export interface GenerateDocumentPayload {
 }
 
 export const documentGenerationService = {
-  // Step 1: ask OpenAI (via a Next.js route) to turn a free-text prompt into
-  // structured content — the backend only renders, it never talks to OpenAI.
+  // Step 1: ask the backend to turn a free-text prompt into structured content.
+  // The drafting model follows the caller's workspace AI tier.
   async draftContent(prompt: string, signal?: AbortSignal): Promise<GeneratedDocumentContent> {
-    const res = await aiFetch("/api/chat/document", { prompt }, signal);
-    if (!res.ok) throw await throwAiHttpError(res, "Document drafting failed");
-    return res.json();
+    const { data } = await api.post<{ data: GeneratedDocumentContent }>(
+      "/ai-generation/document-draft",
+      { prompt },
+      { signal }
+    );
+    return data.data;
   },
 
-  // Step 2: send the structured content to the NestJS backend, which renders
-  // it into a file and stores it as an already-confirmed attachment.
+  // Step 2: send the structured content to the backend, which renders it into a
+  // file and stores it as an already-confirmed attachment.
   async generatePdf(payload: GenerateDocumentPayload): Promise<ChatAttachment> {
     const { data } = await api.post<{ data: ChatAttachment }>("/document-generation/pdf", payload);
     return data.data;

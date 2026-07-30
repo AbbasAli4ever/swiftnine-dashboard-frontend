@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { LuBotMessageSquare, LuSparkles } from "react-icons/lu";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { useChatConversations, deriveTitle, type ChatMessage } from "@/hooks/useChatConversations";
-import { chatbotService, type ChatCompletionMessage } from "@/services/ai/chatbot.service";
+import { chatbotService, type ChatQuota } from "@/services/ai/chatbot.service";
 import { AiHttpError } from "@/services/ai/http";
 import { imageGenerationService } from "@/services/ai/imageGeneration.service";
 import { documentGenerationService } from "@/services/ai/documentGeneration.service";
@@ -15,7 +15,6 @@ import ChatTypingIndicator from "@/components/chatbot/ChatTypingIndicator";
 import { chatAttachmentService, inferAttachmentType } from "@/services/chatAttachment.service";
 import { uploadChatAttachment } from "@/lib/uploadChatAttachment";
 import { parseApiError } from "@/lib/api";
-import { buildApiMessages } from "@/lib/chatAttachmentContext";
 
 const SUGGESTED_PROMPTS = [
   "Help me draft a project update email",
@@ -77,6 +76,9 @@ export default function ChatbotPage() {
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isGeneratingDocument, setIsGeneratingDocument] = useState(false);
   const [documentKind, setDocumentKind] = useState<"pdf" | "ppt" | null>(null);
+  const [modelLabel, setModelLabel] = useState<string | null>(null);
+  const [tier, setTier] = useState<"PREMIUM" | "STANDARD" | null>(null);
+  const [quota, setQuota] = useState<ChatQuota | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -85,6 +87,39 @@ export default function ChatbotPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, awaitingFirstToken]);
+
+  // Which model this member's chats use plus weekly token usage, for the
+  // read-only composer badges. Resolved by the backend from the workspace tier.
+  const refreshModelInfo = useCallback(async () => {
+    try {
+      const info = await chatbotService.getModelInfo();
+      setModelLabel(info.model);
+      setTier(info.tier);
+      setQuota(info.quota);
+    } catch {
+      // Non-fatal: the badges are informational, so a failure just hides them.
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshModelInfo();
+  }, [refreshModelInfo]);
+
+  // Refresh usage after each completed turn so the badge tracks consumption.
+  useEffect(() => {
+    if (isStreaming) return;
+    void refreshModelInfo();
+  }, [isStreaming, refreshModelInfo]);
+
+  const handleContinueOnStandard = async () => {
+    try {
+      await chatbotService.optIntoFallback();
+      await refreshModelInfo();
+      toast.success("Continuing on the standard model until your tokens reset.");
+    } catch (err) {
+      toast.error(parseApiError(err).message);
+    }
+  };
 
   const handleStop = () => {
     abortControllerRef.current?.abort();
@@ -97,15 +132,17 @@ export default function ChatbotPage() {
     return activeConversationId ?? (await createConversation());
   };
 
-  // Streams a completion for `apiMessages` into `conversationId`, handling the
-  // token-by-token cache updates and the final persist/abort/error paths.
-  // Shared by both a fresh send and a regenerate-last-response retry.
-  const runCompletion = async (conversationId: string, apiMessages: ChatCompletionMessage[]) => {
+  // Streams a completion into `conversationId`. History assembly, model choice
+  // (by workspace AI tier) and persistence all live in the backend now — this
+  // only mirrors tokens into the local cache as they arrive.
+  const runCompletion = async (conversationId: string) => {
     const controller = new AbortController();
     abortControllerRef.current = controller;
     setIsStreaming(true);
     setAwaitingFirstToken(true);
 
+    // Provisional id for the optimistic cache row; reconciled to the server's
+    // id from the final `done` frame.
     const assistantMessageId = crypto.randomUUID();
     const assistantCreatedAt = new Date().toISOString();
     let buffer = "";
@@ -113,7 +150,7 @@ export default function ChatbotPage() {
 
     try {
       await chatbotService.streamCompletion(
-        apiMessages,
+        conversationId,
         (token) => {
           buffer += token;
           if (!started) {
@@ -131,25 +168,11 @@ export default function ChatbotPage() {
         },
         controller.signal
       );
-      if (started) {
-        await persistMessage(conversationId, {
-          id: assistantMessageId,
-          role: "assistant",
-          content: buffer,
-          createdAt: assistantCreatedAt,
-        });
-      }
+      // No persist call: the backend wrote the row before sending `done`.
     } catch (err) {
       if ((err as Error).name === "AbortError") {
-        if (started && buffer.length > 0) {
-          await persistMessage(conversationId, {
-            id: assistantMessageId,
-            role: "assistant",
-            content: buffer,
-            status: "aborted",
-            createdAt: assistantCreatedAt,
-          });
-        }
+        // The backend persists the partial turn as ABORTED when the connection
+        // drops, so nothing to save here — the local cache already shows it.
       } else {
         if (err instanceof AiHttpError && err.status === 429) {
           toast.error(
@@ -230,15 +253,15 @@ export default function ChatbotPage() {
         });
       }
     } else {
-      // Fire-and-forget: persists immediately so the turn survives even if
-      // the OpenAI stream that follows fails or is aborted.
-      void appendMessage(conversationId, userMessage, {
+      // Must be awaited: the backend builds the prompt from stored history, so
+      // this turn has to be committed before the completion request goes out.
+      // (Previously fire-and-forget, when the frontend sent history itself.)
+      await appendMessage(conversationId, userMessage, {
         title: isFirstMessage ? deriveTitle(text) : undefined,
       });
     }
 
-    const apiMessages = await buildApiMessages([...messages, userMessage]);
-    await runCompletion(conversationId, apiMessages);
+    await runCompletion(conversationId);
   };
 
   const retryLastMessage = async () => {
@@ -246,9 +269,10 @@ export default function ChatbotPage() {
     const last = messages[messages.length - 1];
     if (last.role !== "assistant") return;
 
+    // Deleting the last assistant turn is what makes this a retry: the backend
+    // rebuilds history from what remains stored.
     await removeLastMessage(activeConversationId);
-    const apiMessages = await buildApiMessages(messages.slice(0, -1));
-    await runCompletion(activeConversationId, apiMessages);
+    await runCompletion(activeConversationId);
   };
 
   // Generates an image for `prompt` and attaches it to a new assistant
@@ -259,10 +283,8 @@ export default function ChatbotPage() {
     setIsGeneratingImage(true);
 
     try {
-      const { blob, mimeType, fileName } = await imageGenerationService.generate(
-        prompt,
-        controller.signal
-      );
+      const { blob, mimeType, fileName, model, estimatedCostUsd } =
+        await imageGenerationService.generate(prompt, controller.signal);
       const file = new File([blob], fileName, { type: mimeType });
       const previewUrl = URL.createObjectURL(file);
       const { attachmentId } = await uploadChatAttachment(
@@ -273,10 +295,19 @@ export default function ChatbotPage() {
         "generated-image"
       );
 
+      // Appended as a small italic note rather than a new field on ChatMessage —
+      // the model/cost is genuinely part of what happened for this turn, and
+      // this avoids threading a new metadata field through persistence just for
+      // a read-only display value.
+      const costNote =
+        estimatedCostUsd === null
+          ? `\n\n*Generated with ${model} (cost unmeasured)*`
+          : `\n\n*Generated with ${model} · ~$${estimatedCostUsd.toFixed(4)}*`;
+
       const assistantMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: prompt,
+        content: prompt + costNote,
         createdAt: new Date().toISOString(),
         attachments: [
           {
@@ -308,6 +339,11 @@ export default function ChatbotPage() {
     } finally {
       setIsGeneratingImage(false);
       abortControllerRef.current = null;
+      // Image generation draws from the same weekly quota as chat (see backend
+      // AiGenerationService.generateImage), but only the isStreaming effect
+      // refreshed the badge — this path never touched isStreaming at all, so
+      // usage silently didn't update until the next chat message or a reload.
+      void refreshModelInfo();
     }
   };
 
@@ -399,6 +435,12 @@ export default function ChatbotPage() {
       setIsGeneratingDocument(false);
       setDocumentKind(null);
       abortControllerRef.current = null;
+      // Document/presentation drafting draws from the same weekly quota as
+      // chat (see backend AiGenerationService.draftDocument), but only the
+      // isStreaming effect refreshed the badge — this path never touched
+      // isStreaming, so usage silently didn't update until the next chat
+      // message or a reload.
+      void refreshModelInfo();
     }
   };
 
@@ -479,6 +521,10 @@ export default function ChatbotPage() {
         isGeneratingDocument={isGeneratingDocument}
         onStop={handleStop}
         ensureConversationId={ensureConversationId}
+        modelLabel={modelLabel ?? undefined}
+        isPremium={tier === "PREMIUM"}
+        quota={quota ?? undefined}
+        onContinueOnStandard={handleContinueOnStandard}
       />
     </div>
   );
