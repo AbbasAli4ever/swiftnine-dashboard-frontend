@@ -391,20 +391,58 @@ export default function ChatbotPage() {
     setDocumentKind(kind);
 
     try {
-      const { title, sections } = await documentGenerationService.draftContent(prompt, controller.signal);
+      if (kind === "pdf") {
+        const draft = await documentGenerationService.draftContent(prompt, controller.signal);
+
+        const assistantMessage: ChatMessage = {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: `Here's your generated PDF: ${draft.title}`,
+          createdAt: new Date().toISOString(),
+        };
+        const saved = await appendMessage(conversationId, assistantMessage);
+        if (!saved) return;
+
+        const attachment = await documentGenerationService.generatePdf({
+          conversationId,
+          messageId: saved.id,
+          title: draft.title,
+          sections: draft.sections,
+        });
+
+        setMessageAttachments(conversationId, saved.id, [
+          {
+            id: attachment.id,
+            fileName: attachment.fileName,
+            mimeType: attachment.mimeType,
+            fileSize: attachment.fileSize,
+            attachmentType: attachment.attachmentType,
+            url: attachment.url,
+            status: "ready",
+          },
+        ]);
+        return;
+      }
+
+      const draft = await documentGenerationService.draftPresentation(prompt, controller.signal);
 
       const assistantMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: `Here's your generated ${kind === "pdf" ? "PDF" : "presentation"}: ${title}`,
+        content: `Here's your generated presentation: ${draft.title}`,
         createdAt: new Date().toISOString(),
       };
       const saved = await appendMessage(conversationId, assistantMessage);
       if (!saved) return;
 
-      const generate =
-        kind === "pdf" ? documentGenerationService.generatePdf : documentGenerationService.generatePpt;
-      const attachment = await generate({ conversationId, messageId: saved.id, title, sections });
+      const attachment = await documentGenerationService.generatePpt({
+        conversationId,
+        messageId: saved.id,
+        title: draft.title,
+        subtitle: draft.subtitle,
+        theme: draft.theme,
+        slides: draft.slides,
+      });
 
       setMessageAttachments(conversationId, saved.id, [
         {

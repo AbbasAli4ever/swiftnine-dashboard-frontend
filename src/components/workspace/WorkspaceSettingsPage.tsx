@@ -113,9 +113,12 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
   }, [activeWorkspace, tab]);
 
   // Token usage for premium members only — standard members are unmetered, so
-  // fetching a quota for them would be a wasted request per row.
+  // fetching a quota for them would be a wasted request per row. Usage is
+  // owner-only information (the backend rejects non-owner reads too), so a
+  // member viewer skips this fetch entirely rather than firing requests that
+  // will only 403.
   useEffect(() => {
-    if (!activeWorkspace || tab !== "people") return;
+    if (!activeWorkspace || tab !== "people" || !isOwner) return;
     const premium = members.filter((m) => m.aiModelTier === "PREMIUM");
     if (premium.length === 0) return;
 
@@ -370,7 +373,7 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
                   <col className="w-[18%]" />
                   <col className="w-[8%]" />
                   <col className="w-[11%]" />
-                  <col className="w-[14%]" />
+                  {isOwner && <col className="w-[14%]" />}
                   <col className="w-[9%]" />
                   <col className="w-[9%]" />
                   <col className="w-[9%]" />
@@ -382,7 +385,7 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
                     <th className="px-4 py-3 text-left">Email</th>
                     <th className="px-4 py-3 text-left">Role</th>
                     <th className="px-4 py-3 text-left">Subscription</th>
-                    <th className="px-4 py-3 text-left">Usage</th>
+                    {isOwner && <th className="px-4 py-3 text-left">Usage</th>}
                     <th className="px-4 py-3 text-left">Last Active</th>
                     <th className="px-4 py-3 text-left">Invited By</th>
                     <th className="px-4 py-3 text-left">Invited On</th>
@@ -392,20 +395,20 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
                 <tbody>
                   {membersLoading ? (
                     <tr>
-                      <td colSpan={9} className="px-4 py-10 text-center text-sm text-gray-400">
+                      <td colSpan={isOwner ? 9 : 8} className="px-4 py-10 text-center text-sm text-gray-400">
                         Loading members...
                       </td>
                     </tr>
                   ) : filteredMembers.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="px-4 py-10 text-center text-sm text-gray-400">
+                      <td colSpan={isOwner ? 9 : 8} className="px-4 py-10 text-center text-sm text-gray-400">
                         No members found.
                       </td>
                     </tr>
                   ) : (
                     filteredMembers.map((member) => {
                       const isMe = member.id === user?.id;
-                      const isOwner = member.role === "OWNER";
+                      const isTargetOwner = member.role === "OWNER";
                       return (
                         <tr key={member.id} className="border-b border-gray-100 align-middle last:border-0 dark:border-gray-800/70">
                           <td className="px-4 py-3">
@@ -435,11 +438,11 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
 
                           <td className="px-4 py-3">
                             <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-normal ${
-                              isOwner
+                              isTargetOwner
                                 ? "bg-violet-100 text-violet-700 dark:bg-gray-905 dark:text-gray-100"
                                 : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
                             }`}>
-                              {isOwner ? "Owner" : "Member"}
+                              {isTargetOwner ? "Owner" : "Member"}
                             </span>
                           </td>
 
@@ -459,49 +462,51 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
                             )}
                           </td>
 
-                          <td className="px-4 py-3">
-                            {(() => {
-                              if (member.aiModelTier !== "PREMIUM") {
-                                return <span className="text-xs text-gray-400 dark:text-gray-500">—</span>;
-                              }
-                              const quota = quotas[member.id];
+                          {isOwner && (
+                            <td className="px-4 py-3">
+                              {(() => {
+                                if (member.aiModelTier !== "PREMIUM") {
+                                  return <span className="text-xs text-gray-400 dark:text-gray-500">—</span>;
+                                }
+                                const quota = quotas[member.id];
 
-                              // Always show something for a premium member — a
-                              // freshly-upgraded member with no limit assigned
-                              // yet must not silently show nothing.
-                              if (!quota?.metered) {
+                                // Always show something for a premium member — a
+                                // freshly-upgraded member with no limit assigned
+                                // yet must not silently show nothing.
+                                if (!quota?.metered) {
+                                  return (
+                                    <p className="text-[10px] text-gray-400 dark:text-gray-500">
+                                      No token limit set
+                                    </p>
+                                  );
+                                }
+
+                                // Same three zones as the chat composer: green
+                                // below 50%, yellow from 50%, red from 85%.
+                                const barColor =
+                                  quota.band === "critical"
+                                    ? "bg-red-500"
+                                    : quota.band === "warn"
+                                      ? "bg-amber-500"
+                                      : "bg-emerald-500";
                                 return (
-                                  <p className="text-[10px] text-gray-400 dark:text-gray-500">
-                                    No token limit set
-                                  </p>
-                                );
-                              }
-
-                              // Same three zones as the chat composer: green
-                              // below 50%, yellow from 50%, red from 85%.
-                              const barColor =
-                                quota.band === "critical"
-                                  ? "bg-red-500"
-                                  : quota.band === "warn"
-                                    ? "bg-amber-500"
-                                    : "bg-emerald-500";
-                              return (
-                                <div className="w-full max-w-[130px]">
-                                  <div className="h-1 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-                                    <div
-                                      className={`h-full rounded-full ${barColor}`}
-                                      style={{ width: `${Math.min(100, quota.percentUsed)}%` }}
-                                    />
+                                  <div className="w-full max-w-[130px]">
+                                    <div className="h-1 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                                      <div
+                                        className={`h-full rounded-full ${barColor}`}
+                                        style={{ width: `${Math.min(100, quota.percentUsed)}%` }}
+                                      />
+                                    </div>
+                                    <p className="mt-1 text-[10px] text-gray-500 dark:text-gray-400">
+                                      {formatTokenCount(quota.consumedTokens)}/
+                                      {formatTokenCount(quota.tokenLimit)} ·{" "}
+                                      {formatTokenCount(quota.remainingTokens)} left
+                                    </p>
                                   </div>
-                                  <p className="mt-1 text-[10px] text-gray-500 dark:text-gray-400">
-                                    {formatTokenCount(quota.consumedTokens)}/
-                                    {formatTokenCount(quota.tokenLimit)} ·{" "}
-                                    {formatTokenCount(quota.remainingTokens)} left
-                                  </p>
-                                </div>
-                              );
-                            })()}
-                          </td>
+                                );
+                              })()}
+                            </td>
+                          )}
 
                           <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
                             {formatLastActive(member.lastActive)}
@@ -518,7 +523,7 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
                           </td>
 
                           <td className="px-2 py-3">
-                            {!isMe && (
+                            {!isMe && isOwner && (
                               <button
                                 type="button"
                                 onClick={(e) => {
@@ -548,10 +553,10 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
         </div>
 
         {/* Fixed dropdown — renders outside table so it never affects layout */}
-        {openMenuId && menuPos && (() => {
+        {isOwner && openMenuId && menuPos && (() => {
           const member = filteredMembers.find(m => m.id === openMenuId);
           if (!member) return null;
-          const isOwner = member.role === "OWNER";
+          const isTargetOwner = member.role === "OWNER";
           return (
             <div
               ref={menuRef}
@@ -564,7 +569,7 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
                 className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800 rounded-t-xl"
               >
                 <LuShield className="h-4 w-4 text-gray-400" />
-                Change to {isOwner ? "Member" : "Owner"}
+                Change to {isTargetOwner ? "Member" : "Owner"}
               </button>
               <div className="mx-3 border-t border-gray-100 dark:border-gray-800" />
               <button
