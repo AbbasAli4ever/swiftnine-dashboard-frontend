@@ -5,13 +5,14 @@ import { useTheme } from "@/context/ThemeContext";
 import { useProfileStore } from "@/hooks/useProfile";
 import { useUiStore } from "@/stores/ui.store";
 import { useWorkspace } from "@/context/WorkspaceContext";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import React, { useEffect, useRef, useState } from "react";
 import { getInitials } from "@/lib/getInitials";
 import GlobalTaskSearchModal from "@/components/header/GlobalTaskSearchModal";
 import WorkspaceSwitcher from "@/components/workspace/WorkspaceSwitcher";
 import CreateWorkspaceModal from "@/components/workspace/CreateWorkspaceModal";
-import { LuChevronDown } from "react-icons/lu";
+import AddSaleModal from "@/components/accounts/AddSaleModal";
+import { LuChevronDown, LuSquareArrowOutUpRight } from "react-icons/lu";
 
 const AppHeader: React.FC = () => {
   const { user, logout } = useAuth();
@@ -28,8 +29,11 @@ const AppHeader: React.FC = () => {
 
   // useProfile() already fetches on mount; no forced refetch needed here.
   const router = useRouter();
+  const pathname = usePathname();
+  const isAccountsRoute = pathname.startsWith("/accounts");
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [addSaleOpen, setAddSaleOpen] = useState(false);
   const [searchAnchor, setSearchAnchor] = useState<DOMRect | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -104,7 +108,7 @@ const AppHeader: React.FC = () => {
             ref={inputRef}
             type="text"
             readOnly
-            placeholder="Search"
+            placeholder={isAccountsRoute ? "Search client, transaction, reference..." : "Search"}
             onFocus={() => {
               setSearchAnchor(searchBarRef.current?.getBoundingClientRect() ?? null);
               setSearchOpen(true);
@@ -128,6 +132,16 @@ const AppHeader: React.FC = () => {
 
       {/* Right: theme toggle + avatar */}
       <div className="relative flex items-center gap-3"  ref={menuRef}>
+        {isAccountsRoute && (
+          <button
+            type="button"
+            onClick={() => setAddSaleOpen(true)}
+            className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-[linear-gradient(90deg,#6366f1_0%,#7c3aed_100%)] px-4 text-sm font-medium text-white transition-opacity hover:opacity-90"
+          >
+            <LuSquareArrowOutUpRight className="h-3.5 w-3.5" />
+            Daily Entry
+          </button>
+        )}
         <button
           onClick={toggleTheme}
           aria-label="Toggle theme"
@@ -197,6 +211,7 @@ const AppHeader: React.FC = () => {
       </div>
 
       <GlobalTaskSearchModal isOpen={searchOpen} onClose={() => setSearchOpen(false)} anchorRect={searchAnchor} />
+      <AddSaleModal isOpen={addSaleOpen} onClose={() => setAddSaleOpen(false)} />
       </div>
     </header>
   );

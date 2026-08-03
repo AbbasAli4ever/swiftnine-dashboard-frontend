@@ -52,6 +52,7 @@ import {
   LuBotMessageSquare,
   LuKanban,
   LuBriefcase,
+  LuLandmark,
 } from "react-icons/lu";
 import { MdChecklist } from "react-icons/md";
 import { ssoService } from "@/services/sso.service";
@@ -61,13 +62,28 @@ type RailItem = {
   id: string;
   label: string;
   icon: React.ReactNode;
-  panel: "home" | "lms" | "chatbot" | "ai" | "teams" | "clips" | "more";
+  panel: "home" | "lms" | "chatbot" | "accounts" | "ai" | "teams" | "clips" | "more";
 };
 
 const railItems: RailItem[] = [
   { id: "lms",  label: "UNI",  icon: <LuBookOpen className="w-5 h-5" />,      panel: "lms" },
   { id: "home", label: "Board", icon: <LuKanban className="w-5 h-5" />, panel: "home" },
   { id: "chatbot", label: "SwiftBot", icon: <LuBotMessageSquare className="w-5 h-5" />, panel: "chatbot" },
+  { id: "accounts", label: "Accounts", icon: <LuLandmark className="w-5 h-5" />, panel: "accounts" },
+];
+
+type AccountingNavItem = {
+  label: string;
+  path: string;
+  icon: React.ComponentType<{ className?: string }>;
+};
+
+const accountingNavItems: AccountingNavItem[] = [
+  { label: "Overview",           path: "/accounts",            icon: LuLayoutGrid },
+  { label: "Transactions",       path: "/accounts/transactions", icon: LuKanban },
+  { label: "Clients",            path: "/accounts/clients",     icon: LuUsers },
+  { label: "Accounts & Balances", path: "/accounts/balances",   icon: LuBriefcase },
+  { label: "Reports",            path: "/accounts/reports",     icon: LuBookOpen },
 ];
 
 // ── Nav link definitions ─────────────────────────────────────────────────────
@@ -935,6 +951,77 @@ function HomePanelContent() {
   );
 }
 
+function AccountsPanelContent() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const { logout } = useAuth();
+
+  const navItem = (item: AccountingNavItem) => {
+    const Icon = item.icon;
+    const isActive = item.path === "/accounts" ? pathname === "/accounts" : pathname.startsWith(item.path);
+    return (
+      <button
+        key={item.label}
+        type="button"
+        onClick={() => router.push(item.path)}
+        className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-colors ${
+          isActive
+            ? "bg-gray-100 text-gray-900 dark:bg-gray-905 dark:text-gray-401 font-bold"
+            : "text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-905 "
+        }`}
+      >
+        <Icon className="h-4 w-4 shrink-0" />
+        <span className="truncate">{item.label}</span>
+      </button>
+    );
+  };
+
+  const settingsNavItem = (item: SettingsNavItem) => {
+    const Icon = item.icon;
+    return (
+      <button
+        key={item.label}
+        type="button"
+        onClick={() => router.push(`/settings${item.tab && item.tab !== "general" ? `?tab=${item.tab}` : ""}`)}
+        className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-905"
+      >
+        <Icon className="h-4 w-4 shrink-0" />
+        <span className="truncate">{item.label}</span>
+      </button>
+    );
+  };
+
+  return (
+    <div className="flex flex-1 flex-col overflow-y-auto no-scrollbar px-2 py-2 text-[13px]">
+      <h2 className="px-2 py-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
+        Accounting
+      </h2>
+
+      <div className="pt-2 space-y-0.5">
+        {accountingNavItems.map(navItem)}
+      </div>
+
+      <div className="pt-4">
+        <p className="px-2 pb-1 text-[11px] uppercase tracking-wide text-gray-400 font-normal">
+          Settings
+        </p>
+        <div className="space-y-0.5">
+          {workspaceSettingsItems.map(settingsNavItem)}
+          {mySettingsItems.map(settingsNavItem)}
+          <button
+            type="button"
+            onClick={logout}
+            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-500/10"
+          >
+            <LuLogOut className="h-4 w-4 shrink-0" />
+            <span>Log out</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SettingsPanelContent() {
   const router = useRouter();
   const pathname = usePathname();
@@ -1068,6 +1155,7 @@ const AppSidebar: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => 
   const isSettingsRoute = pathname.startsWith("/settings");
   const isLmsRoute = pathname.startsWith("/university");
   const isChatRoute = pathname.startsWith("/chat");
+  const isAccountsRoute = pathname.startsWith("/accounts");
 
   // Derived directly from the URL on every render — never stored as its own
   // state. The previous version tracked this in useState (defaulting to
@@ -1083,7 +1171,9 @@ const AppSidebar: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => 
       ? "lms"
       : isChatRoute
         ? "chatbot"
-        : "home";
+        : isAccountsRoute
+          ? "accounts"
+          : "home";
   const isSettingsActive = activeRail === "settings";
 
   const handleRailClick = (id: string) => {
@@ -1093,6 +1183,10 @@ const AppSidebar: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => 
     }
     if (id === "lms") {
       router.push("/university");
+      return;
+    }
+    if (id === "accounts") {
+      router.push("/accounts");
       return;
     }
     if (id === "chatbot") {
@@ -1210,6 +1304,7 @@ const AppSidebar: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => 
             {activeRail === "home"    && <HomePanelContent />}
             {activeRail === "lms"     && <LmsPanelContent />}
             {activeRail === "chatbot" && <ChatbotPanelContent />}
+            {activeRail === "accounts" && <AccountsPanelContent />}
           </>
         )}
       </div>
