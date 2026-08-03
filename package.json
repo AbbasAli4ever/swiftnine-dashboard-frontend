@@ -14,7 +14,7 @@
     "@fullcalendar/interaction": "^6.1.19",
     "@fullcalendar/list": "^6.1.19",
     "@fullcalendar/react": "^6.1.19",
-    "@fullcalendar/timegrid": "^6.1.19",
+    "@fullcalendar/timegrid": "^6.1.19",   
     "@hookform/resolvers": "^5.2.2",
     "@number-flow/react": "^0.6.2",
     "@radix-ui/react-avatar": "^1.1.11",
