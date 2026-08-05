@@ -1,18 +1,15 @@
 "use client";
 
-import Image from "next/image";
 import NumberFlow from "@number-flow/react";
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import {
   Area,
   AreaChart,
   CartesianGrid,
   Cell,
-  Line,
-  LineChart,
   Pie,
   PieChart,
-  ReferenceLine,
   Sector,
   XAxis,
   YAxis,
@@ -24,26 +21,30 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
-import {
-  balanceSummary,
-  kpiCards,
-  revenueOverviewByPeriod,
-  revenueByPaymentPlatform,
-  revenueByCurrency,
-  pakistanAccounts,
-  internationalAccounts,
-  clientRevenueSummary,
-  type AccountRow,
-} from "@/components/accounts/mockData";
+import { useAccountingOverview } from "@/hooks/useAccounting";
+import type {
+  BankAccount,
+  Currency,
+  OverviewPeriod,
+  OverviewResponse,
+} from "@/services/accounting.service";
+import { avatarColors, initials as nameInitials } from "@/components/accounts/avatar";
+import { formatMoney, formatPlatform } from "@/components/accounts/platformMeta";
 
 const revenueChartConfig = {
   revenue: { label: "Revenue", color: "#6366f1" },
 } satisfies ChartConfig;
 
-const currencyChartConfig = revenueByCurrency.reduce((acc, c) => {
-  acc[c.code] = { label: c.code, color: c.color };
-  return acc;
-}, {} as ChartConfig);
+/** Fixed colour per currency so the donut and its legend always agree. */
+const CURRENCY_COLORS: Record<string, string> = {
+  USD: "#6366f1",
+  HKD: "#22c55e",
+  PKR: "#f59e0b",
+};
+
+function currencyColor(code: string) {
+  return CURRENCY_COLORS[code] ?? "#94a3b8";
+}
 
 const CARD_CLASS =
   "rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-901";
@@ -52,14 +53,33 @@ const CARD_CLASS =
 // view — used to gate one-shot "animate in on scroll" effects (chart entrance
 // animations, bar-width transitions) so they play on first visibility rather
 // than immediately on mount regardless of scroll position.
-function useInView<T extends HTMLElement>(threshold = 0.3) {
-  const ref = useRef<T>(null);
+/** Walks up to the element that actually scrolls, so the observer uses it as
+ *  root. This page scrolls inside its own `overflow-y-auto` container and every
+ *  ancestor is `overflow-hidden`, so a viewport-rooted observer never fires. */
+function findScrollParent(node: HTMLElement | null): HTMLElement | null {
+  let current = node?.parentElement ?? null;
+  while (current) {
+    const { overflowY } = getComputedStyle(current);
+    if (overflowY === "auto" || overflowY === "scroll") return current;
+    current = current.parentElement;
+  }
+  return null;
+}
+
+// 0.25 = a quarter of the card must be inside the scroll container before the
+// animation plays, so it triggers on arriving at the section rather than the
+// moment its top edge peeks into view.
+function useInView<T extends HTMLElement>(threshold = 0.25) {
+  // Callback ref rather than useRef: these cards render only after the overview
+  // data arrives (the component returns a skeleton before that), so a plain ref
+  // would still be null when the effect first ran and — since assigning a ref
+  // doesn't re-render — the effect would never retry and no observer would ever
+  // be created. Storing the node in state re-runs the effect the moment it mounts.
+  const [node, setNode] = useState<T | null>(null);
   const [inView, setInView] = useState(false);
 
   useEffect(() => {
-    if (inView) return;
-    const node = ref.current;
-    if (!node) return;
+    if (inView || !node) return;
 
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -68,53 +88,106 @@ function useInView<T extends HTMLElement>(threshold = 0.3) {
           observer.disconnect();
         }
       },
-      { threshold }
+      // `root: null` would watch the viewport, but this page scrolls inside its
+      // own overflow-y-auto container, so the viewport never intersects.
+      // IntersectionObserver fires once on observe() with the current state, so
+      // a card that starts on screen still reveals without needing a scroll —
+      // no manual geometry check required.
+      { threshold, root: findScrollParent(node) }
     );
     observer.observe(node);
     return () => observer.disconnect();
-  }, [inView, threshold]);
+  }, [node, inView, threshold]);
 
-  return [ref, inView] as const;
+  return [setNode, inView] as const;
 }
 
-const CLIENT_AVATAR_COLORS = ["#6366f1", "#22c55e", "#f59e0b", "#ec4899", "#0ea5e9", "#a855f7"];
-
-function getNameInitials(name: string) {
-  const words = name.trim().split(/\s+/);
-  const first = words[0]?.[0] ?? "";
-  const last = words.length > 1 ? words[words.length - 1][0] : "";
-  return (first + last).toUpperCase();
-}
-
-function clientAvatarColor(name: string) {
-  const hash = name.split("").reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
-  return CLIENT_AVATAR_COLORS[hash % CLIENT_AVATAR_COLORS.length];
-}
-
-function AccountAvatar({ account }: { account: AccountRow }) {
-  if (account.logo) {
-    return (
-      <Image
-        src={account.logo}
-        alt={account.name}
-        width={28}
-        height={28}
-        className="h-7 w-7 shrink-0 rounded-full object-cover"
-      />
-    );
-  }
+/** Initials avatar — the API has no logo field for clients or bank accounts. */
+function NameAvatar({ name, size = 28 }: { name: string; size?: number }) {
+  const { background, color } = avatarColors(name);
   return (
     <span
-      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-medium text-white"
-      style={{ backgroundColor: account.color }}
+      aria-hidden="true"
+      className="flex shrink-0 items-center justify-center rounded-full text-xs font-semibold"
+      style={{ width: size, height: size, backgroundColor: background, color }}
     >
-      {account.initials}
+      {nameInitials(name)}
     </span>
   );
 }
 
-type Period = "Daily" | "Weekly" | "Monthly" | "Yearly";
-const PERIODS: Period[] = ["Daily", "Weekly", "Monthly", "Yearly"];
+const PERIODS: { label: string; value: OverviewPeriod }[] = [
+  { label: "Daily", value: "daily" },
+  { label: "Weekly", value: "weekly" },
+  { label: "Monthly", value: "monthly" },
+  { label: "Yearly", value: "yearly" },
+];
+
+/**
+ * `revenueOverview.points[].label` granularity varies by period: `YYYY-MM-DD`
+ * for daily/weekly, `YYYY-MM` for monthly, and a bare year for yearly.
+ */
+function formatPointLabel(label: string, period: OverviewPeriod): string {
+  if (period === "yearly") return label;
+  const parts = label.split("-");
+  if (period === "monthly" && parts.length >= 2) {
+    const date = new Date(Number(parts[0]), Number(parts[1]) - 1, 1);
+    return Number.isNaN(date.getTime())
+      ? label
+      : new Intl.DateTimeFormat("en-GB", { month: "short", year: "2-digit" }).format(date);
+  }
+  const date = new Date(`${label}T00:00:00Z`);
+  return Number.isNaN(date.getTime())
+    ? label
+    : new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", timeZone: "UTC" }).format(date);
+}
+
+/** `+12.4% vs yesterday` — `changePercent` is already a percentage. */
+function formatChange(changePercent: number, comparison: string): string {
+  const sign = changePercent > 0 ? "+" : "";
+  return `${sign}${changePercent.toFixed(1)}% ${comparison}`;
+}
+
+/** Renders a per-currency total list as `PKR 8,165,000 · USD 1,200`. */
+function formatCurrencyTotals(totals: { currency: Currency; total: number }[]): string {
+  if (totals.length === 0) return "—";
+  return totals.map((entry) => formatMoney(entry.currency, entry.total)).join(" · ");
+}
+
+function findByAccountType(
+  overview: OverviewResponse | null,
+  accountType: "LOCAL" | "INTERNATIONAL"
+) {
+  return overview?.balances.byAccountType.find((entry) => entry.accountType === accountType) ?? null;
+}
+
+function AccountRowItem({ account }: { account: BankAccount }) {
+  return (
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-2.5">
+        <NameAvatar name={account.bankName} />
+        <span className="text-sm text-gray-800 dark:text-gray-100">{account.bankName}</span>
+      </div>
+      <span className="text-sm font-medium text-gray-800 dark:text-gray-100">
+        {formatMoney(account.currencyType, account.amount)}
+      </span>
+    </div>
+  );
+}
+
+/** Inline pulse blocks — the repo has no shared skeleton component. */
+function OverviewSkeleton() {
+  return (
+    <div className="flex h-full flex-1 flex-col gap-4 overflow-y-auto bg-[#FAFAFF] p-6 dark:bg-gray-907">
+      <div className="h-[188px] animate-pulse rounded-xl bg-gray-200 dark:bg-gray-800" />
+      <div className="h-[340px] animate-pulse rounded-xl bg-gray-200 dark:bg-gray-800" />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="h-[300px] animate-pulse rounded-xl bg-gray-200 dark:bg-gray-800" />
+        <div className="h-[300px] animate-pulse rounded-xl bg-gray-200 dark:bg-gray-800" />
+      </div>
+    </div>
+  );
+}
 
 const ACTIVE_SECTOR_GROW = 8;
 const ACTIVE_SECTOR_DURATION = 550;
@@ -170,19 +243,48 @@ function AnimatedSector(props: PieSectorDataItem) {
 }
 
 export default function AccountingOverview() {
-  const [period, setPeriod] = useState<Period>("Daily");
+  const [period, setPeriod] = useState<OverviewPeriod>("daily");
+  const { overview, isLoading, error } = useAccountingOverview(period);
 
-  const revenue = revenueOverviewByPeriod[period];
-  const maxPlatformValue = Math.max(...revenueByPaymentPlatform.map((p) => p.value));
+  useEffect(() => {
+    if (error) toast.error(error);
+  }, [error]);
+
+  const local = findByAccountType(overview, "LOCAL");
+  const international = findByAccountType(overview, "INTERNATIONAL");
+
+  const platformRows = overview?.revenueByPaymentPlatform ?? [];
+  const maxPlatformValue = Math.max(1, ...platformRows.map((p) => p.totalUsd));
 
   const revenueChartData = useMemo(
-    () => revenue.categories.map((label, i) => ({ label, revenue: revenue.values[i] })),
-    [revenue]
+    () =>
+      (overview?.revenueOverview.points ?? []).map((point) => ({
+        label: formatPointLabel(point.label, overview?.revenueOverview.period ?? period),
+        revenue: point.totalUsd,
+      })),
+    [overview, period]
   );
 
   const currencyChartData = useMemo(
-    () => revenueByCurrency.map((c) => ({ code: c.code, percent: c.percent, fill: c.color })),
-    []
+    () =>
+      (overview?.revenueByCurrency ?? []).map((entry) => ({
+        code: entry.currency,
+        percent: entry.percent,
+        fill: currencyColor(entry.currency),
+      })),
+    [overview]
+  );
+
+  const currencyChartConfig = useMemo(
+    () =>
+      (overview?.revenueByCurrency ?? []).reduce((config, entry) => {
+        config[entry.currency] = {
+          label: entry.currency,
+          color: currencyColor(entry.currency),
+        };
+        return config;
+      }, {} as ChartConfig),
+    [overview]
   );
 
   const [activeCurrencyCode, setActiveCurrencyCode] = useState<string | undefined>(undefined);
@@ -200,6 +302,67 @@ export default function AccountingOverview() {
   const [donutCardRef, donutInView] = useInView<HTMLDivElement>();
   const [platformCardRef, platformInView] = useInView<HTMLDivElement>();
 
+  // Only block on the very first load — period switches refetch in place so the
+  // chart doesn't collapse to a skeleton on every toggle.
+  if (isLoading && !overview) return <OverviewSkeleton />;
+
+  if (!overview) {
+    return (
+      <div className="flex h-full flex-1 items-center justify-center bg-[#FAFAFF] p-6 dark:bg-gray-907">
+        <div className="text-center">
+          <p className="font-medium text-gray-700 dark:text-gray-300">
+            Couldn&apos;t load the accounting overview
+          </p>
+          <p className="mt-1 text-sm text-gray-400">{error ?? "Please try again."}</p>
+        </div>
+      </div>
+    );
+  }
+
+  const { revenueSummary, balances } = overview;
+
+  const kpiCards = [
+    {
+      label: "Today's Revenue",
+      value: revenueSummary.today.totalUsd,
+      valuePrefix: "USD ",
+      changePercent: revenueSummary.today.changePercent,
+      comparison: "vs yesterday",
+    },
+    {
+      label: "This Month's Revenue",
+      value: revenueSummary.thisMonth.totalUsd,
+      valuePrefix: "USD ",
+      changePercent: revenueSummary.thisMonth.changePercent,
+      comparison: "vs last month",
+    },
+    {
+      label: "This Year's Revenue",
+      value: revenueSummary.thisYear.totalUsd,
+      valuePrefix: "USD ",
+      changePercent: revenueSummary.thisYear.changePercent,
+      comparison: "vs last year",
+    },
+    {
+      label: "Total Sales",
+      value: revenueSummary.totalSales.count,
+      valuePrefix: "",
+      changePercent: revenueSummary.totalSales.changePercent,
+      comparison: "vs last month",
+    },
+  ];
+
+  // The rates are a hardcoded table on the backend, not a live FX feed — say so
+  // rather than implying the conversion is current.
+  const nonUsdRates = Object.entries(balances.exchangeRatesToUsd).filter(
+    ([code]) => code !== "USD"
+  );
+  const conversionNote = nonUsdRates.length
+    ? `Converted at ${nonUsdRates
+        .map(([code, rate]) => `${code} ${(1 / rate).toFixed(0)}/USD`)
+        .join(", ")}`
+    : "Converted to USD";
+
   return (
     <div className="flex h-full flex-1 flex-col overflow-y-auto bg-[#FAFAFF] p-6 dark:bg-gray-907">
       {/* Balance summary and KPI metrics */}
@@ -207,27 +370,29 @@ export default function AccountingOverview() {
       <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-3">
         <div className="flex items-center gap-8 md:col-span-2">
           <div>
-            <p className="text-sm text-gray-400">Pakistan Balance</p>
+            <p className="text-sm text-gray-400">Local Balance</p>
             <p className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">
-              <NumberFlow value={numbersRevealed ? balanceSummary.pakistanBalance : 0} prefix={`${balanceSummary.pakistanBalanceCurrency} `} />
+              {formatCurrencyTotals(local?.totals ?? [])}
             </p>
-            <p className="mt-1 text-xs text-gray-400">{balanceSummary.pakistanAccountsCount} accounts</p>
+            <p className="mt-1 text-xs text-gray-400">{local?.accountCount ?? 0} accounts</p>
           </div>
           <div className="h-14 w-px shrink-0 bg-gray-200 dark:bg-gray-800" />
           <div>
             <p className="text-sm text-gray-400">International Balance</p>
             <p className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">
-              <NumberFlow value={numbersRevealed ? balanceSummary.internationalBalance : 0} prefix={`${balanceSummary.internationalBalanceCurrency} `} />
+              {formatCurrencyTotals(international?.totals ?? [])}
             </p>
-            <p className="mt-1 text-xs text-gray-400">{balanceSummary.internationalAccountsCount} accounts</p>
+            <p className="mt-1 text-xs text-gray-400">
+              {international?.accountCount ?? 0} accounts
+            </p>
           </div>
         </div>
         <div className="rounded-xl bg-[#000000] p-4 text-white">
           <p className="text-sm text-gray-300">Total Balance</p>
           <p className="mt-1 text-2xl font-semibold">
-            <NumberFlow value={numbersRevealed ? balanceSummary.totalBalance : 0} prefix={`${balanceSummary.totalBalanceCurrency} `} />
+            <NumberFlow value={numbersRevealed ? balances.totalBalanceUsd : 0} prefix="USD " />
           </p>
-          <p className="mt-1 text-xs text-gray-400">{balanceSummary.conversionNote}</p>
+          <p className="mt-1 text-xs text-gray-400">{conversionNote}</p>
         </div>
       </div>
 
@@ -238,34 +403,20 @@ export default function AccountingOverview() {
             <p className="text-sm text-gray-400">{kpi.label}</p>
             <div className="mt-1 flex items-center justify-between">
               <p className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-                <NumberFlow value={numbersRevealed ? kpi.value : 0} prefix={kpi.valuePrefix} format={{ notation: "standard" }} />
+                <NumberFlow
+                  value={numbersRevealed ? kpi.value : 0}
+                  prefix={kpi.valuePrefix}
+                  format={{ notation: "standard" }}
+                />
               </p>
-              <div className="h-8 w-20">
-                <ChartContainer
-                  config={{ value: { label: kpi.label, color: kpi.color } }}
-                  className="h-8 w-20 aspect-auto"
-                >
-                  <LineChart data={kpi.sparkline.map((v) => ({ value: v }))}>
-                    <ReferenceLine
-                      y={kpi.sparklineBaseline}
-                      stroke="var(--color-value)"
-                      strokeOpacity={0.4}
-                      strokeDasharray="3 3"
-                      strokeWidth={1}
-                    />
-                    <Line
-                      dataKey="value"
-                      type="monotone"
-                      stroke="var(--color-value)"
-                      strokeWidth={2}
-                      dot={false}
-                      isAnimationActive={false}
-                    />
-                  </LineChart>
-                </ChartContainer>
-              </div>
             </div>
-            <p className={`mt-1 text-xs ${kpi.deltaPositive ? "text-green-500" : "text-red-500"}`}>{kpi.delta}</p>
+            <p
+              className={`mt-1 text-xs ${
+                kpi.changePercent >= 0 ? "text-green-500" : "text-red-500"
+              }`}
+            >
+              {formatChange(kpi.changePercent, kpi.comparison)}
+            </p>
           </div>
         ))}
       </div>
@@ -276,18 +427,18 @@ export default function AccountingOverview() {
         <div className="mb-2 flex items-center justify-between">
           <h3 className="text-base font-normal text-gray-800 dark:text-white">Revenue Overview</h3>
           <div className="flex gap-1 rounded-lg bg-gray-100 p-1 dark:bg-gray-905">
-            {PERIODS.map((p) => (
+            {PERIODS.map((option) => (
               <button
-                key={p}
+                key={option.value}
                 type="button"
-                onClick={() => setPeriod(p)}
+                onClick={() => setPeriod(option.value)}
                 className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-                  period === p
+                  period === option.value
                     ? "bg-white text-brand-500 shadow-sm dark:bg-gray-800 dark:text-brand-400"
                     : "text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100"
                 }`}
               >
-                {p}
+                {option.label}
               </button>
             ))}
           </div>
@@ -338,24 +489,31 @@ export default function AccountingOverview() {
         <div className={CARD_CLASS} ref={platformCardRef}>
           <h3 className="mb-4 text-base font-normal text-gray-800 dark:text-white">Revenue by Payment Platform</h3>
           <div className="space-y-3">
-            {revenueByPaymentPlatform.map((p, i) => (
-              <div key={p.name} className="group flex items-center gap-3">
-                <span className="w-24 shrink-0 text-sm text-gray-600 dark:text-gray-300">{p.name}</span>
+            {platformRows.map((platform, i) => (
+              <div key={platform.paymentPlatform} className="group flex items-center gap-3">
+                <span className="w-24 shrink-0 truncate text-sm text-gray-600 dark:text-gray-300">
+                  {formatPlatform(platform.paymentPlatform)}
+                </span>
                 <div className="flex h-2 flex-1 items-center overflow-visible rounded-full bg-brand-100 dark:bg-gray-905">
                   <div
                     className="h-full origin-left rounded-full bg-brand-500 transition-[width,transform] ease-out group-hover:scale-y-150"
                     style={{
-                      width: platformInView ? `${(p.value / maxPlatformValue) * 100}%` : "0%",
+                      width: platformInView
+                        ? `${(platform.totalUsd / maxPlatformValue) * 100}%`
+                        : "0%",
                       transitionDuration: platformInView ? "700ms, 150ms" : "150ms",
                       transitionDelay: platformInView ? `${i * 60}ms` : "0ms",
                     }}
                   />
                 </div>
-                <span className="w-16 shrink-0 text-right text-sm text-gray-800 dark:text-gray-100">
-                  ${p.value.toLocaleString()}
+                <span className="w-20 shrink-0 text-right text-sm text-gray-800 dark:text-gray-100">
+                  ${platform.totalUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                 </span>
               </div>
             ))}
+            {platformRows.length === 0 && (
+              <p className="py-6 text-center text-sm text-gray-400">No platform revenue yet.</p>
+            )}
           </div>
         </div>
 
@@ -395,14 +553,24 @@ export default function AccountingOverview() {
                 <div aria-hidden="true" className="h-[220px] w-[220px] shrink-0" />
               )}
             </ActiveCurrencyContext.Provider>
-            <div className="space-y-2.5">
-              {revenueByCurrency.map((c) => (
-                <div key={c.code} className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: c.color }} />
-                  <span className="text-sm text-gray-600 dark:text-gray-300">{c.code}</span>
-                  <span className="ml-auto text-sm font-medium text-gray-800 dark:text-gray-100">{c.percent}%</span>
+            <div className="min-w-0 flex-1 space-y-2.5">
+              {overview.revenueByCurrency.map((entry) => (
+                <div key={entry.currency} className="flex items-center gap-2">
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: currencyColor(entry.currency) }}
+                  />
+                  <span className="text-sm text-gray-600 dark:text-gray-300">
+                    {entry.currency}
+                  </span>
+                  <span className="ml-auto text-sm font-medium text-gray-800 dark:text-gray-100">
+                    {entry.percent.toFixed(1)}%
+                  </span>
                 </div>
               ))}
+              {overview.revenueByCurrency.length === 0 && (
+                <p className="text-sm text-gray-400">No revenue recorded yet.</p>
+              )}
             </div>
           </div>
         </div>
@@ -413,25 +581,20 @@ export default function AccountingOverview() {
         <div className={CARD_CLASS}>
           <div className="mb-3 flex items-center justify-between">
             <div>
-              <h3 className="text-base font-normal text-gray-800 dark:text-white">Pakistan Accounts</h3>
-              <p className="text-xs text-gray-400">
-                {balanceSummary.pakistanBalanceCurrency} {balanceSummary.pakistanBalance.toLocaleString()}
-              </p>
+              <h3 className="text-base font-normal text-gray-800 dark:text-white">Local Accounts</h3>
+              <p className="text-xs text-gray-400">{formatCurrencyTotals(local?.totals ?? [])}</p>
             </div>
             <a href="/accounts/balances" className="text-sm font-medium text-brand-500 hover:text-brand-600">
               View all &rarr;
             </a>
           </div>
           <div className="space-y-3">
-            {pakistanAccounts.map((a) => (
-              <div key={a.name} className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <AccountAvatar account={a} />
-                  <span className="text-sm text-gray-800 dark:text-gray-100">{a.name}</span>
-                </div>
-                <span className="text-sm font-medium text-gray-800 dark:text-gray-100">{a.balance}</span>
-              </div>
+            {overview.bankAccounts.local.map((account) => (
+              <AccountRowItem key={account.id} account={account} />
             ))}
+            {overview.bankAccounts.local.length === 0 && (
+              <p className="py-4 text-center text-sm text-gray-400">No local accounts yet.</p>
+            )}
           </div>
         </div>
 
@@ -440,7 +603,7 @@ export default function AccountingOverview() {
             <div>
               <h3 className="text-base font-normal text-gray-800 dark:text-white">International Accounts</h3>
               <p className="text-xs text-gray-400">
-                {balanceSummary.internationalBalanceCurrency} {balanceSummary.internationalBalance.toLocaleString()}
+                {formatCurrencyTotals(international?.totals ?? [])}
               </p>
             </div>
             <a href="/accounts/balances" className="text-sm font-medium text-brand-500 hover:text-brand-600">
@@ -448,15 +611,14 @@ export default function AccountingOverview() {
             </a>
           </div>
           <div className="space-y-3">
-            {internationalAccounts.map((a) => (
-              <div key={a.name} className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <AccountAvatar account={a} />
-                  <span className="text-sm text-gray-800 dark:text-gray-100">{a.name}</span>
-                </div>
-                <span className="text-sm font-medium text-gray-800 dark:text-gray-100">{a.balance}</span>
-              </div>
+            {overview.bankAccounts.international.map((account) => (
+              <AccountRowItem key={account.id} account={account} />
             ))}
+            {overview.bankAccounts.international.length === 0 && (
+              <p className="py-4 text-center text-sm text-gray-400">
+                No international accounts yet.
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -477,24 +639,31 @@ export default function AccountingOverview() {
             </tr>
           </thead>
           <tbody>
-            {clientRevenueSummary.map((c) => (
-              <tr key={c.name} className="border-b border-gray-50 last:border-0 dark:border-gray-800/60">
+            {overview.topClients.map((client) => (
+              <tr
+                key={client.id}
+                className="border-b border-gray-50 last:border-0 dark:border-gray-800/60"
+              >
                 <td className="py-3">
                   <div className="flex items-center gap-2.5">
-                    <span
-                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-medium text-white"
-                      style={{ backgroundColor: clientAvatarColor(c.name) }}
-                    >
-                      {getNameInitials(c.name)}
+                    <NameAvatar name={client.clientName} />
+                    <span className="text-sm text-gray-800 dark:text-gray-100">
+                      {client.clientName}
                     </span>
-                    <span className="text-sm text-gray-800 dark:text-gray-100">{c.name}</span>
                   </div>
                 </td>
                 <td className="py-3 text-right text-sm font-medium text-gray-800 dark:text-gray-100">
-                  {c.totalRevenue}
+                  {formatMoney(client.currencyType ?? "USD", client.totalRevenue)}
                 </td>
               </tr>
             ))}
+            {overview.topClients.length === 0 && (
+              <tr>
+                <td colSpan={2} className="py-6 text-center text-sm text-gray-400">
+                  No clients yet.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

@@ -14,6 +14,8 @@ import GlobalTaskDetailModal from "@/components/projects/GlobalTaskDetailModal";
 import NotificationPermissionBanner from "@/components/ui/NotificationPermissionBanner";
 import UserProfilePanel from "@/components/user-profile/UserProfilePanel";
 import ViewUserProfilePanel from "@/components/user-profile/ViewUserProfilePanel";
+import { useAccountantLockIn } from "@/hooks/useAccountantLockIn";
+import { useAccountingAccess } from "@/hooks/useAccountingAccess";
 import { useUiStore } from "@/stores/ui.store";
 import React, { useEffect } from "react";
 
@@ -25,6 +27,9 @@ export default function AdminLayoutClient({
   const { isAuthenticated, isLoading } = useAuth();
   const { workspaces, isLoading: workspacesLoading } = useWorkspace();
   const { profilePanelOpen, closeProfilePanel, viewingUserId, closeUserPanel } = useUiStore();
+  // Accountants only ever see the accounting area — bounce them off Board/Inbox/etc.
+  const isLockingIn = useAccountantLockIn();
+  const { isAccountant } = useAccountingAccess();
   useEffect(() => {
     // Only bounce to /signin when we are sure the user has never logged in on
     // this browser. If session_exists is set, AuthContext is still trying to
@@ -34,7 +39,7 @@ export default function AdminLayoutClient({
     }
   }, [isLoading, isAuthenticated]);
 
-  if (isLoading || (!isAuthenticated && hasSessionExists())) {
+  if (isLoading || (!isAuthenticated && hasSessionExists()) || isLockingIn) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-white dark:bg-gray-900">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-brand-500 border-t-transparent" />
@@ -44,7 +49,10 @@ export default function AdminLayoutClient({
 
   if (!isAuthenticated) return null;
 
-  const forcedModal = !workspacesLoading && isAuthenticated && workspaces.length === 0;
+  // Accountants live entirely in /accounts, which is not workspace-scoped, so
+  // don't trap them in workspace onboarding they have no use for.
+  const forcedModal =
+    !workspacesLoading && isAuthenticated && workspaces.length === 0 && !isAccountant;
 
   return (
     // Projects/lists/docs are only used by the dashboard (admin) area, so scope
@@ -64,7 +72,13 @@ export default function AdminLayoutClient({
         <AppSidebar hasHeader={true} />
 
         {/* Main area — offset by sidebar width */}
-        <div className="flex flex-col flex-1 min-w-0 ml-[320px] overflow-hidden">
+        {/* Sidebar is 64px icon rail + 264px panel. Accountants don't get the
+            rail, so the content offset drops to the panel width alone. */}
+        <div
+          className={`flex flex-col flex-1 min-w-0 overflow-hidden ${
+            isAccountant ? "ml-[264px]" : "ml-[320px]"
+          }`}
+        >
           {/* Content row: main + profile panels side by side */}
           <div className="flex flex-1 overflow-hidden">
             <main className="flex-1 border border-r border-b mr-2 mb-2 rounded-tr-lg rounded-br-lg border-gray-200 dark:border-gray-800  overflow-hidden">

@@ -10,6 +10,7 @@ import { Project, projectService } from "@/services/project.service";
 import { taskService } from "@/services/task.service";
 import { useUiStore } from "@/stores/ui.store";
 import { useFavorites } from "@/hooks/useFavorites";
+import { useAccountingAccess } from "@/hooks/useAccountingAccess";
 import { TaskList } from "@/services/task-list.service";
 import { parseApiError } from "@/lib/api";
 import InvitePeopleModal from "@/components/workspace/InvitePeopleModal";
@@ -955,6 +956,12 @@ function AccountsPanelContent() {
   const router = useRouter();
   const pathname = usePathname();
   const { logout } = useAuth();
+  const { canSeeAllMenus } = useAccountingAccess();
+
+  // A CEO only gets the Overview; an accountant gets every accounting menu.
+  const visibleNavItems = canSeeAllMenus
+    ? accountingNavItems
+    : accountingNavItems.filter((item) => item.path === "/accounts");
 
   const navItem = (item: AccountingNavItem) => {
     const Icon = item.icon;
@@ -998,7 +1005,7 @@ function AccountsPanelContent() {
       </h2>
 
       <div className="pt-2 space-y-0.5">
-        {accountingNavItems.map(navItem)}
+        {visibleNavItems.map(navItem)}
       </div>
 
       <div className="pt-4">
@@ -1176,6 +1183,17 @@ const AppSidebar: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => 
           : "home";
   const isSettingsActive = activeRail === "settings";
 
+  // Accountants are scoped to accounting, so the other rails are hidden from
+  // them entirely. Users with no role get no accounting rail at all.
+  const { isAccountant, canAccessAccounting } = useAccountingAccess();
+  const visibleRailItems = React.useMemo(
+    () =>
+      railItems.filter((item) =>
+        item.id === "accounts" ? canAccessAccounting : !isAccountant
+      ),
+    [isAccountant, canAccessAccounting]
+  );
+
   const handleRailClick = (id: string) => {
     if (id === "home") {
       router.push("/");
@@ -1229,10 +1247,13 @@ const AppSidebar: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => 
 
   return (
     <aside className={`fixed left-0 flex z-50 ${hasHeader ? "top-10 h-[calc(100vh-40px)]" : "top-0 h-screen"}`}>
-      {/* Left icon rail */}
+      {/* Left icon rail — hidden for accountants: they only have one rail item,
+          so it would be a column of empty space plus actions (Invite) that
+          aren't theirs. Settings stays reachable from the accounting panel. */}
+      {!isAccountant && (
       <div className="flex flex-col w-14 shrink-0 mx-1 mb-2 dark:bg-gray-901 bg-[#000000] rounded-[10px] overflow-hidden">
         <nav className="flex flex-col items-center gap-3 flex-1 pt-2">
-          {railItems.map((item) => {
+          {visibleRailItems.map((item) => {
             const isActive = activeRail === item.id && !isSettingsActive;
             return (
               <button
@@ -1293,9 +1314,16 @@ const AppSidebar: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => 
           </button>
         </div>
       </div>
+      )}
 
       {/* Right contextual panel */}
-      <div className="w-[264px] bg-[#f9f9f9] dark:bg-gray-901 border-l border-r border-b border-t border-gray-200 dark:border-gray-800 flex flex-col overflow-hidden mb-2 rounded-tl-xl rounded-bl-xl">
+      <div
+        className={`w-[264px] bg-[#f9f9f9] dark:bg-gray-901 border-r border-b border-t border-gray-200 dark:border-gray-800 flex flex-col overflow-hidden mb-2 ${
+          // Without the rail beside it the panel sits flush against the window
+          // edge, so the rounded left corners and left border would look wrong.
+          isAccountant ? "" : "border-l rounded-tl-xl rounded-bl-xl"
+        }`}
+      >
         {activeRail === "lms" && <LmsPanelHeader />}
         {isSettingsActive ? (
           <SettingsPanelContent />

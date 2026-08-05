@@ -4,6 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { hasSessionExists } from "@/stores/auth.store";
 import AppSidebar from "@/layout/AppSidebar";
 import AppHeader from "@/layout/AppHeader";
+import { useAccountantLockIn } from "@/hooks/useAccountantLockIn";
 import React, { useEffect } from "react";
 
 export default function UniversityLayoutClient({
@@ -12,6 +13,8 @@ export default function UniversityLayoutClient({
   children: React.ReactNode;
 }) {
   const { isAuthenticated, isLoading } = useAuth();
+  // Accountants only ever see the accounting area — bounce them off University.
+  const isLockingIn = useAccountantLockIn();
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated && !hasSessionExists()) {
@@ -19,7 +22,7 @@ export default function UniversityLayoutClient({
     }
   }, [isLoading, isAuthenticated]);
 
-  if (isLoading || (!isAuthenticated && hasSessionExists())) {
+  if (isLoading || (!isAuthenticated && hasSessionExists()) || isLockingIn) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-white dark:bg-gray-900">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#7C3AED] border-t-transparent" />

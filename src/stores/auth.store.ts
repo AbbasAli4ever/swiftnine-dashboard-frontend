@@ -1,11 +1,15 @@
 import { create } from "zustand";
 
+/** Backend `UserRole` enum. Nullable — most users have no role assigned. */
+export type UserRole = "CEO" | "ACCOUNTANT";
+
 export interface AuthUser {
   id: string;
   fullName: string;
   email: string;
   avatarUrl: string | null;
   avatarColor: string;
+  role: UserRole | null;
 }
 
 interface AuthState {

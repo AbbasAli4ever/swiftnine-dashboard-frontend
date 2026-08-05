@@ -3,6 +3,7 @@
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useProfileStore } from "@/hooks/useProfile";
+import { useAccountingAccess } from "@/hooks/useAccountingAccess";
 import { useUiStore } from "@/stores/ui.store";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { usePathname, useRouter } from "next/navigation";
@@ -31,6 +32,9 @@ const AppHeader: React.FC = () => {
   const router = useRouter();
   const pathname = usePathname();
   const isAccountsRoute = pathname.startsWith("/accounts");
+  // Data entry is accountant-only — a CEO gets a read-only accounting view.
+  const { canWrite } = useAccountingAccess();
+  const canEnterSales = isAccountsRoute && canWrite;
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [addSaleOpen, setAddSaleOpen] = useState(false);
@@ -132,7 +136,7 @@ const AppHeader: React.FC = () => {
 
       {/* Right: theme toggle + avatar */}
       <div className="relative flex items-center gap-3"  ref={menuRef}>
-        {isAccountsRoute && (
+        {canEnterSales && (
           <button
             type="button"
             onClick={() => setAddSaleOpen(true)}
@@ -211,7 +215,9 @@ const AppHeader: React.FC = () => {
       </div>
 
       <GlobalTaskSearchModal isOpen={searchOpen} onClose={() => setSearchOpen(false)} anchorRect={searchAnchor} />
-      <AddSaleModal isOpen={addSaleOpen} onClose={() => setAddSaleOpen(false)} />
+      {canEnterSales && (
+        <AddSaleModal isOpen={addSaleOpen} onClose={() => setAddSaleOpen(false)} />
+      )}
       </div>
     </header>
   );
