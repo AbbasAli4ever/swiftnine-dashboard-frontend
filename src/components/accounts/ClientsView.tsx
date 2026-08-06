@@ -25,8 +25,15 @@ import { avatarColors, initials } from "@/components/accounts/avatar";
 import { formatMoney } from "@/components/accounts/platformMeta";
 import CreateClientModal from "@/components/accounts/CreateClientModal";
 
-const ROW_HEIGHT = 48;
+// Layout constants used to derive how many rows fit in the available space.
+// They must stay in sync with the markup below: the row height, the sticky
+// column header, the card's title bar + borders, and the pagination row that
+// sits inside the sizer beneath the card.
+const ROW_HEIGHT = 56;
 const TABLE_HEADER_HEIGHT = 40;
+const CARD_TITLE_BAR_HEIGHT = 44;
+const CARD_BORDER_HEIGHT = 2;
+const PAGINATION_ROW_HEIGHT = 44;
 
 /**
  * `PATCH /clients/:clientId` accepts `clientName` only — revenue and currency are
@@ -140,34 +147,38 @@ export default function ClientsView() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [rowHeight, setRowHeight] = useState(ROW_HEIGHT);
   const [createOpen, setCreateOpen] = useState(false);
   const [renaming, setRenaming] = useState<AccountingClient | null>(null);
   const [deleting, setDeleting] = useState<AccountingClient | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const tableViewportRef = useRef<HTMLDivElement>(null);
+  const tableSizerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(timer);
   }, [search]);
 
+  // Measures the space the table *could* occupy to derive the page size (and so
+  // the max-height cap). The card itself shrinks to fit however many rows the
+  // current page actually has — this only sets the ceiling.
   useEffect(() => {
-    const viewport = tableViewportRef.current;
-    if (!viewport) return;
+    const sizer = tableSizerRef.current;
+    if (!sizer) return;
 
     const updatePageSize = () => {
-      const availableHeight = viewport.clientHeight - TABLE_HEADER_HEIGHT;
+      // Space left for rows = the sizer minus everything in it that isn't a row.
+      const availableHeight =
+        sizer.clientHeight -
+        CARD_TITLE_BAR_HEIGHT -
+        CARD_BORDER_HEIGHT -
+        PAGINATION_ROW_HEIGHT -
+        TABLE_HEADER_HEIGHT;
       const nextSize = Math.max(1, Math.floor(availableHeight / ROW_HEIGHT));
-      const nextRowHeight = availableHeight / nextSize;
       setPageSize((current) => (current === nextSize ? current : nextSize));
-      setRowHeight((current) =>
-        Math.abs(current - nextRowHeight) < 0.1 ? current : nextRowHeight
-      );
     };
 
     const observer = new ResizeObserver(updatePageSize);
-    observer.observe(viewport);
+    observer.observe(sizer);
     return () => observer.disconnect();
   }, []);
 
@@ -258,13 +269,17 @@ export default function ClientsView() {
         )}
       </div>
 
-      <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-901">
+      {/* Sizer: claims the leftover vertical space so the ResizeObserver can
+          measure it, but renders nothing itself. The card inside sizes to its
+          rows and only scrolls once it hits the sizer's height. */}
+      <div ref={tableSizerRef} className="flex min-h-0 flex-1 flex-col">
+      <section className="flex max-h-full min-h-0 flex-col overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-901">
         <div className="flex h-11 shrink-0 items-center justify-between border-b border-gray-200 px-5 dark:border-gray-800">
           <h1 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Clients</h1>
           <span className="text-xs text-gray-400">{total.toLocaleString()} clients</span>
         </div>
 
-        <div ref={tableViewportRef} className="min-h-0 flex-1 overflow-auto">
+        <div className="min-h-0 overflow-auto">
           <table className="w-full min-w-[820px] table-fixed text-left">
             <thead className="sticky top-0 z-10 bg-white shadow-[0_1px_0_0_var(--color-gray-200)] dark:bg-gray-901 dark:shadow-[0_1px_0_0_var(--color-gray-800)]">
               <tr className="h-10 text-xs text-gray-400">
@@ -282,7 +297,7 @@ export default function ClientsView() {
                 return (
                   <tr
                     key={client.id}
-                    style={{ height: rowHeight }}
+                    style={{ height: ROW_HEIGHT }}
                     className="text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-905/70"
                   >
                     <td className="px-5">
@@ -386,6 +401,8 @@ export default function ClientsView() {
         </div>
       </section>
 
+      {/* Inside the sizer and directly after the card, so it tracks the card's
+          bottom edge instead of being pinned to the bottom of the page. */}
       <div className="flex shrink-0 items-center justify-between gap-3 pt-2 text-sm text-gray-600 dark:text-gray-400">
         <span>
           {rangeStart.toLocaleString()}&ndash;{rangeEnd.toLocaleString()} of{" "}
@@ -411,6 +428,7 @@ export default function ClientsView() {
             <LuChevronRight />
           </button>
         </div>
+      </div>
       </div>
 
       {canWrite && (

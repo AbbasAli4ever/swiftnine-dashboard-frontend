@@ -72,6 +72,16 @@ function PlatformLogo({ platform }: { platform: PaymentPlatform }) {
   );
 }
 
+// Layout constants used to derive how many rows fit in the available space.
+// They must stay in sync with the markup below: the row height, the sticky
+// column header, the card's title bar + borders, and the pagination row that
+// sits inside the sizer beneath the card.
+const ROW_HEIGHT = 56;
+const TABLE_HEADER_HEIGHT = 40;
+const CARD_TITLE_BAR_HEIGHT = 48;
+const CARD_BORDER_HEIGHT = 2;
+const PAGINATION_ROW_HEIGHT = 44;
+
 type DatePreset = "all" | "7" | "30" | "custom";
 
 const DATE_LABELS: Record<DatePreset, string> = {
@@ -479,7 +489,6 @@ export default function TransactionsView() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [platforms, setPlatforms] = useState<PaymentPlatform[]>([]);
   const [currencies, setCurrencies] = useState<Currency[]>([]);
-  const [client, setClient] = useState<ClientSearchResult | null>(null);
   const [datePreset, setDatePreset] = useState<DatePreset>("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -488,26 +497,34 @@ export default function TransactionsView() {
   const [editing, setEditing] = useState<AccountingTransaction | null>(null);
   const [deleting, setDeleting] = useState<AccountingTransaction | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const tableViewportRef = useRef<HTMLDivElement>(null);
+  const tableSizerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(timer);
   }, [search]);
 
-  // Fit as many rows as the viewport allows and use that as the server `limit`.
+  // Measures the space the table *could* occupy to derive the page size (and so
+  // the max-height cap). The card itself shrinks to fit however many rows the
+  // current page actually has — this only sets the ceiling.
   useEffect(() => {
-    const viewport = tableViewportRef.current;
-    if (!viewport) return;
+    const sizer = tableSizerRef.current;
+    if (!sizer) return;
 
     const updateAutomaticPageSize = () => {
-      // The sticky table header is 40px and every transaction row is 48px.
-      const nextSize = Math.max(1, Math.floor((viewport.clientHeight - 40) / 48));
+      // Space left for rows = the sizer minus everything in it that isn't a row.
+      const available =
+        sizer.clientHeight -
+        CARD_TITLE_BAR_HEIGHT -
+        CARD_BORDER_HEIGHT -
+        PAGINATION_ROW_HEIGHT -
+        TABLE_HEADER_HEIGHT;
+      const nextSize = Math.max(1, Math.floor(available / ROW_HEIGHT));
       setPageSize((current) => (current === nextSize ? current : nextSize));
     };
 
     const observer = new ResizeObserver(updateAutomaticPageSize);
-    observer.observe(viewport);
+    observer.observe(sizer);
     return () => observer.disconnect();
   }, []);
 
@@ -528,14 +545,13 @@ export default function TransactionsView() {
   // Any filter change invalidates the current page number.
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, platforms, currencies, client, pageSize, dateRange]);
+  }, [debouncedSearch, platforms, currencies, pageSize, dateRange]);
 
   const params = useMemo<TransactionListParams>(
     () => ({
       q: debouncedSearch.trim() || undefined,
       page,
       limit: pageSize,
-      clientId: client?.id,
       paymentPlatform: platforms.length ? platforms : undefined,
       currency: currencies.length ? currencies : undefined,
       dateFrom: dateRange.from,
@@ -545,7 +561,7 @@ export default function TransactionsView() {
       sortBy: "saleDate",
       sortOrder: "desc",
     }),
-    [debouncedSearch, page, pageSize, client, platforms, currencies, dateRange]
+    [debouncedSearch, page, pageSize, platforms, currencies, dateRange]
   );
 
   const {
@@ -564,7 +580,6 @@ export default function TransactionsView() {
   const activeFilterCount =
     platforms.length +
     currencies.length +
-    (client ? 1 : 0) +
     (debouncedSearch.trim() ? 1 : 0) +
     (datePreset === "all" ? 0 : 1);
 
@@ -572,7 +587,6 @@ export default function TransactionsView() {
     setSearch("");
     setPlatforms([]);
     setCurrencies([]);
-    setClient(null);
     setDatePreset("all");
     setDateFrom("");
     setDateTo("");
@@ -598,8 +612,8 @@ export default function TransactionsView() {
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-[#fafaff] p-4 dark:bg-gray-907 sm:p-6">
-      <div className="mb-5 flex shrink-0 flex-wrap items-center justify-end gap-2">
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-[#fafaff] px-4 py-3 dark:bg-gray-907 sm:px-6">
+      <div className="mb-3 flex shrink-0 flex-wrap items-center justify-end gap-2">
         <div className="relative w-full sm:w-[240px]">
           <LuSearch
             aria-hidden="true"
@@ -612,14 +626,6 @@ export default function TransactionsView() {
             placeholder="Search client or ref ID..."
             aria-label="Search transactions"
             className="h-10 w-full rounded-xl border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-800 shadow-sm outline-none placeholder:text-gray-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-901 dark:text-gray-100"
-          />
-        </div>
-        <div className="w-full sm:w-[200px]">
-          <ClientPicker
-            label=""
-            placeholder="Filter client..."
-            value={client}
-            onChange={setClient}
           />
         </div>
         <DateDropdown
@@ -658,7 +664,11 @@ export default function TransactionsView() {
         )}
       </div>
 
-      <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-901">
+      {/* Sizer: claims the leftover vertical space so the ResizeObserver can
+          measure it, but renders nothing itself. The card inside sizes to its
+          rows and only scrolls once it hits the sizer's height. */}
+      <div ref={tableSizerRef} className="flex min-h-0 flex-1 flex-col">
+      <section className="flex max-h-full min-h-0 flex-col overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-901">
         <div className="flex h-12 shrink-0 items-center justify-between border-b border-gray-200 px-5 dark:border-gray-800">
           <h1 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
             All Transactions
@@ -667,7 +677,7 @@ export default function TransactionsView() {
             Showing {transactions.length} of {total.toLocaleString()} records
           </span>
         </div>
-        <div ref={tableViewportRef} className="min-h-0 flex-1 overflow-auto">
+        <div className="min-h-0 overflow-auto">
           <table className="w-full min-w-[900px] table-fixed text-left">
             <thead className="sticky top-0 z-10 bg-white shadow-[0_1px_0_0_var(--color-gray-200)] dark:bg-gray-901 dark:shadow-[0_1px_0_0_var(--color-gray-800)]">
               <tr className="h-10 text-xs font-normal text-gray-400">
@@ -684,7 +694,8 @@ export default function TransactionsView() {
               {transactions.map((transaction) => (
                 <tr
                   key={transaction.id}
-                  className="h-[48px] text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-905/70"
+                  style={{ height: ROW_HEIGHT }}
+                  className="text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-905/70"
                 >
                   <td
                     className="px-5 text-xs whitespace-nowrap"
@@ -779,6 +790,8 @@ export default function TransactionsView() {
         </div>
       </section>
 
+      {/* Inside the sizer and directly after the card, so it tracks the card's
+          bottom edge instead of being pinned to the bottom of the page. */}
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 pt-3 text-sm text-gray-600 dark:text-gray-400">
         <span>
           {rangeStart.toLocaleString()}&ndash;{rangeEnd.toLocaleString()} of{" "}
@@ -804,6 +817,7 @@ export default function TransactionsView() {
             <LuChevronRight />
           </button>
         </div>
+      </div>
       </div>
 
       {editing && canWrite && (
