@@ -8,6 +8,7 @@ import {
   LuChevronLeft,
   LuChevronRight,
   LuLandmark,
+  LuPencil,
   LuPlus,
   LuTrash2,
   LuX,
@@ -33,7 +34,15 @@ import AccountingSelect from "@/components/accounts/AccountingSelect";
 import { avatarColors, initials } from "@/components/accounts/avatar";
 import { formatIsoDateTime, formatMoney } from "@/components/accounts/platformMeta";
 
-const CARDS_PER_PAGE = 9;
+// Layout constants used to derive how many rows fit in the available space.
+// They must stay in sync with the markup below: the row height, the sticky
+// column header, the card's title bar + borders, and the pagination row that
+// sits inside the sizer beneath the card.
+const ROW_HEIGHT = 55;
+const TABLE_HEADER_HEIGHT = 40;
+const CARD_TITLE_BAR_HEIGHT = 48;
+const CARD_BORDER_HEIGHT = 2;
+const PAGINATION_ROW_HEIGHT = 44;
 
 const TYPE_LABELS: Record<AccountType, string> = {
   LOCAL: "Local Accounts",
@@ -377,24 +386,64 @@ export default function AccountsBalancesView() {
   const { canWrite } = useAccountingAccess();
   const [accountType, setAccountType] = useState<AccountType>("LOCAL");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [editing, setEditing] = useState<BankAccount | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<BankAccount | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const tableSizerRef = useRef<HTMLDivElement>(null);
+  const titleBarRef = useRef<HTMLDivElement>(null);
+  const paginationRef = useRef<HTMLDivElement>(null);
 
   // The summary comes from the dashboard aggregate rather than summing the
   // paginated list, so the totals match the Overview screen exactly.
   const { overview } = useAccountingOverview("daily");
 
+  // Derives the page size from the space actually left for rows. Rather than
+  // subtracting hardcoded chrome offsets — which overestimate here, since this
+  // page has a tall summary card and tab row above the table — measure the two
+  // real non-row elements inside the sizer: the card's title bar and the
+  // pagination row beneath it.
+  useEffect(() => {
+    const sizer = tableSizerRef.current;
+    if (!sizer) return;
+
+    const updatePageSize = () => {
+      const chrome =
+        (titleBarRef.current?.offsetHeight ?? CARD_TITLE_BAR_HEIGHT) +
+        (paginationRef.current?.offsetHeight ?? PAGINATION_ROW_HEIGHT) +
+        CARD_BORDER_HEIGHT +
+        TABLE_HEADER_HEIGHT;
+      const nextSize = Math.max(
+        1,
+        Math.floor((sizer.clientHeight - chrome) / ROW_HEIGHT)
+      );
+      setPageSize((current) => (current === nextSize ? current : nextSize));
+    };
+
+    const observer = new ResizeObserver(updatePageSize);
+    observer.observe(sizer);
+    // Watch the measured chrome too — the pagination row wraps on narrow
+    // widths, which changes its height and so the row count.
+    if (titleBarRef.current) observer.observe(titleBarRef.current);
+    if (paginationRef.current) observer.observe(paginationRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  // Switching tab or resizing invalidates the current page number.
+  useEffect(() => {
+    setPage(1);
+  }, [accountType, pageSize]);
+
   const params = useMemo<BankAccountListParams>(
     () => ({
       accountType,
       page,
-      limit: CARDS_PER_PAGE,
+      limit: pageSize,
       sortBy: "amount",
       sortOrder: "desc",
     }),
-    [accountType, page]
+    [accountType, page, pageSize]
   );
 
   const {
@@ -416,8 +465,9 @@ export default function AccountsBalancesView() {
     overview?.balances.byAccountType.find((e) => e.accountType === "INTERNATIONAL") ?? null;
 
   const total = meta?.total ?? 0;
-  const rangeStart = total === 0 ? 0 : (page - 1) * CARDS_PER_PAGE + 1;
-  const rangeEnd = Math.min(page * CARDS_PER_PAGE, total);
+  const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const rangeEnd = Math.min(page * pageSize, total);
+  const columnCount = canWrite ? 5 : 4;
 
   const selectType = (type: AccountType) => {
     setAccountType(type);
@@ -439,7 +489,7 @@ export default function AccountsBalancesView() {
   };
 
   return (
-    <div className="flex h-full flex-1 flex-col overflow-y-auto bg-[#FAFAFF] p-4 dark:bg-gray-907 sm:p-6">
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-[#FAFAFF] px-4 py-3 dark:bg-gray-907 sm:px-6">
       <section className="grid shrink-0 grid-cols-1 gap-4 rounded-xl border border-gray-100 bg-white p-6 dark:border-gray-800 dark:bg-gray-901 md:grid-cols-3">
         <div className="flex items-center gap-8 md:col-span-2">
           <div>
@@ -498,74 +548,129 @@ export default function AccountsBalancesView() {
         )}
       </div>
 
-      {isLoading && bankAccounts.length === 0 ? (
-        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, index) => (
-            <div
-              key={index}
-              className="h-[178px] animate-pulse rounded-xl bg-gray-200 dark:bg-gray-800"
-            />
-          ))}
+      {/* Sizer: claims the leftover vertical space so the ResizeObserver can
+          measure it, but renders nothing itself. The card inside sizes to its
+          rows and only scrolls once it hits the sizer's height. */}
+      <div ref={tableSizerRef} className="mt-4 flex min-h-0 flex-1 flex-col">
+      <section className="flex max-h-full min-h-0 flex-col overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-901">
+        <div
+          ref={titleBarRef}
+          className="flex h-12 shrink-0 items-center justify-between border-b border-gray-200 px-5 dark:border-gray-800"
+        >
+          <h1 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+            {TYPE_LABELS[accountType]}
+          </h1>
+          <span className="text-xs text-gray-400">
+            {total.toLocaleString()} accounts
+          </span>
         </div>
-      ) : bankAccounts.length === 0 ? (
-        <div className="mt-4 flex flex-1 flex-col items-center justify-center rounded-xl border border-gray-100 bg-white py-16 dark:border-gray-800 dark:bg-gray-901">
-          <LuLandmark className="mb-3 h-9 w-9 text-gray-300" />
-          <p className="font-medium text-gray-700 dark:text-gray-300">
-            No {accountType === "LOCAL" ? "local" : "international"} accounts
-          </p>
-          <p className="mt-1 text-sm text-gray-400">
-            {canWrite ? "Add an account to start tracking balances." : "Nothing to show yet."}
-          </p>
-        </div>
-      ) : (
-        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {bankAccounts.map((account) => (
-            <article
-              key={account.id}
-              className="flex min-h-[178px] flex-col rounded-xl border border-gray-100 bg-white p-5 dark:border-gray-800 dark:bg-gray-901"
-            >
-              <div className="flex items-center gap-3">
-                <AccountLogo bankName={account.bankName} logoUrl={account.logoUrl} />
-                <h2 className="flex-1 truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
-                  {account.bankName}
-                </h2>
-                {canWrite && (
-                  <button
-                    type="button"
-                    aria-label={`Delete ${account.bankName}`}
-                    title={`Delete ${account.bankName}`}
-                    onClick={() => setDeleting(account)}
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-500/10"
-                  >
-                    <LuTrash2 className="h-[17px] w-[17px]" />
-                  </button>
-                )}
-              </div>
-              <p className="mt-4 text-xl font-semibold text-gray-900 dark:text-gray-100">
-                {formatMoney(account.currencyType, account.amount)}
-              </p>
-              <div className="mt-auto flex items-center justify-between gap-3 pt-4">
-                <p className="truncate text-[11px] text-gray-400">
-                  Last updated: {formatIsoDateTime(account.updatedAt)}
-                </p>
-                {canWrite && (
-                  <button
-                    type="button"
-                    onClick={() => setEditing(account)}
-                    className="shrink-0 text-xs font-medium text-brand-500 hover:text-brand-600"
-                  >
-                    Update
-                  </button>
-                )}
-              </div>
-            </article>
-          ))}
-        </div>
-      )}
 
-      <div className="flex shrink-0 items-center justify-between gap-3 py-3 text-sm text-gray-600 dark:text-gray-400">
+        <div className="min-h-0 overflow-auto">
+          <table className="w-full min-w-[720px] table-fixed text-left">
+            <thead className="sticky top-0 z-10 bg-white shadow-[0_1px_0_0_var(--color-gray-200)] dark:bg-gray-901 dark:shadow-[0_1px_0_0_var(--color-gray-800)]">
+              <tr className="h-10 text-xs font-normal text-gray-400">
+                <th className="w-[38%] px-5 font-normal">Bank</th>
+                <th className="w-[14%] px-5 font-normal">Currency</th>
+                <th className="w-[22%] px-5 text-right font-normal">Balance</th>
+                <th className="w-[26%] px-5 text-right font-normal">Last Updated</th>
+                {canWrite && <th className="w-[12%] px-5 text-right font-normal">Actions</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {bankAccounts.map((account) => (
+                <tr
+                  key={account.id}
+                  style={{ height: ROW_HEIGHT }}
+                  className="text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-905/70"
+                >
+                  <td className="px-5">
+                    <div className="flex items-center gap-3">
+                      <AccountLogo
+                        bankName={account.bankName}
+                        logoUrl={account.logoUrl}
+                        size={32}
+                      />
+                      <span className="truncate font-medium text-gray-800 dark:text-gray-200">
+                        {account.bankName}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-5 text-xs">{account.currencyType}</td>
+                  <td className="px-5 text-right font-medium whitespace-nowrap">
+                    {formatMoney(account.currencyType, account.amount)}
+                  </td>
+                  <td className="px-5 text-right text-xs text-gray-500 whitespace-nowrap dark:text-gray-400">
+                    {formatIsoDateTime(account.updatedAt)}
+                  </td>
+                  {canWrite && (
+                    <td className="px-5">
+                      <div className="flex justify-end gap-1">
+                        <button
+                          type="button"
+                          aria-label={`Delete ${account.bankName}`}
+                          title={`Delete ${account.bankName}`}
+                          onClick={() => setDeleting(account)}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-500/10"
+                        >
+                          <LuTrash2 className="h-[19px] w-[19px]" />
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Update ${account.bankName}`}
+                          title={`Update ${account.bankName}`}
+                          onClick={() => setEditing(account)}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-brand-500/10 hover:text-brand-500"
+                        >
+                          <LuPencil className="h-[19px] w-[19px]" />
+                        </button>
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              ))}
+              {isLoading && bankAccounts.length === 0 && (
+                <tr>
+                  <td colSpan={columnCount} className="p-5">
+                    <div className="space-y-2">
+                      {Array.from({ length: 6 }).map((_, index) => (
+                        <div
+                          key={index}
+                          className="h-9 animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800"
+                        />
+                      ))}
+                    </div>
+                  </td>
+                </tr>
+              )}
+              {!isLoading && bankAccounts.length === 0 && (
+                <tr>
+                  <td colSpan={columnCount} className="h-64 px-6 text-center">
+                    <LuLandmark className="mx-auto mb-3 h-9 w-9 text-gray-300" />
+                    <p className="font-medium text-gray-700 dark:text-gray-300">
+                      No {accountType === "LOCAL" ? "local" : "international"} accounts
+                    </p>
+                    <p className="mt-1 text-sm text-gray-400">
+                      {canWrite
+                        ? "Add an account to start tracking balances."
+                        : "Nothing to show yet."}
+                    </p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* Inside the sizer and directly after the card, so it tracks the card's
+          bottom edge instead of being pinned to the bottom of the page. */}
+      <div
+        ref={paginationRef}
+        className="flex shrink-0 items-center justify-between gap-3 pt-3 text-sm text-gray-600 dark:text-gray-400"
+      >
         <span>
-          {rangeStart}&ndash;{rangeEnd} of {total}
+          {rangeStart.toLocaleString()}&ndash;{rangeEnd.toLocaleString()} of{" "}
+          {total.toLocaleString()}
         </span>
         <div className="flex gap-2">
           <button
@@ -587,6 +692,7 @@ export default function AccountsBalancesView() {
             <LuChevronRight />
           </button>
         </div>
+      </div>
       </div>
 
       {(editing || creating) && canWrite && (
