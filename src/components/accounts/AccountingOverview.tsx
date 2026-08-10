@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import NumberFlow from "@number-flow/react";
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -165,7 +166,18 @@ function AccountRowItem({ account }: { account: BankAccount }) {
   return (
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-2.5">
-        <NameAvatar name={account.bankName} />
+        {account.logoUrl ? (
+          <Image
+            src={account.logoUrl}
+            alt=""
+            width={28}
+            height={28}
+            className="h-7 w-7 shrink-0 rounded-full bg-white object-contain"
+            unoptimized
+          />
+        ) : (
+          <NameAvatar name={account.bankName} />
+        )}
         <span className="text-sm text-gray-800 dark:text-gray-100">{account.bankName}</span>
       </div>
       <span className="text-sm font-medium text-gray-800 dark:text-gray-100">
@@ -244,7 +256,11 @@ function AnimatedSector(props: PieSectorDataItem) {
 
 export default function AccountingOverview() {
   const [period, setPeriod] = useState<OverviewPeriod>("daily");
-  const { overview, isLoading, error } = useAccountingOverview(period);
+  const { overview, isLoading, isFetching, error } = useAccountingOverview(period);
+  // The chart still shows the previous period's points until the new response
+  // lands, so signal that rather than letting the toggle look unresponsive.
+  const isSwitchingPeriod =
+    isFetching && overview?.revenueOverview.period !== period;
 
   useEffect(() => {
     if (error) toast.error(error);
@@ -443,7 +459,12 @@ export default function AccountingOverview() {
             ))}
           </div>
         </div>
-        <ChartContainer config={revenueChartConfig} className="h-[280px] w-full">
+        <ChartContainer
+          config={revenueChartConfig}
+          className={`h-[280px] w-full transition-opacity duration-200 ${
+            isSwitchingPeriod ? "opacity-40" : "opacity-100"
+          }`}
+        >
           <AreaChart data={revenueChartData} margin={{ left: 0, right: 12, top: 8, bottom: 0 }}>
             <defs>
               <linearGradient id="revenueFill" x1="0" y1="0" x2="0" y2="1">

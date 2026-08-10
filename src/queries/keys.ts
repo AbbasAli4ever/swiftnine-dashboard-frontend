@@ -56,6 +56,8 @@ export const queryKeys = {
     ["accounting", "client", clientId] as const,
   accountingClientSearch: (q: string) =>
     ["accounting", "client-search", q] as const,
+  accountingDashboardSearch: (q: string) =>
+    ["accounting", "dashboard-search", q] as const,
   accountingTransactions: (params: unknown) =>
     ["accounting", "transactions", params] as const,
   accountingBankAccounts: (params: unknown) =>

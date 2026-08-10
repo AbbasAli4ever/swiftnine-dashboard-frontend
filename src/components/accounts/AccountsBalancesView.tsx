@@ -1,7 +1,8 @@
 "use client";
 
+import Image from "next/image";
 import NumberFlow from "@number-flow/react";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   LuChevronLeft,
@@ -19,6 +20,9 @@ import { useAccountingOverview, useBankAccounts } from "@/hooks/useAccounting";
 import {
   ACCOUNT_TYPES,
   CURRENCIES,
+  LOGO_MAX_BYTES,
+  LOGO_MIME_TYPES,
+  bankAccountService,
   type AccountType,
   type BankAccount,
   type BankAccountListParams,
@@ -41,14 +45,37 @@ function formatCurrencyTotals(totals: CurrencyTotal[]): string {
   return totals.map((entry) => formatMoney(entry.currency, entry.total)).join(" · ");
 }
 
-/** Initials avatar — the API stores no logo or colour for bank accounts. */
-function AccountLogo({ bankName }: { bankName: string }) {
+/** Uploaded logo when present, deterministic initials avatar otherwise. */
+function AccountLogo({
+  bankName,
+  logoUrl,
+  size = 48,
+}: {
+  bankName: string;
+  logoUrl?: string | null;
+  size?: number;
+}) {
   const { background, color } = avatarColors(bankName);
+
+  if (logoUrl) {
+    return (
+      <Image
+        src={logoUrl}
+        alt=""
+        width={size}
+        height={size}
+        style={{ width: size, height: size }}
+        className="shrink-0 rounded-full bg-white object-contain"
+        unoptimized
+      />
+    );
+  }
+
   return (
     <span
       aria-hidden="true"
-      style={{ backgroundColor: background, color }}
-      className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+      style={{ width: size, height: size, backgroundColor: background, color }}
+      className="flex shrink-0 items-center justify-center rounded-full text-xs font-bold"
     >
       {initials(bankName)}
     </span>
@@ -74,6 +101,9 @@ function BankAccountModal({
     accountType: AccountType;
     currencyType: Currency;
     amount: number;
+    /** `null` means "no logo picked" — the caller omits it from the request,
+     *  since the API rejects a null logoUrl and can't clear a saved one. */
+    logoUrl: string | null;
   }) => Promise<void>;
 }) {
   const isEditing = account !== null;
@@ -87,6 +117,50 @@ function BankAccountModal({
   const [amount, setAmount] = useState(String(account?.amount ?? 0));
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Logo: `logoUrl` is the saved/uploaded permanent URL; `logoPreview` is a
+  // local object URL shown immediately after picking, before upload finishes.
+  const [logoUrl, setLogoUrl] = useState<string | null>(account?.logoUrl ?? null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Object URLs leak until revoked.
+  useEffect(() => {
+    return () => {
+      if (logoPreview) URL.revokeObjectURL(logoPreview);
+    };
+  }, [logoPreview]);
+
+  const pickLogo = async (file: File | undefined) => {
+    if (!file) return;
+    setError("");
+
+    if (!LOGO_MIME_TYPES.includes(file.type as (typeof LOGO_MIME_TYPES)[number])) {
+      setError("Logo must be a PNG, JPEG, SVG or WebP image.");
+      return;
+    }
+    if (file.size > LOGO_MAX_BYTES) {
+      setError("Logo must be 2MB or smaller.");
+      return;
+    }
+
+    // Show the picked image straight away; the upload runs behind it.
+    const preview = URL.createObjectURL(file);
+    setLogoPreview(preview);
+    setUploadingLogo(true);
+    try {
+      setLogoUrl(await bankAccountService.uploadLogo(file));
+    } catch (err) {
+      setError(parseApiError(err).message || "Couldn't upload the logo.");
+      URL.revokeObjectURL(preview);
+      setLogoPreview(null);
+    } finally {
+      setUploadingLogo(false);
+      // Allow re-picking the same file after a failure.
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -110,9 +184,20 @@ function BankAccountModal({
       return;
     }
 
+    if (uploadingLogo) {
+      setError("Wait for the logo upload to finish.");
+      return;
+    }
+
     setSaving(true);
     try {
-      await onSave({ bankName: name, accountType, currencyType, amount: nextAmount });
+      await onSave({
+        bankName: name,
+        accountType,
+        currencyType,
+        amount: nextAmount,
+        logoUrl,
+      });
     } catch (err) {
       setError(parseApiError(err).message || "Couldn't save the account.");
     } finally {
@@ -152,7 +237,56 @@ function BankAccountModal({
           {isEditing ? "Update Account Balance" : "Add Bank Account"}
         </h2>
 
-        <label className="mt-8 block text-xs font-medium text-gray-600 dark:text-gray-300">
+        <div className="mt-8 flex items-center gap-4">
+          <AccountLogo
+            bankName={bankName || "?"}
+            logoUrl={logoPreview ?? logoUrl}
+            size={56}
+          />
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium text-gray-600 dark:text-gray-300">Logo</p>
+            <div className="mt-1.5 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                disabled={uploadingLogo}
+                onClick={() => fileInputRef.current?.click()}
+                className="h-8 rounded-lg border border-gray-200 px-3 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+              >
+                {uploadingLogo
+                  ? "Uploading..."
+                  : logoPreview || logoUrl
+                    ? "Replace"
+                    : "Upload logo"}
+              </button>
+              {/* Only offers to discard a logo picked in this session. A saved
+                  logo can't be cleared — the API rejects a null logoUrl — so
+                  showing Remove for one would silently do nothing. */}
+              {logoPreview && !uploadingLogo && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    URL.revokeObjectURL(logoPreview);
+                    setLogoPreview(null);
+                    setLogoUrl(account?.logoUrl ?? null);
+                  }}
+                  className="h-8 rounded-lg px-2 text-xs text-gray-500 hover:text-red-500"
+                >
+                  Discard
+                </button>
+              )}
+            </div>
+            <p className="mt-1 text-[11px] text-gray-400">PNG, JPEG, SVG or WebP · max 2MB</p>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={LOGO_MIME_TYPES.join(",")}
+            className="hidden"
+            onChange={(event) => void pickLogo(event.target.files?.[0])}
+          />
+        </div>
+
+        <label className="mt-4 block text-xs font-medium text-gray-600 dark:text-gray-300">
           Bank Name
           <input
             autoFocus={!isEditing}
@@ -391,7 +525,7 @@ export default function AccountsBalancesView() {
               className="flex min-h-[178px] flex-col rounded-xl border border-gray-100 bg-white p-5 dark:border-gray-800 dark:bg-gray-901"
             >
               <div className="flex items-center gap-3">
-                <AccountLogo bankName={account.bankName} />
+                <AccountLogo bankName={account.bankName} logoUrl={account.logoUrl} />
                 <h2 className="flex-1 truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
                   {account.bankName}
                 </h2>
@@ -463,13 +597,16 @@ export default function AccountsBalancesView() {
             setEditing(null);
             setCreating(false);
           }}
-          onSave={async (payload) => {
+          onSave={async ({ logoUrl, ...rest }) => {
+            // Only send logoUrl when there is one — the API rejects null, so a
+            // cleared logo simply can't be persisted (see UpdateBankAccountPayload).
+            const withLogo = { ...rest, ...(logoUrl ? { logoUrl } : {}) };
             if (editing) {
-              await updateBankAccount(editing.id, payload);
+              await updateBankAccount(editing.id, withLogo);
               toast.success("Balance updated");
             } else {
-              await createBankAccount(payload);
-              toast.success(`${payload.bankName} added`);
+              await createBankAccount(withLogo);
+              toast.success(`${rest.bankName} added`);
             }
             setEditing(null);
             setCreating(false);
@@ -477,7 +614,7 @@ export default function AccountsBalancesView() {
         />
       )}
       <ConfirmActionModal
-        isOpen={Boolean(deleting)}
+        isOpen={canWrite && Boolean(deleting)}
         title="Delete bank account?"
         description={
           deleting

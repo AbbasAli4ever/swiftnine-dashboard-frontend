@@ -125,6 +125,8 @@ export interface BankAccount {
   accountType: AccountType;
   currencyType: Currency;
   amount: number;
+  /** Public S3 URL set via the logo-presign flow. Null when no logo uploaded. */
+  logoUrl: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -172,8 +174,26 @@ export interface CreateBankAccountPayload {
   accountType: AccountType;
   currencyType: Currency;
   amount: number;
+  /** Permanent public URL returned by the logo-presign step. */
+  logoUrl?: string;
 }
 
+/** Accepted by `POST /bank-accounts/logo-presign`. */
+export const LOGO_MIME_TYPES = [
+  "image/png",
+  "image/jpeg",
+  "image/svg+xml",
+  "image/webp",
+] as const;
+
+export const LOGO_MAX_BYTES = 2 * 1024 * 1024; // 2MB, enforced server-side too
+
+/**
+ * Note: `logoUrl` can be set or replaced, but **not cleared** — the API's
+ * validator rejects `null` ("expected string, received null") and omitting the
+ * field leaves the stored value untouched. Removing a logo needs a backend
+ * change (accept `null`, or a dedicated delete route).
+ */
 export type UpdateBankAccountPayload = Partial<CreateBankAccountPayload>;
 
 // ── List params ───────────────────────────────────────────────────────────────
@@ -290,6 +310,25 @@ export interface OverviewResponse {
   }[];
 }
 
+/** `GET /accounting-dashboard/search` — up to 5 of each, not paginated. */
+export interface DashboardSearchResponse {
+  clients: {
+    id: string;
+    clientName: string;
+    totalRevenue: number;
+    currencyType: Currency | null;
+  }[];
+  transactions: {
+    id: string;
+    refId: string;
+    clientName: string;
+    saleAmount: number;
+    currency: Currency;
+    saleDate: string;
+    description: string | null;
+  }[];
+}
+
 // ── Services ──────────────────────────────────────────────────────────────────
 
 export const clientService = {
@@ -385,6 +424,49 @@ export const bankAccountService = {
 
   delete: (bankAccountId: string) =>
     api.delete(`/bank-accounts/${bankAccountId}`),
+
+  /**
+   * Step 1 of the logo upload. Unlike the other presign flows in this app this
+   * one takes the actual file as multipart/form-data — the backend derives
+   * name/mime/size from the bytes rather than trusting client-supplied fields.
+   */
+  presignLogo: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return api
+      .post<ApiWrapper<{ uploadUrl: string; logoUrl: string; expiresIn: number }>>(
+        "/bank-accounts/logo-presign",
+        form,
+        // The axios instance defaults to application/json. Undefined here makes
+        // the browser set multipart/form-data with the correct boundary, which
+        // it can only do itself — a hardcoded value would omit the boundary and
+        // the backend's FileInterceptor would find no file.
+        { headers: { "Content-Type": undefined } }
+      )
+      .then((r) => r.data.data);
+  },
+
+  /**
+   * Step 2: PUT the raw bytes straight to S3, bypassing this API.
+   * `Content-Type` is required — the presigned URL is signed without one, so
+   * omitting it makes S3 store the object as application/octet-stream and the
+   * logo downloads instead of rendering.
+   */
+  uploadLogoToS3: async (uploadUrl: string, file: File) => {
+    const res = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": file.type },
+      body: file,
+    });
+    if (!res.ok) throw new Error(`Logo upload failed: ${res.status}`);
+  },
+
+  /** Both steps. Returns the permanent public URL to save as `logoUrl`. */
+  uploadLogo: async (file: File): Promise<string> => {
+    const { uploadUrl, logoUrl } = await bankAccountService.presignLogo(file);
+    await bankAccountService.uploadLogoToS3(uploadUrl, file);
+    return logoUrl;
+  },
 };
 
 export const accountingDashboardService = {
@@ -393,6 +475,14 @@ export const accountingDashboardService = {
     api
       .get<ApiWrapper<OverviewResponse>>("/accounting-dashboard/overview", {
         params: { period },
+      })
+      .then((r) => r.data.data),
+
+  /** Global search across clients + transactions. `q` must be 1-200 chars. */
+  search: (q: string) =>
+    api
+      .get<ApiWrapper<DashboardSearchResponse>>("/accounting-dashboard/search", {
+        params: { q },
       })
       .then((r) => r.data.data),
 };

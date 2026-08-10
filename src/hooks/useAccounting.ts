@@ -71,6 +71,11 @@ export function useAccountingOverview(period: OverviewPeriod = "daily") {
     enabled: !!accessToken,
     staleTime: 60_000,
     retry: ACCOUNTING_RETRY,
+    // Each period is its own cache entry, so switching to one that hasn't been
+    // fetched yet would otherwise blank `data` and tear the whole screen down.
+    // Keeping the previous period's response on screen makes the toggle swap
+    // just the chart once the new data lands.
+    placeholderData: (previous) => previous,
   });
 
   return {
@@ -79,6 +84,40 @@ export function useAccountingOverview(period: OverviewPeriod = "daily") {
     isFetching: query.isFetching,
     error: toAccountingError(query.error),
     refetch: () => queryClient.invalidateQueries({ queryKey }),
+  };
+}
+
+/**
+ * Global accounting search backing the header search bar on /accounts routes.
+ * Returns up to 5 clients and 5 transactions; not paginated.
+ */
+export function useDashboardSearch(term: string, debounceMs = 300) {
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const [debounced, setDebounced] = useState(term);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(term), debounceMs);
+    return () => clearTimeout(timer);
+  }, [term, debounceMs]);
+
+  // The API caps `q` at 200 chars and rejects anything longer.
+  const trimmed = debounced.trim().slice(0, 200);
+
+  const query = useQuery({
+    queryKey: queryKeys.accountingDashboardSearch(trimmed),
+    queryFn: () => accountingDashboardService.search(trimmed),
+    enabled: !!accessToken && trimmed.length > 0,
+    staleTime: 30_000,
+    retry: ACCOUNTING_RETRY,
+  });
+
+  return {
+    clients: query.data?.clients ?? [],
+    transactions: query.data?.transactions ?? [],
+    // Treat the debounce gap as loading so the panel doesn't flash "no results"
+    // between a keystroke and the request going out.
+    isLoading: query.isFetching || (trimmed.length > 0 && debounced !== term),
+    error: toAccountingError(query.error),
   };
 }
 

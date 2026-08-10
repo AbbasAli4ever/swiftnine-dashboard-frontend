@@ -54,6 +54,7 @@ import {
   LuKanban,
   LuBriefcase,
   LuLandmark,
+  LuArrowLeft,
 } from "react-icons/lu";
 import { MdChecklist } from "react-icons/md";
 import { ssoService } from "@/services/sso.service";
@@ -958,7 +959,9 @@ function AccountsPanelContent() {
   const { logout } = useAuth();
   const { canSeeAllMenus } = useAccountingAccess();
 
-  // A CEO only gets the Overview; an accountant gets every accounting menu.
+  // CEO and accountant both see every accounting menu — they differ only in the
+  // write controls inside each page (gated on `canWrite`). A `null` role never
+  // reaches this panel at all.
   const visibleNavItems = canSeeAllMenus
     ? accountingNavItems
     : accountingNavItems.filter((item) => item.path === "/accounts");
@@ -983,21 +986,6 @@ function AccountsPanelContent() {
     );
   };
 
-  const settingsNavItem = (item: SettingsNavItem) => {
-    const Icon = item.icon;
-    return (
-      <button
-        key={item.label}
-        type="button"
-        onClick={() => router.push(`/settings${item.tab && item.tab !== "general" ? `?tab=${item.tab}` : ""}`)}
-        className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-905"
-      >
-        <Icon className="h-4 w-4 shrink-0" />
-        <span className="truncate">{item.label}</span>
-      </button>
-    );
-  };
-
   return (
     <div className="flex flex-1 flex-col overflow-y-auto no-scrollbar px-2 py-2 text-[13px]">
       <h2 className="px-2 py-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
@@ -1008,13 +996,18 @@ function AccountsPanelContent() {
         {visibleNavItems.map(navItem)}
       </div>
 
-      <div className="pt-4">
-        <p className="px-2 pb-1 text-[11px] uppercase tracking-wide text-gray-400 font-normal">
-          Settings
-        </p>
+      <div className="mt-3 border-t border-gray-200 pt-3 dark:border-gray-800">
         <div className="space-y-0.5">
-          {workspaceSettingsItems.map(settingsNavItem)}
-          {mySettingsItems.map(settingsNavItem)}
+          {/* One entry, not the full tab list — /settings renders its own panel
+              with these same tabs, so listing them here duplicated the menu. */}
+          <button
+            type="button"
+            onClick={() => router.push("/settings")}
+            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-905"
+          >
+            <LuSettings className="h-4 w-4 shrink-0" />
+            <span className="truncate">Settings</span>
+          </button>
           <button
             type="button"
             onClick={logout}
@@ -1036,6 +1029,7 @@ function SettingsPanelContent() {
   const currentTab = (searchParams.get("tab") ?? "general").toLowerCase();
   const isSettingsRoute = pathname.startsWith("/settings");
   const { logout } = useAuth();
+  const { isAccountant } = useAccountingAccess();
 
   const navigateToTab = (tab: string) => {
     const query = tab === "general" ? "" : `?tab=${tab}`;
@@ -1067,6 +1061,20 @@ function SettingsPanelContent() {
       <h2 className="px-2 py-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
         Settings
       </h2>
+
+      {/* Accountant-only: the settings panel replaces the accounting one and
+          the icon rail is hidden for them, so this is their only way back.
+          Every other role still has the rail to navigate with. */}
+      {isAccountant && (
+        <button
+          type="button"
+          onClick={() => router.push("/accounts")}
+          className="mt-1 flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-[13px] text-brand-500 transition-colors hover:bg-brand-500/10"
+        >
+          <LuArrowLeft className="h-4 w-4 shrink-0" />
+          <span className="truncate">Back to Dashboard</span>
+        </button>
+      )}
 
       <div className="pt-3">
         <p className="px-2 pb-1 text-[11px] uppercase tracking-wide text-gray-400 font-normal">

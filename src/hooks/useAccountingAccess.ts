@@ -9,7 +9,7 @@ export interface AccountingAccess {
   canAccessAccounting: boolean;
   /** Only ACCOUNTANT may create/edit/delete accounting records. */
   canWrite: boolean;
-  /** CEO sees Overview only; ACCOUNTANT sees every accounting menu. */
+  /** Both roles read every accounting page; only the write controls differ. */
   canSeeAllMenus: boolean;
   isAccountant: boolean;
   isCeo: boolean;
@@ -21,18 +21,21 @@ export interface AccountingAccess {
  * Single source of truth for accounting role gating so no component re-derives
  * it from `user.role` directly.
  *
- * Note: the backend has no role guard on `/clients`, `/transactions`,
- * `/bank-accounts`, or `/accounting-dashboard` — any authenticated user can
- * call them. Everything here is UX gating, not security.
+ * Mirrors the backend guards: all four accounting controllers are
+ * `@RequireUserRole('CEO','ACCOUNTANT')` at class level (both roles can read),
+ * with every POST/PATCH/DELETE overridden to `@RequireUserRole('ACCOUNTANT')`.
+ * So a CEO is read-only and a `null` role gets 403 everywhere — this hook hides
+ * what the server would reject anyway.
  */
 export function useAccountingAccess(): AccountingAccess {
   const { role, isAccountant, isCeo, isLoading } = useAuth();
+  const canAccessAccounting = isAccountant || isCeo;
 
   return {
     role,
-    canAccessAccounting: isAccountant || isCeo,
+    canAccessAccounting,
     canWrite: isAccountant,
-    canSeeAllMenus: isAccountant,
+    canSeeAllMenus: canAccessAccounting,
     isAccountant,
     isCeo,
     isLoading,

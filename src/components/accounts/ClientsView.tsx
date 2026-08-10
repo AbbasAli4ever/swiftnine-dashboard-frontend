@@ -446,7 +446,7 @@ export default function ClientsView() {
         />
       )}
       <ConfirmActionModal
-        isOpen={Boolean(deleting)}
+        isOpen={canWrite && Boolean(deleting)}
         title="Delete client?"
         description={
           deleting ? `${deleting.clientName} will be permanently deleted.` : ""

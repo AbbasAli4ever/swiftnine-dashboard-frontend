@@ -832,7 +832,7 @@ export default function TransactionsView() {
         />
       )}
       <ConfirmActionModal
-        isOpen={Boolean(deleting)}
+        isOpen={canWrite && Boolean(deleting)}
         title="Delete transaction?"
         description={
           deleting

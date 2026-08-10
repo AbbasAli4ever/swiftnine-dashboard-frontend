@@ -13,6 +13,7 @@ import GlobalTaskSearchModal from "@/components/header/GlobalTaskSearchModal";
 import WorkspaceSwitcher from "@/components/workspace/WorkspaceSwitcher";
 import CreateWorkspaceModal from "@/components/workspace/CreateWorkspaceModal";
 import AddSaleModal from "@/components/accounts/AddSaleModal";
+import AccountingSearchModal from "@/components/accounts/AccountingSearchModal";
 import { LuChevronDown, LuSquareArrowOutUpRight } from "react-icons/lu";
 
 const AppHeader: React.FC = () => {
@@ -214,7 +215,21 @@ const AppHeader: React.FC = () => {
         )}
       </div>
 
-      <GlobalTaskSearchModal isOpen={searchOpen} onClose={() => setSearchOpen(false)} anchorRect={searchAnchor} />
+      {/* Same trigger, different search: accounting routes search clients and
+          transactions; everywhere else keeps the workspace task search. */}
+      {isAccountsRoute ? (
+        <AccountingSearchModal
+          isOpen={searchOpen}
+          onClose={() => setSearchOpen(false)}
+          anchorRect={searchAnchor}
+        />
+      ) : (
+        <GlobalTaskSearchModal
+          isOpen={searchOpen}
+          onClose={() => setSearchOpen(false)}
+          anchorRect={searchAnchor}
+        />
+      )}
       {canEnterSales && (
         <AddSaleModal isOpen={addSaleOpen} onClose={() => setAddSaleOpen(false)} />
       )}
