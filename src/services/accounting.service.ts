@@ -31,8 +31,14 @@ export interface Paginated<T> {
 
 // ── Shared enums ──────────────────────────────────────────────────────────────
 
-/** Backend `Currency` enum — the only three values the API accepts. */
-export const CURRENCIES = ["USD", "HKD", "PKR"] as const;
+/**
+ * Backend `Currency` enum — all seven values the API accepts, verified against
+ * the server's own validator. Source of truth is `enum Currency` in
+ * `prisma/schema.prisma`, mirrored by `CURRENCY_VALUES` in
+ * `transaction.constants.ts`; each value has a matching `EXCHANGE_RATES_TO_USD`
+ * entry (`CRYPTO` is a 1:1 placeholder, not a real rate).
+ */
+export const CURRENCIES = ["USD", "HKD", "PKR", "AED", "EUR", "GBP", "CRYPTO"] as const;
 export type Currency = (typeof CURRENCIES)[number];
 
 /** Backend `AccountType` enum for bank accounts. */
@@ -40,21 +46,24 @@ export const ACCOUNT_TYPES = ["LOCAL", "INTERNATIONAL"] as const;
 export type AccountType = (typeof ACCOUNT_TYPES)[number];
 
 /**
- * Backend `PaymentPlatform` enum, verified against schema.prisma:111-119. No
- * `@map` on the enum or its values, so these SCREAMING_CASE literals are exactly
- * what goes over the wire. Use `formatPlatform` for display.
+ * The only currency a LOCAL account can hold — the business operates in
+ * Pakistan, so "local" means PKR by definition. Everything else is
+ * INTERNATIONAL.
+ *
+ * This is a **frontend-only** constraint: the API accepts any `Currency` for
+ * either `accountType` (verified by probing `POST /bank-accounts`). It's
+ * enforced here to stop nonsense combinations being entered by hand, not
+ * because the server would reject them — a record created outside this UI can
+ * still pair LOCAL with any currency.
  */
-export const PAYMENT_PLATFORMS = [
-  "WHOP",
-  "AIRWALLEX",
-  "SLASH",
-  "PAYONEER",
-  "WIO_BANK",
-  "MAMO",
-  "KRAKEN",
-] as const;
+export const LOCAL_CURRENCY = "PKR" satisfies Currency;
 
-export type PaymentPlatform = (typeof PAYMENT_PLATFORMS)[number];
+/** Currencies selectable for a given account type. */
+export function currenciesForAccountType(accountType: AccountType): readonly Currency[] {
+  return accountType === "LOCAL"
+    ? [LOCAL_CURRENCY]
+    : CURRENCIES.filter((code) => code !== LOCAL_CURRENCY);
+}
 
 export type SortOrder = "asc" | "desc";
 
@@ -82,7 +91,6 @@ export interface AccountingClient {
 export interface ClientTransaction {
   id: string;
   saleAmount: number;
-  paymentPlatform: PaymentPlatform;
   currency: Currency;
   refId: string;
   description: string | null;
@@ -106,7 +114,8 @@ export interface AccountingTransaction {
   clientId: string;
   /** Denormalized snapshot of the client's name at creation time. */
   clientName: string;
-  paymentPlatform: PaymentPlatform;
+  /** The bank account this transaction credits. */
+  bankAccountId: string;
   currency: Currency;
   saleAmount: number;
   refId: string;
@@ -115,8 +124,9 @@ export interface AccountingTransaction {
   saleDate: string;
   createdAt: string;
   updatedAt: string;
-  /** Only present on `GET /transactions/:transactionId`. */
   client?: { id: string; clientName: string };
+  /** `logoUrl` may be absent on older responses — fall back to initials. */
+  bankAccount?: { id: string; bankName: string; logoUrl?: string | null };
 }
 
 export interface BankAccount {
@@ -148,10 +158,13 @@ export interface UpdateClientPayload {
 export interface CreateTransactionPayload {
   /** Must resolve to an existing client — the API no longer accepts a bare name. */
   clientId: string;
+  /** Required. Must exist in the current workspace, and its `currencyType` must
+   *  match `currency` exactly — the API 400s on a mismatch (no FX conversion).
+   *  Creating a transaction increments this account's balance by `saleAmount`. */
+  bankAccountId: string;
   refId: string;
   saleAmount: number;
   currency: Currency;
-  paymentPlatform: PaymentPlatform;
   /** ISO datetime. Omit to default to now; set it to backdate a late entry. */
   saleDate?: string;
   description?: string;
@@ -162,7 +175,9 @@ export interface UpdateTransactionPayload {
   /** Send alongside `clientId` on a reassignment — the backend does not refresh
    *  the denormalized name on its own. */
   clientName?: string;
-  paymentPlatform?: PaymentPlatform;
+  /** Changing this, `saleAmount` or `currency` re-runs the balance sync: the
+   *  old amount is reversed and the new one applied, in one DB transaction. */
+  bankAccountId?: string;
   saleAmount?: number;
   currency?: Currency;
   saleDate?: string;
@@ -211,8 +226,8 @@ export interface ClientListParams extends BaseListParams {
 
 export interface TransactionListParams extends BaseListParams {
   clientId?: string;
+  bankAccountId?: string;
   /** Serialized comma-separated. */
-  paymentPlatform?: PaymentPlatform[];
   currency?: Currency[];
   /**
    * Filter on `saleDate` (not `createdAt`). A bare `YYYY-MM-DD` is expanded
@@ -288,11 +303,33 @@ export interface OverviewResponse {
     /** `label` is YYYY-MM-DD (daily/weekly), YYYY-MM (monthly), or a year. */
     points: { label: string; totalUsd: number }[];
   };
-  revenueByPaymentPlatform: {
-    paymentPlatform: PaymentPlatform;
-    totalUsd: number;
+  /**
+   * All-time revenue per bank account — both LOCAL and INTERNATIONAL, uncapped,
+   * sorted by `totalRevenueUsd` descending. Transaction-driven (summed from
+   * `Transaction.saleAmount`, no date filter), *not* the account's balance —
+   * that's `bankAccounts`. Accounts with no sales are still listed, at 0.
+   * Optional so an older/newer API shape can't crash the screen.
+   */
+  revenueByBankAccount?: {
+    id: string;
+    bankName: string;
+    accountType: AccountType;
+    currencyType: Currency;
+    /**
+     * Native-currency total. `null` when an account holds sales in more than
+     * one currency — summing unlike currencies would be meaningless. Use
+     * `totalRevenueUsd` for anything that must always have a value.
+     */
+    totalRevenue: number | null;
+    totalRevenueUsd: number;
+    salesCount: number;
   }[];
-  revenueByCurrency: {
+  /**
+   * All-time revenue grouped by `Transaction.currency`. Transaction-driven.
+   * Returns `[]` on a workspace with no transactions — unlike the old
+   * balance-driven version, there is no row-per-currency guarantee.
+   */
+  revenueByCurrency?: {
     currency: Currency;
     total: number;
     totalUsd: number;

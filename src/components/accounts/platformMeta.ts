@@ -1,52 +1,10 @@
-import type { Currency, PaymentPlatform } from "@/services/accounting.service";
+import type { Currency } from "@/services/accounting.service";
 
-type PlatformStyle = { label: string; color: string; initials: string; logo?: string };
-
-/**
- * Display metadata for the seven `PaymentPlatform` enum values
- * (schema.prisma:111-119). Keyed by a normalized form of the value: the wire
- * format is SCREAMING_CASE, but keying this way means an unrecognized or
- * differently-cased value still resolves instead of falling through to a
- * generated placeholder.
- */
-const PLATFORM_STYLES: Record<string, PlatformStyle> = {
-  whop: { label: "Whop", color: "#ff4f23", initials: "W", logo: "/images/accounts/image 1.svg" },
-  airwallex: { label: "Airwallex", color: "#111111", initials: "AW" },
-  slash: { label: "Slash", color: "#2a241f", initials: "S" },
-  payoneer: { label: "Payoneer", color: "#ffffff", initials: "P", logo: "/images/accounts/image 2.svg" },
-  wiobank: { label: "Wio Bank", color: "#6614f4", initials: "WIO" },
-  mamo: { label: "Mamo", color: "#3538ff", initials: "M" },
-  kraken: { label: "Kraken", color: "#5743d9", initials: "K" },
-};
-
-/** Strips case, underscores, spaces and hyphens so `WIO_BANK` === `Wio Bank`. */
-function normalizeKey(platform: PaymentPlatform): string {
-  return platform.toLowerCase().replace(/[\s_-]/g, "");
-}
-
-/** Human-readable platform name — falls back to title-casing the raw enum value. */
-export function formatPlatform(platform: PaymentPlatform): string {
-  const known = PLATFORM_STYLES[normalizeKey(platform)];
-  if (known) return known.label;
-  return platform
-    .toLowerCase()
-    .split(/[\s_-]+/)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-}
-
-/** Colour/initials/logo for a platform, generated deterministically if unknown. */
-export function getPlatformStyle(platform: PaymentPlatform): PlatformStyle {
-  const known = PLATFORM_STYLES[normalizeKey(platform)];
-  if (known) return known;
-
-  const label = formatPlatform(platform);
-  return {
-    label,
-    color: colorFromString(platform),
-    initials: label.slice(0, 2).toUpperCase(),
-  };
-}
+// Shared formatting helpers for the accounting screens. Payment platforms were
+// removed from the data model — a transaction now records only the bank account
+// it debits or credits — so the platform logo/colour table that used to live
+// here is gone with it. Bank avatars come from `BankAccount.logoUrl`, falling
+// back to generated initials (see ./avatar).
 
 const FALLBACK_COLORS = [
   "#6366f1", "#0ea5e9", "#10b981", "#f59e0b",

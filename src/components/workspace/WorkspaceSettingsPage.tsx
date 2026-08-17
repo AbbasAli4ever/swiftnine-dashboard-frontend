@@ -26,6 +26,7 @@ import DeleteAccountSection from "@/components/settings/DeleteAccountSection";
 import {
   workspaceService,
   WorkspaceMember,
+  type AccountingRole,
   type AiModelTier,
   type TokenQuotaStatus,
 } from "@/services/workspace.service";
@@ -51,6 +52,18 @@ const AVATAR_COLOR_STYLES = [
 
 function workspaceInitial(name: string) {
   return name.trim().charAt(0).toUpperCase();
+}
+
+/**
+ * Whether an accounting role can be assigned to this row.
+ *
+ * `PUT /organizations/members/:id/accounting-role` writes to a `WorkspaceMember`
+ * row, which only exists once an invite is accepted. The API reports
+ * `inviteStatus` for *pending/rejected invites only* — an accepted member's is
+ * `null`, so testing for `"ACCEPTED"` matches nobody.
+ */
+function isAccountingRoleAssignable(member: { inviteStatus: string | null }): boolean {
+  return member.inviteStatus === null || member.inviteStatus === "ACCEPTED";
 }
 
 /** Compact token count for tight table cells: 620000 -> "620k". */
@@ -248,6 +261,49 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
     }
   };
 
+  /**
+   * Accounting access is granted per workspace membership, independent of the
+   * OWNER/MEMBER role. `null` revokes it. OWNER-only server-side.
+   */
+  const handleChangeAccountingRole = async (
+    member: WorkspaceMember,
+    accountingRole: AccountingRole | null
+  ) => {
+    if (!activeWorkspace) return;
+    const previous = member.accountingRole;
+    // Optimistic: the dropdown should feel immediate, and we revert on failure.
+    setMembers((prev) =>
+      prev.map((m) => (m.id === member.id ? { ...m, accountingRole } : m))
+    );
+    try {
+      await workspaceService.changeMemberAccountingRole(
+        activeWorkspace.id,
+        member.id,
+        accountingRole
+      );
+      toast.success(
+        accountingRole
+          ? `${member.fullName} is now ${accountingRole === "CEO" ? "CEO" : "an Accountant"}`
+          : `Accounting access removed for ${member.fullName}`
+      );
+      // An OWNER can change their own role, and the accounting rail/menus read
+      // from this — invalidate so the change lands without a reload.
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.workspaceMembers(activeWorkspace.id),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.accountingRole(activeWorkspace.id),
+      });
+    } catch (err) {
+      setMembers((prev) =>
+        prev.map((m) =>
+          m.id === member.id ? { ...m, accountingRole: previous } : m
+        )
+      );
+      toast.error(parseApiError(err).message);
+    }
+  };
+
   // The modal performs the secret-gated request itself; this only syncs the two
   // caches. useWorkspaceMembers serves the same data via react-query elsewhere,
   // so that key must be invalidated or other views show a stale tier.
@@ -367,23 +423,30 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
 
           <div className="mt-4 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
             <div className="overflow-x-auto [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white [&::-webkit-scrollbar-thumb]:border [&::-webkit-scrollbar-thumb]:border-gray-300 dark:[&::-webkit-scrollbar-thumb]:bg-black dark:[&::-webkit-scrollbar-thumb]:border-gray-700">
-              <table className="w-full min-w-[1180px] table-fixed">
+              <table className="w-full min-w-[1320px] table-fixed">
+                {/* One <col> per <th>, in the same order: Name, Email, Role,
+                    Accounting, Subscription, [Usage — owner only], Last Active,
+                    Invited By, Invited On, and the trailing actions cell.
+                    A count mismatch here silently shifts every column's width
+                    onto its neighbour under `table-fixed`. */}
                 <colgroup>
+                  <col className="w-[15%]" />
                   <col className="w-[16%]" />
-                  <col className="w-[18%]" />
-                  <col className="w-[8%]" />
+                  <col className="w-[7%]" />
                   <col className="w-[11%]" />
-                  {isOwner && <col className="w-[14%]" />}
+                  <col className="w-[10%]" />
+                  {isOwner && <col className="w-[13%]" />}
                   <col className="w-[9%]" />
-                  <col className="w-[9%]" />
-                  <col className="w-[9%]" />
-                  <col className="w-[6%]" />
+                  <col className="w-[8%]" />
+                  <col className="w-[8%]" />
+                  <col className="w-[5%]" />
                 </colgroup>
                 <thead>
                   <tr className="border-b border-gray-200 text-xs font-normal text-gray-500 dark:border-gray-800 dark:text-gray-400">
                     <th className="px-4 py-3 text-left">Name</th>
                     <th className="px-4 py-3 text-left">Email</th>
                     <th className="px-4 py-3 text-left">Role</th>
+                    <th className="px-4 py-3 text-left">Accounting</th>
                     <th className="px-4 py-3 text-left">Subscription</th>
                     {isOwner && <th className="px-4 py-3 text-left">Usage</th>}
                     <th className="px-4 py-3 text-left">Last Active</th>
@@ -395,13 +458,13 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
                 <tbody>
                   {membersLoading ? (
                     <tr>
-                      <td colSpan={isOwner ? 9 : 8} className="px-4 py-10 text-center text-sm text-gray-400">
+                      <td colSpan={isOwner ? 10 : 9} className="px-4 py-10 text-center text-sm text-gray-400">
                         Loading members...
                       </td>
                     </tr>
                   ) : filteredMembers.length === 0 ? (
                     <tr>
-                      <td colSpan={isOwner ? 9 : 8} className="px-4 py-10 text-center text-sm text-gray-400">
+                      <td colSpan={isOwner ? 10 : 9} className="px-4 py-10 text-center text-sm text-gray-400">
                         No members found.
                       </td>
                     </tr>
@@ -444,6 +507,50 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
                             }`}>
                               {isTargetOwner ? "Owner" : "Member"}
                             </span>
+                          </td>
+
+                          <td className="px-4 py-3">
+                            {/* A real membership row is what the API needs to set
+                                an accounting role, and only *pending* invites
+                                carry an inviteStatus — an accepted member's is
+                                null. So the test is "not pending", not
+                                "=== ACCEPTED", which never matches. */}
+                            {isOwner && isAccountingRoleAssignable(member) ? (
+                              <select
+                                aria-label={`Accounting access for ${member.fullName}`}
+                                value={member.accountingRole ?? ""}
+                                onChange={(event) =>
+                                  handleChangeAccountingRole(
+                                    member,
+                                    (event.target.value || null) as AccountingRole | null
+                                  )
+                                }
+                                className="rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                              >
+                                <option value="">No access</option>
+                                <option value="ACCOUNTANT">Accountant</option>
+                                <option value="CEO">CEO</option>
+                              </select>
+                            ) : (
+                              <span
+                                title={
+                                  isAccountingRoleAssignable(member)
+                                    ? undefined
+                                    : "Available once the invite is accepted"
+                                }
+                                className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-normal ${
+                                  member.accountingRole
+                                    ? "bg-brand-100 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400"
+                                    : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+                                }`}
+                              >
+                                {member.accountingRole === "ACCOUNTANT"
+                                  ? "Accountant"
+                                  : member.accountingRole === "CEO"
+                                    ? "CEO"
+                                    : "—"}
+                              </span>
+                            )}
                           </td>
 
                           <td className="px-4 py-3">

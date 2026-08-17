@@ -44,24 +44,27 @@ export const queryKeys = {
   aiConversation: (workspaceId: string | null, id: string | null) =>
     ["ai-conversations", workspaceId, id] as const,
 
-  // Accounting — deliberately NOT workspace-scoped, unlike every key above:
-  // the backend's clients/transactions/bank-accounts modules are global ledgers
-  // with no workspaceId column. All share the "accounting" root so a mutation
-  // can invalidate the derived overview by prefix.
-  accountingOverview: (period: OverviewPeriod) =>
-    ["accounting", "overview", period] as const,
-  accountingClients: (params: unknown) =>
-    ["accounting", "clients", params] as const,
-  accountingClient: (clientId: string) =>
-    ["accounting", "client", clientId] as const,
-  accountingClientSearch: (q: string) =>
-    ["accounting", "client-search", q] as const,
-  accountingDashboardSearch: (q: string) =>
-    ["accounting", "dashboard-search", q] as const,
-  accountingTransactions: (params: unknown) =>
-    ["accounting", "transactions", params] as const,
-  accountingBankAccounts: (params: unknown) =>
-    ["accounting", "bank-accounts", params] as const,
+  // Accounting — workspace-scoped, like most keys above. The backend moved these
+  // modules from one global ledger to per-workspace ledgers, so the workspace id
+  // MUST be part of every key: without it, switching workspaces would serve one
+  // workspace's ledger while displaying another. All share the "accounting" root
+  // so a mutation can invalidate the derived overview by prefix.
+  accountingRole: (workspaceId: string | null) =>
+    ["accounting", "role", workspaceId] as const,
+  accountingOverview: (workspaceId: string | null, period: OverviewPeriod) =>
+    ["accounting", "overview", workspaceId, period] as const,
+  accountingClients: (workspaceId: string | null, params: unknown) =>
+    ["accounting", "clients", workspaceId, params] as const,
+  accountingClient: (workspaceId: string | null, clientId: string) =>
+    ["accounting", "client", workspaceId, clientId] as const,
+  accountingClientSearch: (workspaceId: string | null, q: string) =>
+    ["accounting", "client-search", workspaceId, q] as const,
+  accountingDashboardSearch: (workspaceId: string | null, q: string) =>
+    ["accounting", "dashboard-search", workspaceId, q] as const,
+  accountingTransactions: (workspaceId: string | null, params: unknown) =>
+    ["accounting", "transactions", workspaceId, params] as const,
+  accountingBankAccounts: (workspaceId: string | null, params: unknown) =>
+    ["accounting", "bank-accounts", workspaceId, params] as const,
 } as const;
 
 /** Root key for every accounting query — used for prefix invalidation. */

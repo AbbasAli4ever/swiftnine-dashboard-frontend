@@ -2,16 +2,13 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, parseApiError } from "@/lib/api";
-import { useAuthStore, type UserRole } from "@/stores/auth.store";
+import { useAuthStore } from "@/stores/auth.store";
 import { queryKeys } from "@/queries/keys";
 
 export interface UserProfile {
   id: string;
   fullName: string;
   email: string;
-  /** Omitted entirely when the user has no role — the backend maps null to
-   *  `undefined` (user.service.ts:507), so the key is absent, not null. */
-  role?: UserRole | null;
   designation: string | null;
   profilePicture: string | null;
   status: "ONLINE" | "OFFLINE";

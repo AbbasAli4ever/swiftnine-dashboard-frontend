@@ -168,6 +168,13 @@ export const notificationService = {
       }
     };
 
-    void run();
+    // `run` is deliberately floating — nothing awaits the stream's lifetime. A
+    // rejection escaping it would surface as an unhandled AbortError when the
+    // effect tears down mid-flight (React 18 double-invokes effects in dev, so
+    // abort-during-connect is the common case, not an edge one).
+    void run().catch((err) => {
+      if (signal.aborted) return;
+      console.error("[notifications] stream stopped unexpectedly", err);
+    });
   },
 };

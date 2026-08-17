@@ -5,6 +5,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { parseApiError } from "@/lib/api";
 import { ACCOUNTING_ROOT_KEY, queryKeys } from "@/queries/keys";
 import { useAuthStore } from "@/stores/auth.store";
+import { useWorkspaceStore } from "@/stores/workspace.store";
+import { workspaceService } from "@/services/workspace.service";
 import {
   accountingDashboardService,
   bankAccountService,
@@ -33,7 +35,13 @@ import {
 function useInvalidateAccounting() {
   const queryClient = useQueryClient();
   return useCallback(
-    () => queryClient.invalidateQueries({ queryKey: [ACCOUNTING_ROOT_KEY] }),
+    () =>
+      queryClient.invalidateQueries({
+        queryKey: [ACCOUNTING_ROOT_KEY],
+        // The role query shares this root but can't be changed by a data
+        // mutation, so exclude it rather than refetching it every write.
+        predicate: (query) => query.queryKey[1] !== "role",
+      }),
     [queryClient]
   );
 }
@@ -58,17 +66,61 @@ function toAccountingError(error: unknown): string | null {
 const ACCOUNTING_RETRY = (failureCount: number, error: unknown) =>
   parseApiError(error).code === "FORBIDDEN" ? false : failureCount < 1;
 
+/**
+ * Every accounting request needs both a token and an `x-workspace-id` header
+ * (attached by the axios interceptor from the active workspace). Without an
+ * active workspace the header is absent and `WorkspaceGuard` 403s, so gate the
+ * queries rather than firing requests that can't succeed.
+ */
+function useAccountingQueryGate() {
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const workspaceId = useWorkspaceStore((s) => s.activeWorkspaceId);
+  return { workspaceId, isReady: !!accessToken && !!workspaceId };
+}
+
+/**
+ * The caller's accounting role in the active workspace. Accounting access moved
+ * off `User.role` onto `WorkspaceMember.accountingRole`, so it's per-workspace
+ * and only discoverable via `GET /workspaces/:id`. Probing endpoints can't
+ * substitute — the backend returns an identical bare 403 for a null role and a
+ * merely-insufficient one.
+ */
+export function useAccountingRole() {
+  const { workspaceId, isReady } = useAccountingQueryGate();
+
+  const query = useQuery({
+    queryKey: queryKeys.accountingRole(workspaceId),
+    queryFn: () => workspaceService.getWorkspace(workspaceId!),
+    enabled: isReady,
+    staleTime: 5 * 60_000,
+    // A 403 here means "not a member of this workspace", which is a real answer
+    // rather than a transient failure.
+    retry: ACCOUNTING_RETRY,
+  });
+
+  return {
+    accountingRole: query.data?.accountingRole ?? null,
+    workspaceRole: query.data?.role ?? null,
+    // Treat "no workspace yet" as loading: the answer is genuinely unknown, and
+    // reporting "no access" would flash the accounting UI away mid-restore.
+    isLoading: query.isLoading || !isReady,
+  };
+}
+
 // ── Dashboard overview ────────────────────────────────────────────────────────
 
 export function useAccountingOverview(period: OverviewPeriod = "daily") {
-  const accessToken = useAuthStore((s) => s.accessToken);
+  const { workspaceId, isReady } = useAccountingQueryGate();
   const queryClient = useQueryClient();
-  const queryKey = useMemo(() => queryKeys.accountingOverview(period), [period]);
+  const queryKey = useMemo(
+    () => queryKeys.accountingOverview(workspaceId, period),
+    [workspaceId, period]
+  );
 
   const query = useQuery({
     queryKey,
     queryFn: () => accountingDashboardService.overview(period),
-    enabled: !!accessToken,
+    enabled: isReady,
     staleTime: 60_000,
     retry: ACCOUNTING_RETRY,
     // Each period is its own cache entry, so switching to one that hasn't been
@@ -92,7 +144,7 @@ export function useAccountingOverview(period: OverviewPeriod = "daily") {
  * Returns up to 5 clients and 5 transactions; not paginated.
  */
 export function useDashboardSearch(term: string, debounceMs = 300) {
-  const accessToken = useAuthStore((s) => s.accessToken);
+  const { workspaceId, isReady } = useAccountingQueryGate();
   const [debounced, setDebounced] = useState(term);
 
   useEffect(() => {
@@ -104,9 +156,9 @@ export function useDashboardSearch(term: string, debounceMs = 300) {
   const trimmed = debounced.trim().slice(0, 200);
 
   const query = useQuery({
-    queryKey: queryKeys.accountingDashboardSearch(trimmed),
+    queryKey: queryKeys.accountingDashboardSearch(workspaceId, trimmed),
     queryFn: () => accountingDashboardService.search(trimmed),
-    enabled: !!accessToken && trimmed.length > 0,
+    enabled: isReady && trimmed.length > 0,
     staleTime: 30_000,
     retry: ACCOUNTING_RETRY,
   });
@@ -224,15 +276,18 @@ export function useBankAccountMutations() {
 // ── Clients ───────────────────────────────────────────────────────────────────
 
 export function useAccountingClients(params: ClientListParams) {
-  const accessToken = useAuthStore((s) => s.accessToken);
+  const { workspaceId, isReady } = useAccountingQueryGate();
   const queryClient = useQueryClient();
-  const queryKey = useMemo(() => queryKeys.accountingClients(params), [params]);
+  const queryKey = useMemo(
+    () => queryKeys.accountingClients(workspaceId, params),
+    [workspaceId, params]
+  );
   const { createClient, renameClient, deleteClient } = useClientMutations();
 
   const query = useQuery({
     queryKey,
     queryFn: () => clientService.list(params),
-    enabled: !!accessToken,
+    enabled: isReady,
     staleTime: 60_000,
     retry: ACCOUNTING_RETRY,
   });
@@ -251,12 +306,12 @@ export function useAccountingClients(params: ClientListParams) {
 }
 
 export function useAccountingClient(clientId: string | null) {
-  const accessToken = useAuthStore((s) => s.accessToken);
+  const { workspaceId, isReady } = useAccountingQueryGate();
 
   const query = useQuery({
-    queryKey: queryKeys.accountingClient(clientId ?? ""),
+    queryKey: queryKeys.accountingClient(workspaceId, clientId ?? ""),
     queryFn: () => clientService.get(clientId!),
-    enabled: !!accessToken && !!clientId,
+    enabled: isReady && !!clientId,
     staleTime: 60_000,
     retry: ACCOUNTING_RETRY,
   });
@@ -273,7 +328,7 @@ export function useAccountingClient(clientId: string | null) {
  * requires a resolved clientId, so this is the only way to attach a sale.
  */
 export function useClientSearch(term: string, debounceMs = 300) {
-  const accessToken = useAuthStore((s) => s.accessToken);
+  const { workspaceId, isReady } = useAccountingQueryGate();
   const [debounced, setDebounced] = useState(term);
 
   useEffect(() => {
@@ -284,9 +339,9 @@ export function useClientSearch(term: string, debounceMs = 300) {
   const trimmed = debounced.trim();
 
   const query = useQuery({
-    queryKey: queryKeys.accountingClientSearch(trimmed),
+    queryKey: queryKeys.accountingClientSearch(workspaceId, trimmed),
     queryFn: () => clientService.search(trimmed),
-    enabled: !!accessToken && trimmed.length > 0,
+    enabled: isReady && trimmed.length > 0,
     staleTime: 30_000,
     retry: ACCOUNTING_RETRY,
   });
@@ -303,11 +358,11 @@ export function useClientSearch(term: string, debounceMs = 300) {
 // ── Transactions ──────────────────────────────────────────────────────────────
 
 export function useAccountingTransactions(params: TransactionListParams) {
-  const accessToken = useAuthStore((s) => s.accessToken);
+  const { workspaceId, isReady } = useAccountingQueryGate();
   const queryClient = useQueryClient();
   const queryKey = useMemo(
-    () => queryKeys.accountingTransactions(params),
-    [params]
+    () => queryKeys.accountingTransactions(workspaceId, params),
+    [workspaceId, params]
   );
   const { createTransaction, updateTransaction, deleteTransaction } =
     useTransactionMutations();
@@ -315,7 +370,7 @@ export function useAccountingTransactions(params: TransactionListParams) {
   const query = useQuery({
     queryKey,
     queryFn: () => transactionService.list(params),
-    enabled: !!accessToken,
+    enabled: isReady,
     staleTime: 60_000,
     retry: ACCOUNTING_RETRY,
   });
@@ -336,11 +391,11 @@ export function useAccountingTransactions(params: TransactionListParams) {
 // ── Bank accounts ─────────────────────────────────────────────────────────────
 
 export function useBankAccounts(params: BankAccountListParams) {
-  const accessToken = useAuthStore((s) => s.accessToken);
+  const { workspaceId, isReady } = useAccountingQueryGate();
   const queryClient = useQueryClient();
   const queryKey = useMemo(
-    () => queryKeys.accountingBankAccounts(params),
-    [params]
+    () => queryKeys.accountingBankAccounts(workspaceId, params),
+    [workspaceId, params]
   );
   const { createBankAccount, updateBankAccount, deleteBankAccount } =
     useBankAccountMutations();
@@ -348,7 +403,7 @@ export function useBankAccounts(params: BankAccountListParams) {
   const query = useQuery({
     queryKey,
     queryFn: () => bankAccountService.list(params),
-    enabled: !!accessToken,
+    enabled: isReady,
     staleTime: 60_000,
     retry: ACCOUNTING_RETRY,
   });

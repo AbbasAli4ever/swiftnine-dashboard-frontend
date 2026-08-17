@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import {
   FormEvent,
   ReactNode,
@@ -16,7 +15,6 @@ import {
   LuChevronLeft,
   LuChevronRight,
   LuCoins,
-  LuCreditCard,
   LuDatabase,
   LuPencil,
   LuSearch,
@@ -30,47 +28,22 @@ import { useAccountingAccess } from "@/hooks/useAccountingAccess";
 import { useAccountingTransactions } from "@/hooks/useAccounting";
 import {
   CURRENCIES,
-  PAYMENT_PLATFORMS,
   type AccountingTransaction,
+  type BankAccount,
   type ClientSearchResult,
   type Currency,
-  type PaymentPlatform,
   type TransactionListParams,
 } from "@/services/accounting.service";
 import AccountingSelect from "@/components/accounts/AccountingSelect";
 import ClientPicker from "@/components/accounts/ClientPicker";
+import BankAccountPicker from "@/components/accounts/BankAccountPicker";
+import BankAvatar from "@/components/accounts/BankAvatar";
 import {
   formatIsoDate,
   formatMoney,
-  formatPlatform,
   fromDateInputValue,
-  getPlatformStyle,
   toDateInputValue,
 } from "@/components/accounts/platformMeta";
-
-function PlatformLogo({ platform }: { platform: PaymentPlatform }) {
-  const style = getPlatformStyle(platform);
-  if (style.logo) {
-    return (
-      <Image
-        src={style.logo}
-        alt=""
-        width={32}
-        height={32}
-        className="h-8 w-8 shrink-0 rounded-full object-cover"
-      />
-    );
-  }
-  return (
-    <span
-      aria-hidden="true"
-      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 text-[9px] font-bold text-white shadow-sm"
-      style={{ backgroundColor: style.color }}
-    >
-      {style.initials}
-    </span>
-  );
-}
 
 // Layout constants used to derive how many rows fit in the available space.
 // They must stay in sync with the markup below: the row height, the sticky
@@ -307,9 +280,9 @@ function EditTransactionModal({
     payload: {
       clientId?: string;
       clientName?: string;
-      paymentPlatform?: PaymentPlatform;
       saleAmount?: number;
       currency?: Currency;
+      bankAccountId?: string;
       saleDate?: string;
       description?: string;
     }
@@ -321,7 +294,7 @@ function EditTransactionModal({
     toDateInputValue(transaction.saleDate)
   );
   const [currency, setCurrency] = useState<Currency>(transaction.currency);
-  const [platform, setPlatform] = useState<PaymentPlatform>(transaction.paymentPlatform);
+  const [bankAccount, setBankAccount] = useState<BankAccount | null>(null);
   const [description, setDescription] = useState(transaction.description ?? "");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -350,9 +323,12 @@ function EditTransactionModal({
         ...(client && client.id !== transaction.clientId
           ? { clientId: client.id, clientName: client.clientName }
           : {}),
-        paymentPlatform: platform,
         saleAmount: nextAmount,
-        currency,
+        // Reassigning the bank account also moves the currency: the API rejects
+        // a transaction whose currency differs from its account's.
+        ...(bankAccount
+          ? { bankAccountId: bankAccount.id, currency: bankAccount.currencyType }
+          : { currency }),
         saleDate: fromDateInputValue(saleDate),
         description: description.trim(),
       });
@@ -397,6 +373,21 @@ function EditTransactionModal({
           />
         </div>
 
+        <div className="mt-3">
+          <BankAccountPicker
+            label="Move to Bank Account (optional)"
+            value={bankAccount}
+            onChange={(next) => {
+              setBankAccount(next);
+              if (next) setCurrency(next.currencyType);
+            }}
+          />
+          <p className="mt-1 text-[11px] text-gray-400">
+            Currently {transaction.bankAccount?.bankName ?? "—"}. Moving it
+            reverses the old balance effect and applies it to the new account.
+          </p>
+        </div>
+
         <div className="mt-3 grid grid-cols-2 gap-3">
           <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
             Amount
@@ -416,7 +407,14 @@ function EditTransactionModal({
               value={currency}
               options={CURRENCIES.map((code) => ({ value: code, label: code }))}
               onChange={(next) => setCurrency(next as Currency)}
+              // Locked while a new account is selected — its currency wins.
+              disabled={!!bankAccount}
             />
+            {bankAccount && (
+              <span className="mt-1 block text-[11px] font-normal text-gray-400">
+                Set by {bankAccount.bankName}
+              </span>
+            )}
           </div>
         </div>
 
@@ -432,19 +430,6 @@ function EditTransactionModal({
             <LuCalendarDays className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-600 dark:text-gray-400" />
           </div>
         </label>
-
-        <div className="mt-3 text-xs font-medium text-gray-600 dark:text-gray-300">
-          Payment Platform
-          <AccountingSelect
-            label="Payment platform"
-            value={platform}
-            options={PAYMENT_PLATFORMS.map((value) => ({
-              value,
-              label: formatPlatform(value),
-            }))}
-            onChange={(next) => setPlatform(next as PaymentPlatform)}
-          />
-        </div>
 
         <label className="mt-3 block text-xs font-medium text-gray-600 dark:text-gray-300">
           Description
@@ -487,7 +472,6 @@ export default function TransactionsView() {
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [platforms, setPlatforms] = useState<PaymentPlatform[]>([]);
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [datePreset, setDatePreset] = useState<DatePreset>("all");
   const [dateFrom, setDateFrom] = useState("");
@@ -545,14 +529,13 @@ export default function TransactionsView() {
   // Any filter change invalidates the current page number.
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, platforms, currencies, pageSize, dateRange]);
+  }, [debouncedSearch, currencies, pageSize, dateRange]);
 
   const params = useMemo<TransactionListParams>(
     () => ({
       q: debouncedSearch.trim() || undefined,
       page,
       limit: pageSize,
-      paymentPlatform: platforms.length ? platforms : undefined,
       currency: currencies.length ? currencies : undefined,
       dateFrom: dateRange.from,
       dateTo: dateRange.to,
@@ -561,7 +544,7 @@ export default function TransactionsView() {
       sortBy: "saleDate",
       sortOrder: "desc",
     }),
-    [debouncedSearch, page, pageSize, platforms, currencies, dateRange]
+    [debouncedSearch, page, pageSize, currencies, dateRange]
   );
 
   const {
@@ -578,14 +561,12 @@ export default function TransactionsView() {
   }, [error]);
 
   const activeFilterCount =
-    platforms.length +
     currencies.length +
     (debouncedSearch.trim() ? 1 : 0) +
     (datePreset === "all" ? 0 : 1);
 
   const clearFilters = () => {
     setSearch("");
-    setPlatforms([]);
     setCurrencies([]);
     setDatePreset("all");
     setDateFrom("");
@@ -639,14 +620,6 @@ export default function TransactionsView() {
           }}
         />
         <FilterDropdown
-          label="Payment Platform"
-          icon={<LuCreditCard />}
-          values={PAYMENT_PLATFORMS}
-          selected={platforms}
-          onChange={setPlatforms}
-          formatValue={formatPlatform}
-        />
-        <FilterDropdown
           label="Currency"
           icon={<LuCoins />}
           values={CURRENCIES}
@@ -681,13 +654,12 @@ export default function TransactionsView() {
           <table className="w-full min-w-[900px] table-fixed text-left">
             <thead className="sticky top-0 z-10 bg-white shadow-[0_1px_0_0_var(--color-gray-200)] dark:bg-gray-901 dark:shadow-[0_1px_0_0_var(--color-gray-800)]">
               <tr className="h-10 text-xs font-normal text-gray-400">
-                <th className="w-[12%] px-5 font-normal">Sale Date</th>
-                <th className="w-[20%] px-5 font-normal">Client</th>
-                <th className="w-[19%] px-5 font-normal">Platform</th>
-                <th className="w-[15%] px-5 font-normal">Ref ID</th>
-                <th className="w-[9%] px-5 font-normal">Currency</th>
+                <th className="w-[11%] px-5 font-normal">Sale Date</th>
+                <th className="w-[24%] px-5 font-normal">Client</th>
+                <th className="w-[22%] px-5 font-normal">Bank Account</th>
+                <th className="w-[12%] px-5 font-normal">Ref ID</th>
                 <th className="w-[15%] px-5 text-right font-normal">Amount</th>
-                {canWrite && <th className="w-[10%] px-5 text-right font-normal">Actions</th>}
+                {canWrite && <th className="w-[9%] px-5 text-right font-normal">Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -706,16 +678,18 @@ export default function TransactionsView() {
                   <td className="truncate px-5">{transaction.clientName}</td>
                   <td className="px-5">
                     <div className="flex items-center gap-3">
-                      <PlatformLogo platform={transaction.paymentPlatform} />
+                      <BankAvatar
+                        bankName={transaction.bankAccount?.bankName ?? "?"}
+                        logoUrl={transaction.bankAccount?.logoUrl}
+                      />
                       <span className="truncate">
-                        {formatPlatform(transaction.paymentPlatform)}
+                        {transaction.bankAccount?.bankName ?? "—"}
                       </span>
                     </div>
                   </td>
                   <td className="truncate px-5 text-xs text-gray-500 dark:text-gray-400">
                     {transaction.refId}
                   </td>
-                  <td className="px-5 text-xs">{transaction.currency}</td>
                   <td className="px-5 text-right font-medium whitespace-nowrap">
                     {formatMoney(transaction.currency, transaction.saleAmount)}
                   </td>
@@ -747,7 +721,7 @@ export default function TransactionsView() {
               ))}
               {isLoading && transactions.length === 0 && (
                 <tr>
-                  <td colSpan={canWrite ? 7 : 6} className="p-5">
+                  <td colSpan={canWrite ? 6 : 5} className="p-5">
                     <div className="space-y-2">
                       {Array.from({ length: 6 }).map((_, index) => (
                         <div
@@ -761,7 +735,7 @@ export default function TransactionsView() {
               )}
               {!isLoading && transactions.length === 0 && (
                 <tr>
-                  <td colSpan={canWrite ? 7 : 6} className="h-64 px-6 text-center">
+                  <td colSpan={canWrite ? 6 : 5} className="h-64 px-6 text-center">
                     <div className="mx-auto flex max-w-sm flex-col items-center">
                       <LuDatabase className="mb-3 h-9 w-9 text-gray-300" />
                       <p className="font-medium text-gray-700 dark:text-gray-300">

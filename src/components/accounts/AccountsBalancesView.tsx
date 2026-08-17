@@ -20,10 +20,11 @@ import { useAccountingAccess } from "@/hooks/useAccountingAccess";
 import { useAccountingOverview, useBankAccounts } from "@/hooks/useAccounting";
 import {
   ACCOUNT_TYPES,
-  CURRENCIES,
+  LOCAL_CURRENCY,
   LOGO_MAX_BYTES,
   LOGO_MIME_TYPES,
   bankAccountService,
+  currenciesForAccountType,
   type AccountType,
   type BankAccount,
   type BankAccountListParams,
@@ -120,8 +121,11 @@ function BankAccountModal({
   const [accountType, setAccountType] = useState<AccountType>(
     account?.accountType ?? defaultAccountType
   );
+  // An existing account keeps whatever it was saved with (the API permits
+  // pairings this form doesn't offer); a new one starts at the first currency
+  // valid for its type — PKR for LOCAL, USD for INTERNATIONAL.
   const [currencyType, setCurrencyType] = useState<Currency>(
-    account?.currencyType ?? "PKR"
+    account?.currencyType ?? currenciesForAccountType(defaultAccountType)[0]
   );
   const [amount, setAmount] = useState(String(account?.amount ?? 0));
   const [error, setError] = useState("");
@@ -315,7 +319,15 @@ function BankAccountModal({
                 value: type,
                 label: type === "LOCAL" ? "Local" : "International",
               }))}
-              onChange={(next) => setAccountType(next as AccountType)}
+              onChange={(next) => {
+                const nextType = next as AccountType;
+                setAccountType(nextType);
+                // Keep currency valid for the new type: LOCAL is always PKR,
+                // and switching to INTERNATIONAL must drop PKR rather than
+                // leaving a now-unselectable value showing in the field.
+                const allowed = currenciesForAccountType(nextType);
+                if (!allowed.includes(currencyType)) setCurrencyType(allowed[0]);
+              }}
             />
           </div>
           <div className="text-xs font-medium text-gray-600 dark:text-gray-300">
@@ -323,11 +335,22 @@ function BankAccountModal({
             <AccountingSelect
               label="Currency"
               value={currencyType}
-              options={CURRENCIES.map((code) => ({ value: code, label: code }))}
+              // Locked for LOCAL — a local account is PKR by definition, so the
+              // field shows the value but offers nothing to change it to.
+              disabled={accountType === "LOCAL"}
+              options={currenciesForAccountType(accountType).map((code) => ({
+                value: code,
+                label: code,
+              }))}
               onChange={(next) => setCurrencyType(next as Currency)}
             />
           </div>
         </div>
+        {accountType === "LOCAL" && (
+          <p className="mt-1.5 text-xs text-gray-400">
+            Local accounts are always {LOCAL_CURRENCY}.
+          </p>
+        )}
 
         <label className="mt-4 block text-xs font-medium text-gray-600 dark:text-gray-300">
           {isEditing ? "Current Balance" : "Opening Balance"}
@@ -482,7 +505,14 @@ export default function AccountsBalancesView() {
       toast.success(`${deleting.bankName} deleted`);
       setDeleting(null);
     } catch (err) {
-      toast.error(parseApiError(err).message || "Couldn't delete the account.");
+      const { message, code } = parseApiError(err);
+      // The API blocks deletion while transactions still reference the account,
+      // so its balance history can't be orphaned.
+      toast.error(
+        code === "CONFLICT"
+          ? `${deleting.bankName} still has transactions and can't be deleted.`
+          : message || "Couldn't delete the account."
+      );
     } finally {
       setIsDeleting(false);
     }

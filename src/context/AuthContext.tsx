@@ -1,7 +1,7 @@
 "use client";
 
 import { api, refreshSession } from "@/lib/api";
-import { AuthUser, UserRole, useAuthStore, hasSessionExists } from "@/stores/auth.store";
+import { AuthUser, useAuthStore, hasSessionExists } from "@/stores/auth.store";
 import { usePathname } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { clearPersistedQueryCache } from "@/lib/queryPersister";
@@ -20,10 +20,6 @@ interface AuthContextValue {
   user: AuthUser | null;
   accessToken: string | null;
   isAuthenticated: boolean;
-  /** Backend-assigned role. `null` for the majority of users. */
-  role: UserRole | null;
-  isAccountant: boolean;
-  isCeo: boolean;
   /** true while the initial session restore is in-flight */
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
@@ -63,12 +59,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Token survived page refresh via sessionStorage but user profile was lost.
       // Re-fetch profile only — no need to hit /auth/refresh.
       api
-        .get<Omit<AuthUser, "role"> & { role?: UserRole | null }>("/user/profile")
+        .get<AuthUser>("/user/profile")
         .then(({ data }) => {
-          // /user/profile omits `role` for users who have none (the backend maps
-          // null to undefined), so normalize it back to null to keep the stored
-          // AuthUser shape consistent with the login/refresh responses.
-          setAuth(state.accessToken!, { ...data, role: data.role ?? null });
+          setAuth(state.accessToken!, data);
         })
         .catch(() => {
           clearAuth();
@@ -127,11 +120,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         { email, otp }
       );
       setAuth(data.accessToken, data.user);
-      // Accountants live entirely inside the accounting area — send them
-      // straight there instead of the portal picker they can't use.
-      window.location.replace(
-        data.user.role === "ACCOUNTANT" ? "/accounts" : "/portal-select"
-      );
+      // Accounting access is per-workspace now and resolves asynchronously, so
+      // it can't steer this redirect. Everyone lands on the portal picker; the
+      // accounting rail appears once workspace membership loads.
+      window.location.replace("/portal-select");
     },
     [setAuth]
   );
@@ -167,9 +159,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         accessToken,
         isAuthenticated: !!accessToken,
-        role: user?.role ?? null,
-        isAccountant: user?.role === "ACCOUNTANT",
-        isCeo: user?.role === "CEO",
         isLoading,
         login,
         register,

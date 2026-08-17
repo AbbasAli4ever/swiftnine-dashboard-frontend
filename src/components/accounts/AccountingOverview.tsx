@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import NumberFlow from "@number-flow/react";
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -30,17 +29,26 @@ import type {
   OverviewResponse,
 } from "@/services/accounting.service";
 import { avatarColors, initials as nameInitials } from "@/components/accounts/avatar";
-import { formatMoney, formatPlatform } from "@/components/accounts/platformMeta";
+import { formatMoney } from "@/components/accounts/platformMeta";
+import BankAvatar from "@/components/accounts/BankAvatar";
 
 const revenueChartConfig = {
   revenue: { label: "Revenue", color: "#6366f1" },
 } satisfies ChartConfig;
 
-/** Fixed colour per currency so the donut and its legend always agree. */
+/**
+ * Fixed colour per currency so the donut and its legend always agree. Covers
+ * all seven `Currency` values — without an entry a slice falls back to grey,
+ * and several grey slices at once are indistinguishable from each other.
+ */
 const CURRENCY_COLORS: Record<string, string> = {
   USD: "#6366f1",
   HKD: "#22c55e",
   PKR: "#f59e0b",
+  AED: "#06b6d4",
+  EUR: "#ec4899",
+  GBP: "#8b5cf6",
+  CRYPTO: "#64748b",
 };
 
 function currencyColor(code: string) {
@@ -103,7 +111,7 @@ function useInView<T extends HTMLElement>(threshold = 0.25) {
   return [setNode, inView] as const;
 }
 
-/** Initials avatar — the API has no logo field for clients or bank accounts. */
+/** Initials avatar for clients, which have no logo field. */
 function NameAvatar({ name, size = 28 }: { name: string; size?: number }) {
   const { background, color } = avatarColors(name);
   return (
@@ -155,6 +163,122 @@ function formatCurrencyTotals(totals: { currency: Currency; total: number }[]): 
   return totals.map((entry) => formatMoney(entry.currency, entry.total)).join(" · ");
 }
 
+/**
+ * A balance figure that switches between the currencies present, instead of
+ * listing them all side by side. The trigger is styled to match the plain
+ * figure next to it — the chevron only appears on hover/focus — so the panel
+ * reads identically until the user goes looking for it.
+ *
+ * Falls back to plain text when there's nothing to switch between (zero or one
+ * currency), so a single-currency panel never shows an inert control.
+ */
+function CurrencyBalanceSelect({
+  totals,
+}: {
+  totals: { currency: Currency; total: number }[];
+}) {
+  // Default to USD when present — it's the reporting currency — else the first.
+  const [selected, setSelected] = useState<Currency | null>(null);
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  const active =
+    totals.find((entry) => entry.currency === selected) ??
+    totals.find((entry) => entry.currency === "USD") ??
+    totals[0] ??
+    null;
+
+  // Close on outside click / Escape — the dropdown is not a modal, so it
+  // shouldn't trap focus, but it must not linger once attention moves away.
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (!wrapRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  if (!active) {
+    return <span className="mt-1 block text-2xl font-semibold text-gray-900 dark:text-gray-100">—</span>;
+  }
+
+  const figure = formatMoney(active.currency, active.total);
+
+  if (totals.length < 2) {
+    return (
+      <p className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{figure}</p>
+    );
+  }
+
+  return (
+    <div ref={wrapRef} className="relative mt-1">
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={`International balance in ${active.currency}. Change currency`}
+        className="group flex items-center gap-1.5 text-2xl font-semibold text-gray-900 dark:text-gray-100"
+      >
+        {figure}
+        <svg
+          viewBox="0 0 20 20"
+          fill="none"
+          aria-hidden="true"
+          className={`h-4 w-4 shrink-0 text-gray-400 transition-opacity ${
+            open ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"
+          }`}
+        >
+          <path
+            d="M6 8l4 4 4-4"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
+
+      {open && (
+        <ul
+          role="listbox"
+          className="absolute left-0 top-full z-20 mt-1 min-w-40 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-800 dark:bg-gray-900"
+        >
+          {totals.map((entry) => (
+            <li key={entry.currency}>
+              <button
+                type="button"
+                role="option"
+                aria-selected={entry.currency === active.currency}
+                onClick={() => {
+                  setSelected(entry.currency);
+                  setOpen(false);
+                }}
+                className={`flex w-full items-center justify-between gap-4 px-3 py-1.5 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-800 ${
+                  entry.currency === active.currency
+                    ? "font-semibold text-gray-900 dark:text-gray-100"
+                    : "text-gray-600 dark:text-gray-300"
+                }`}
+              >
+                <span>{entry.currency}</span>
+                <span>{formatMoney(entry.currency, entry.total)}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function findByAccountType(
   overview: OverviewResponse | null,
   accountType: "LOCAL" | "INTERNATIONAL"
@@ -166,18 +290,7 @@ function AccountRowItem({ account }: { account: BankAccount }) {
   return (
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-2.5">
-        {account.logoUrl ? (
-          <Image
-            src={account.logoUrl}
-            alt=""
-            width={28}
-            height={28}
-            className="h-7 w-7 shrink-0 rounded-full bg-white object-contain"
-            unoptimized
-          />
-        ) : (
-          <NameAvatar name={account.bankName} />
-        )}
+        <BankAvatar bankName={account.bankName} logoUrl={account.logoUrl} size={28} />
         <span className="text-sm text-gray-800 dark:text-gray-100">{account.bankName}</span>
       </div>
       <span className="text-sm font-medium text-gray-800 dark:text-gray-100">
@@ -269,8 +382,11 @@ export default function AccountingOverview() {
   const local = findByAccountType(overview, "LOCAL");
   const international = findByAccountType(overview, "INTERNATIONAL");
 
-  const platformRows = overview?.revenueByPaymentPlatform ?? [];
-  const maxPlatformValue = Math.max(1, ...platformRows.map((p) => p.totalUsd));
+  const bankRows = overview?.revenueByBankAccount ?? [];
+  const currencyRows = overview?.revenueByCurrency ?? [];
+  // Bar widths key off the USD figure — `totalRevenue` is nullable when an
+  // account holds more than one currency, `totalRevenueUsd` never is.
+  const maxBankValue = Math.max(1, ...bankRows.map((row) => row.totalRevenueUsd));
 
   const revenueChartData = useMemo(
     () =>
@@ -369,13 +485,19 @@ export default function AccountingOverview() {
   ];
 
   // The rates are a hardcoded table on the backend, not a live FX feed — say so
-  // rather than implying the conversion is current.
+  // rather than implying the conversion is current. Only the currencies this
+  // workspace actually holds are listed: the table always carries all seven,
+  // and printing rates for currencies with no accounts pushed this to three
+  // lines while telling the reader nothing about their own balances.
+  const heldCurrencies = new Set(
+    balances.byAccountType.flatMap((group) => group.totals.map((entry) => entry.currency))
+  );
   const nonUsdRates = Object.entries(balances.exchangeRatesToUsd).filter(
-    ([code]) => code !== "USD"
+    ([code]) => code !== "USD" && heldCurrencies.has(code as Currency)
   );
   const conversionNote = nonUsdRates.length
     ? `Converted at ${nonUsdRates
-        .map(([code, rate]) => `${code} ${(1 / rate).toFixed(0)}/USD`)
+        .map(([code, rate]) => `${code} ${rate}/USD`)
         .join(", ")}`
     : "Converted to USD";
 
@@ -395,9 +517,7 @@ export default function AccountingOverview() {
           <div className="h-14 w-px shrink-0 bg-gray-200 dark:bg-gray-800" />
           <div>
             <p className="text-sm text-gray-400">International Balance</p>
-            <p className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">
-              {formatCurrencyTotals(international?.totals ?? [])}
-            </p>
+            <CurrencyBalanceSelect totals={international?.totals ?? []} />
             <p className="mt-1 text-xs text-gray-400">
               {international?.accountCount ?? 0} accounts
             </p>
@@ -408,7 +528,12 @@ export default function AccountingOverview() {
           <p className="mt-1 text-2xl font-semibold">
             <NumberFlow value={numbersRevealed ? balances.totalBalanceUsd : 0} prefix="USD " />
           </p>
-          <p className="mt-1 text-xs text-gray-400">{conversionNote}</p>
+          {/* Hard-clamped to two lines — the rate list scales with how many
+              currencies the workspace holds, and this card sits in a fixed-height
+              row alongside the balance panels. */}
+          <p className="mt-1 line-clamp-2 text-xs text-gray-400" title={conversionNote}>
+            {conversionNote}
+          </p>
         </div>
       </div>
 
@@ -505,22 +630,26 @@ export default function AccountingOverview() {
         </ChartContainer>
       </div>
 
-      {/* Platform bar list + currency donut */}
+      {/* Bank account bar list + currency donut */}
       <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className={CARD_CLASS} ref={platformCardRef}>
-          <h3 className="mb-4 text-base font-normal text-gray-800 dark:text-white">Revenue by Payment Platform</h3>
-          <div className="space-y-3">
-            {platformRows.map((platform, i) => (
-              <div key={platform.paymentPlatform} className="group flex items-center gap-3">
-                <span className="w-24 shrink-0 truncate text-sm text-gray-600 dark:text-gray-300">
-                  {formatPlatform(platform.paymentPlatform)}
+          <h3 className="mb-4 text-base font-normal text-gray-800 dark:text-white">Revenue by Bank Account</h3>
+          {/* Fixed height with internal scroll — the account list is uncapped
+              (every account renders, including zero-sale ones), so without this
+              the card grows past its neighbour as accounts are added. */}
+          <div className="no-scrollbar h-[300px] space-y-3 overflow-y-auto pr-1">
+            {bankRows.map((row, i) => (
+              <div key={row.id} className="group flex items-center gap-3">
+                <BankAvatar bankName={row.bankName} size={24} />
+                <span className="w-20 shrink-0 truncate text-sm text-gray-600 dark:text-gray-300">
+                  {row.bankName}
                 </span>
                 <div className="flex h-2 flex-1 items-center overflow-visible rounded-full bg-brand-100 dark:bg-gray-905">
                   <div
                     className="h-full origin-left rounded-full bg-brand-500 transition-[width,transform] ease-out group-hover:scale-y-150"
                     style={{
                       width: platformInView
-                        ? `${(platform.totalUsd / maxPlatformValue) * 100}%`
+                        ? `${(row.totalRevenueUsd / maxBankValue) * 100}%`
                         : "0%",
                       transitionDuration: platformInView ? "700ms, 150ms" : "150ms",
                       transitionDelay: platformInView ? `${i * 60}ms` : "0ms",
@@ -528,21 +657,24 @@ export default function AccountingOverview() {
                   />
                 </div>
                 <span className="w-20 shrink-0 text-right text-sm text-gray-800 dark:text-gray-100">
-                  ${platform.totalUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  ${row.totalRevenueUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                 </span>
               </div>
             ))}
-            {platformRows.length === 0 && (
-              <p className="py-6 text-center text-sm text-gray-400">No platform revenue yet.</p>
+            {bankRows.length === 0 && (
+              <p className="py-6 text-center text-sm text-gray-400">No bank accounts yet.</p>
             )}
           </div>
         </div>
 
         <div className={CARD_CLASS} ref={donutCardRef}>
           <h3 className="mb-4 text-base font-normal text-gray-800 dark:text-white">Revenue by Currency</h3>
-          <div className="flex items-center gap-6">
+          {/* Matches the bank list's fixed height so the two cards stay level.
+              Centred so the donut + legend pair sits as a unit rather than
+              hugging the left edge of a much wider card. */}
+          <div className="flex h-[300px] items-center justify-center gap-6">
             <ActiveCurrencyContext.Provider value={activeCurrencyCode}>
-              {donutInView ? (
+              {donutInView && currencyChartData.length > 0 ? (
                 <ChartContainer config={currencyChartConfig} className="aspect-square h-[220px] w-[220px] shrink-0">
                   <PieChart>
                     <ChartTooltip content={<ChartTooltipContent nameKey="code" formatter={(value) => `${value}%`} hideLabel />} />
@@ -570,27 +702,44 @@ export default function AccountingOverview() {
                     </Pie>
                   </PieChart>
                 </ChartContainer>
+              ) : currencyChartData.length === 0 ? (
+                /* Empty state: a grey ring standing in for the donut, so the
+                   card shows what kind of visual appears once sales exist
+                   rather than reading as a broken/blank panel. */
+                <div
+                  aria-hidden="true"
+                  className="flex h-[220px] w-[220px] shrink-0 items-center justify-center"
+                >
+                  <div className="h-[180px] w-[180px] rounded-full border-25 border-gray-100 dark:border-gray-800" />
+                </div>
               ) : (
+                /* Pre-scroll spacer — data exists but the card isn't in view
+                   yet, so the donut holds its layout until the animation runs. */
                 <div aria-hidden="true" className="h-[220px] w-[220px] shrink-0" />
               )}
             </ActiveCurrencyContext.Provider>
-            <div className="min-w-0 flex-1 space-y-2.5">
-              {overview.revenueByCurrency.map((entry) => (
+            {/* Shrink-to-fit rather than `flex-1` — the percentages are
+                right-aligned so they line up as a column, which with a wide
+                legend strands the number at the far edge of the card. */}
+            <div className="no-scrollbar max-h-full min-w-0 space-y-2.5 overflow-y-auto pr-1">
+              {currencyRows.map((entry) => (
                 <div key={entry.currency} className="flex items-center gap-2">
                   <span
                     className="h-2.5 w-2.5 shrink-0 rounded-full"
                     style={{ backgroundColor: currencyColor(entry.currency) }}
                   />
-                  <span className="text-sm text-gray-600 dark:text-gray-300">
+                  <span className="w-12 text-sm text-gray-600 dark:text-gray-300">
                     {entry.currency}
                   </span>
-                  <span className="ml-auto text-sm font-medium text-gray-800 dark:text-gray-100">
+                  {/* Fixed width + right-align keeps percentages in a tidy column
+                      across rows without stretching the legend to fill the card. */}
+                  <span className="w-14 text-right text-sm font-medium text-gray-800 dark:text-gray-100">
                     {entry.percent.toFixed(1)}%
                   </span>
                 </div>
               ))}
-              {overview.revenueByCurrency.length === 0 && (
-                <p className="text-sm text-gray-400">No revenue recorded yet.</p>
+              {currencyRows.length === 0 && (
+                <p className="text-sm text-gray-400">No sales recorded yet.</p>
               )}
             </div>
           </div>

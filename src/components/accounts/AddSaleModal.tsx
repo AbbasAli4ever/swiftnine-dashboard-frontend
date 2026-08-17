@@ -8,16 +8,16 @@ import { parseApiError } from "@/lib/api";
 import { useTransactionMutations } from "@/hooks/useAccounting";
 import {
   CURRENCIES,
-  PAYMENT_PLATFORMS,
+  type BankAccount,
   type ClientSearchResult,
   type Currency,
-  type PaymentPlatform,
 } from "@/services/accounting.service";
 import AccountingSelect from "@/components/accounts/AccountingSelect";
 import ClientPicker from "@/components/accounts/ClientPicker";
+import BankAccountPicker from "@/components/accounts/BankAccountPicker";
 import CreateClientModal from "@/components/accounts/CreateClientModal";
 import {
-  formatPlatform,
+  formatMoney,
   fromDateInputValue,
   todayDateInputValue,
 } from "@/components/accounts/platformMeta";
@@ -32,15 +32,16 @@ export default function AddSaleModal({
   const { createTransaction } = useTransactionMutations();
 
   const [client, setClient] = useState<ClientSearchResult | null>(null);
-  const [platform, setPlatform] = useState<PaymentPlatform>(PAYMENT_PLATFORMS[0]);
   const [currency, setCurrency] = useState<Currency>("USD");
   const [amount, setAmount] = useState("0.00");
   const [saleDate, setSaleDate] = useState(todayDateInputValue);
   const [refId, setRefId] = useState("");
   const [description, setDescription] = useState("");
+  const [bankAccount, setBankAccount] = useState<BankAccount | null>(null);
   const [error, setError] = useState("");
   const [refIdError, setRefIdError] = useState("");
   const [clientError, setClientError] = useState("");
+  const [bankError, setBankError] = useState("");
   const [saving, setSaving] = useState(false);
 
   // Opened from the picker's "Create <term>" row.
@@ -49,15 +50,16 @@ export default function AddSaleModal({
   useEffect(() => {
     if (!isOpen) return;
     setClient(null);
-    setPlatform(PAYMENT_PLATFORMS[0]);
     setCurrency("USD");
     setAmount("0.00");
     setSaleDate(todayDateInputValue());
     setRefId("");
     setDescription("");
+    setBankAccount(null);
     setError("");
     setRefIdError("");
     setClientError("");
+    setBankError("");
   }, [isOpen]);
 
   useEffect(() => {
@@ -77,6 +79,7 @@ export default function AddSaleModal({
     setError("");
     setRefIdError("");
     setClientError("");
+    setBankError("");
 
     if (!client) {
       setClientError("Select a client.");
@@ -91,6 +94,10 @@ export default function AddSaleModal({
       setError("Select a sale date.");
       return;
     }
+    if (!bankAccount) {
+      setBankError("Select the bank account this sale posts to.");
+      return;
+    }
     if (!refId.trim()) {
       setRefIdError("Reference ID is required.");
       return;
@@ -100,10 +107,12 @@ export default function AddSaleModal({
     try {
       await createTransaction({
         clientId: client.id,
+        bankAccountId: bankAccount.id,
         refId: refId.trim(),
         saleAmount: numericAmount,
-        currency,
-        paymentPlatform: platform,
+        // Always the account's own currency — the picker locks the field, and
+        // the API rejects any mismatch outright.
+        currency: bankAccount.currencyType,
         saleDate: fromDateInputValue(saleDate),
         description: description.trim() || undefined,
       });
@@ -115,8 +124,14 @@ export default function AddSaleModal({
       if (code === "CONFLICT") {
         setRefIdError("This reference ID is already used.");
       } else if (code === "NOT_FOUND") {
-        setClientError("This client no longer exists. Pick another.");
-        setClient(null);
+        // 404 covers both the client and the bank account disappearing.
+        if (message.toLowerCase().includes("bank")) {
+          setBankError("This bank account no longer exists. Pick another.");
+          setBankAccount(null);
+        } else {
+          setClientError("This client no longer exists. Pick another.");
+          setClient(null);
+        }
       } else {
         setError(message || "Couldn't record the sale.");
       }
@@ -174,19 +189,21 @@ export default function AddSaleModal({
             />
           </div>
 
+          <div className="mt-3">
+            <BankAccountPicker
+              value={bankAccount}
+              onChange={(next) => {
+                setBankAccount(next);
+                // The API requires currency === the account's currencyType, so
+                // the account is the single source of truth for it.
+                if (next) setCurrency(next.currencyType);
+                setBankError("");
+              }}
+              error={bankError}
+            />
+          </div>
+
           <div className="mt-3 grid grid-cols-2 gap-3">
-            <div className="text-xs font-medium text-gray-600 dark:text-gray-300">
-              Payment Platform
-              <AccountingSelect
-                label="Payment platform"
-                value={platform}
-                options={PAYMENT_PLATFORMS.map((value) => ({
-                  value,
-                  label: formatPlatform(value),
-                }))}
-                onChange={(next) => setPlatform(next as PaymentPlatform)}
-              />
-            </div>
             <div className="text-xs font-medium text-gray-600 dark:text-gray-300">
               Currency
               <AccountingSelect
@@ -194,7 +211,15 @@ export default function AddSaleModal({
                 value={currency}
                 options={CURRENCIES.map((code) => ({ value: code, label: code }))}
                 onChange={(next) => setCurrency(next as Currency)}
+                // Locked once an account is chosen: a mismatch is a hard 400,
+                // so making it unselectable beats reporting it after the fact.
+                disabled={!!bankAccount}
               />
+              {bankAccount && (
+                <span className="mt-1 block text-[11px] font-normal text-gray-400">
+                  Set by {bankAccount.bankName}
+                </span>
+              )}
             </div>
           </div>
 
@@ -257,8 +282,21 @@ export default function AddSaleModal({
             />
           </label>
           <div className="mt-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-3 text-xs leading-4 text-gray-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-gray-300">
-            Saving updates the dashboard revenue totals and platform/currency
-            breakdowns. It does not change the client&apos;s stored total revenue.
+            {bankAccount ? (
+              <>
+                Saving will add{" "}
+                {formatMoney(bankAccount.currencyType, Number(amount) || 0)} to{" "}
+                <span className="font-medium">{bankAccount.bankName}</span> and
+                update the dashboard totals. It does not change the client&apos;s
+                stored total revenue.
+              </>
+            ) : (
+              <>
+                Saving updates the selected bank account&apos;s balance and the
+                dashboard totals. It does not change the client&apos;s stored
+                total revenue.
+              </>
+            )}
           </div>
           {error && (
             <p role="alert" className="mt-2 text-sm text-red-500">

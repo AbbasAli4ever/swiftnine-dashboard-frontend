@@ -4,7 +4,6 @@ import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import { useAuth } from "@/context/AuthContext";
 import { parseApiError } from "@/lib/api";
-import { useAuthStore } from "@/stores/auth.store";
 import { useVerificationStore } from "@/stores/verification.store";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Image from "next/image";
@@ -45,13 +44,6 @@ export default function SignInForm() {
     try {
       await login(values.email, values.password);
       toast.success("Welcome back!");
-
-      // Accountants are scoped to the accounting area — send them there
-      // regardless of the default landing page or a stale `?from` param.
-      if (useAuthStore.getState().user?.role === "ACCOUNTANT") {
-        window.location.replace("/accounts");
-        return;
-      }
 
       const redirectTo = searchParams.get("from");
       const safeRedirect =

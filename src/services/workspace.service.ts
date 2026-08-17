@@ -50,6 +50,13 @@ export interface TokenQuotaStatus {
   band: "ok" | "warn" | "critical";
 }
 
+/**
+ * Accounting access, granted per workspace membership — NOT a global user
+ * attribute. The same person can be ACCOUNTANT in one workspace and have no
+ * accounting access in another. `null` means no access at all.
+ */
+export type AccountingRole = "CEO" | "ACCOUNTANT";
+
 export interface WorkspaceMember {
   id: string;
   fullName: string;
@@ -57,10 +64,27 @@ export interface WorkspaceMember {
   role: "OWNER" | "MEMBER";
   /** AI model entitlement in this workspace. Separate from role. */
   aiModelTier: AiModelTier;
-  inviteStatus: "PENDING" | "ACCEPTED" | "REJECTED";
+  /** Independent of `role` — an OWNER isn't automatically CEO, and a plain
+   *  MEMBER can be ACCOUNTANT. Pending invites always report null. */
+  accountingRole: AccountingRole | null;
+  /**
+   * Only populated for rows backed by a pending/rejected invite — an accepted
+   * member has no invite record left to report, so this is `null` for everyone
+   * who has actually joined. Backend types it `InviteStatus | null`.
+   */
+  inviteStatus: "PENDING" | "ACCEPTED" | "REJECTED" | null;
   lastActive: string | null;
   invitedBy: string | null;
   invitedOn: string | null;
+}
+
+/** `GET /workspaces/:id` — includes the caller's own membership context. */
+export interface WorkspaceDetail extends Workspace {
+  memberCount: number;
+  /** The caller's workspace role in this workspace. */
+  role: "OWNER" | "ADMIN" | "MEMBER";
+  /** The caller's accounting role in this workspace. */
+  accountingRole: AccountingRole | null;
 }
 
 export const workspaceService = {
@@ -84,6 +108,34 @@ export const workspaceService = {
       .put(`/organizations/members/${memberId}/role`, { workspaceId, role }, {
         headers: { "x-workspace-id": workspaceId },
       })
+      .then((r) => r.data),
+
+  /**
+   * The caller's own membership context for a workspace — this is how the app
+   * learns its `accountingRole`, which is no longer on the user/auth response.
+   */
+  getWorkspace: (workspaceId: string) =>
+    api
+      .get<ApiWrapper<WorkspaceDetail>>(`/workspaces/${workspaceId}`, {
+        headers: { "x-workspace-id": workspaceId },
+      })
+      .then((r) => r.data.data),
+
+  /**
+   * Grant or revoke accounting access. OWNER-only server-side; `null` revokes.
+   * Mirrors `changeMemberRole` above — same endpoint shape and body convention.
+   */
+  changeMemberAccountingRole: (
+    workspaceId: string,
+    memberId: string,
+    accountingRole: AccountingRole | null
+  ) =>
+    api
+      .put(
+        `/organizations/members/${memberId}/accounting-role`,
+        { workspaceId, accountingRole },
+        { headers: { "x-workspace-id": workspaceId } }
+      )
       .then((r) => r.data),
 
   // Requires the office-admin secret key in addition to OWNER role — the role
@@ -172,14 +224,36 @@ export const workspaceService = {
       })
       .then((r) => r.data),
 
-  inviteBulk: (workspaceId: string, payload: { emails: string[]; role?: WorkspaceInviteRole }) =>
+  inviteBulk: (
+    workspaceId: string,
+    payload: {
+      emails: string[];
+      role?: WorkspaceInviteRole;
+      /** Accounting access to grant once the invite is accepted. Omit or send
+       *  null for none. Stored on the invite and copied onto the membership
+       *  row at acceptance. Note the members list reports `accountingRole:
+       *  null` for still-pending invites regardless of what was requested. */
+      accountingRole?: AccountingRole | null;
+    }
+  ) =>
     api
       .post(`/workspaces/${workspaceId}/invites`, payload, {
         headers: { "x-workspace-id": workspaceId },
       })
       .then((r) => r.data.data),
 
-  invite: (workspaceId: string, payload: { email: string; role?: WorkspaceInviteRole }) =>
+  invite: (
+    workspaceId: string,
+    payload: {
+      email: string;
+      role?: WorkspaceInviteRole;
+      /** Accounting access to grant once the invite is accepted. Omit or send
+       *  null for none. Stored on the invite and copied onto the membership
+       *  row at acceptance. Note the members list reports `accountingRole:
+       *  null` for still-pending invites regardless of what was requested. */
+      accountingRole?: AccountingRole | null;
+    }
+  ) =>
     api
       .post<ApiWrapper<null>>(`/workspaces/${workspaceId}/invite`, payload, {
         headers: { "x-workspace-id": workspaceId },
