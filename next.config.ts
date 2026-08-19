@@ -7,7 +7,7 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "*.amazonaws.com" },
     ],
   },       
-
+    
   webpack(config) {   
     config.module.rules.push({
       test: /\.svg$/,
