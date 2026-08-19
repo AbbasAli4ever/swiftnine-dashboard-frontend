@@ -7,17 +7,21 @@ import { ACCOUNTING_ROOT_KEY, queryKeys } from "@/queries/keys";
 import { useAuthStore } from "@/stores/auth.store";
 import { useWorkspaceStore } from "@/stores/workspace.store";
 import { workspaceService } from "@/services/workspace.service";
+import { downloadBlob } from "@/lib/download";
 import {
   accountingDashboardService,
   bankAccountService,
   clientService,
+  reportsService,
   transactionService,
+  REPORTS_MAX_RANGE_DAYS,
   type BankAccountListParams,
   type ClientListParams,
   type CreateBankAccountPayload,
   type CreateClientPayload,
   type CreateTransactionPayload,
   type OverviewPeriod,
+  type ReportFilters,
   type TransactionListParams,
   type UpdateBankAccountPayload,
   type UpdateClientPayload,
@@ -419,4 +423,170 @@ export function useBankAccounts(params: BankAccountListParams) {
     updateBankAccount,
     deleteBankAccount,
   };
+}
+
+// ── Reports ───────────────────────────────────────────────────────────────────
+
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * Mirrors the API's own validation so a malformed range never reaches the
+ * network. Without this, every intermediate keystroke in a native date input
+ * fires a request guaranteed to 422 (a half-typed year is still a valid
+ * `change` event).
+ */
+export function isValidReportRange(
+  dateFrom: string | null,
+  dateTo: string | null
+): boolean {
+  if (!dateFrom || !dateTo) return false;
+  if (!DATE_PATTERN.test(dateFrom) || !DATE_PATTERN.test(dateTo)) return false;
+  if (dateFrom > dateTo) return false;
+
+  const span =
+    (Date.parse(`${dateTo}T00:00:00.000Z`) -
+      Date.parse(`${dateFrom}T00:00:00.000Z`)) /
+    MS_PER_DAY;
+  return Number.isFinite(span) && span <= REPORTS_MAX_RANGE_DAYS;
+}
+
+/**
+ * Date-scoped revenue breakdown — the spine of all three Reports modes (a day
+ * is just `dateFrom === dateTo`).
+ *
+ * Note the asymmetric empty states this returns: `revenueByBankAccount` is
+ * zero-filled with every account, while `revenueByCurrency` and `topClients`
+ * come back empty. Callers must not read a non-empty account list as evidence
+ * that anything sold.
+ */
+export function useReportsBreakdown(
+  dateFrom: string | null,
+  dateTo: string | null,
+  filters: ReportFilters = {}
+) {
+  const { workspaceId, isReady } = useAccountingQueryGate();
+  const queryClient = useQueryClient();
+  // Filters are part of the cache identity — serialized rather than spread so
+  // the key stays a flat, stably-comparable tuple.
+  const filterKey = JSON.stringify(filters);
+  const queryKey = useMemo(
+    () =>
+      [
+        ...queryKeys.accountingReportsBreakdown(workspaceId, dateFrom, dateTo),
+        filterKey,
+      ] as const,
+    [workspaceId, dateFrom, dateTo, filterKey]
+  );
+
+  const query = useQuery({
+    queryKey,
+    queryFn: () => reportsService.breakdown(dateFrom!, dateTo!, filters),
+    enabled: isReady && isValidReportRange(dateFrom, dateTo),
+    staleTime: 60_000,
+    retry: ACCOUNTING_RETRY,
+    // Switching mode or stepping a date is its own cache entry; keeping the
+    // previous response on screen swaps the numbers in place rather than
+    // collapsing the whole page back to a skeleton.
+    placeholderData: (previous) => previous,
+  });
+
+  return {
+    breakdown: query.data ?? null,
+    isLoading: query.isLoading,
+    isFetching: query.isFetching,
+    error: toAccountingError(query.error),
+    refetch: () => queryClient.invalidateQueries({ queryKey }),
+  };
+}
+
+/**
+ * Adds the per-payment list and balances that only exist for a single date.
+ * `enabled` lets the caller skip the request outside Day mode without
+ * conditionally calling the hook.
+ */
+export function useDailyReport(date: string | null, enabled = true) {
+  const { workspaceId, isReady } = useAccountingQueryGate();
+  const queryClient = useQueryClient();
+  const queryKey = useMemo(
+    () => queryKeys.accountingDailyReport(workspaceId, date),
+    [workspaceId, date]
+  );
+
+  const query = useQuery({
+    queryKey,
+    queryFn: () => reportsService.dailyReport(date!),
+    enabled: enabled && isReady && !!date && DATE_PATTERN.test(date),
+    staleTime: 60_000,
+    retry: ACCOUNTING_RETRY,
+    placeholderData: (previous) => previous,
+  });
+
+  return {
+    dailyReport: query.data ?? null,
+    isLoading: query.isLoading,
+    isFetching: query.isFetching,
+    error: toAccountingError(query.error),
+    refetch: () => queryClient.invalidateQueries({ queryKey }),
+  };
+}
+
+/** The 12-point Jan–Dec series behind Year mode's trend chart. */
+export function useMonthlyBreakdown(year: number | null, enabled = true) {
+  const { workspaceId, isReady } = useAccountingQueryGate();
+  const queryClient = useQueryClient();
+  const queryKey = useMemo(
+    () => queryKeys.accountingMonthlyBreakdown(workspaceId, year),
+    [workspaceId, year]
+  );
+
+  const query = useQuery({
+    queryKey,
+    queryFn: () => reportsService.monthlyBreakdown(year!),
+    enabled: enabled && isReady && !!year,
+    staleTime: 60_000,
+    retry: ACCOUNTING_RETRY,
+    placeholderData: (previous) => previous,
+  });
+
+  return {
+    monthlyBreakdown: query.data ?? null,
+    isLoading: query.isLoading,
+    isFetching: query.isFetching,
+    error: toAccountingError(query.error),
+    refetch: () => queryClient.invalidateQueries({ queryKey }),
+  };
+}
+
+/**
+ * One-shot `.xlsx` download. Not a react-query mutation: there's no cacheable
+ * result and nothing to invalidate — it matches the module's other write-side
+ * helpers, which are plain async callbacks that throw for the caller to toast.
+ */
+export function useReportExport() {
+  const [isExporting, setIsExporting] = useState(false);
+
+  const exportReport = useCallback(
+    async (
+      dateFrom: string,
+      dateTo: string,
+      filters: ReportFilters = {}
+    ) => {
+      // Guard against a double-click producing two downloads of the same file.
+      setIsExporting(true);
+      try {
+        const { blob, filename } = await reportsService.exportWorkbook(
+          dateFrom,
+          dateTo,
+          filters
+        );
+        downloadBlob(blob, filename);
+      } finally {
+        setIsExporting(false);
+      }
+    },
+    []
+  );
+
+  return { exportReport, isExporting };
 }

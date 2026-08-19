@@ -29,11 +29,14 @@ import {
   type BankAccount,
   type BankAccountListParams,
   type Currency,
-  type CurrencyTotal,
 } from "@/services/accounting.service";
 import AccountingSelect from "@/components/accounts/AccountingSelect";
 import { avatarColors, initials } from "@/components/accounts/avatar";
-import { formatIsoDateTime, formatMoney } from "@/components/accounts/platformMeta";
+import {
+  formatCurrencyTotals,
+  formatIsoDateTime,
+  formatMoney,
+} from "@/components/accounts/platformMeta";
 
 // Layout constants used to derive how many rows fit in the available space.
 // They must stay in sync with the markup below: the row height, the sticky
@@ -49,11 +52,6 @@ const TYPE_LABELS: Record<AccountType, string> = {
   LOCAL: "Local Accounts",
   INTERNATIONAL: "International Accounts",
 };
-
-function formatCurrencyTotals(totals: CurrencyTotal[]): string {
-  if (totals.length === 0) return "—";
-  return totals.map((entry) => formatMoney(entry.currency, entry.total)).join(" · ");
-}
 
 /** Uploaded logo when present, deterministic initials avatar otherwise. */
 function AccountLogo({
@@ -524,6 +522,9 @@ export default function AccountsBalancesView() {
         <div className="flex items-center gap-8 md:col-span-2">
           <div>
             <p className="text-sm text-gray-500 dark:text-gray-400">Local Balance</p>
+            {/* Plain text, not a currency switcher: a LOCAL account is PKR by
+                definition (see `LOCAL_CURRENCY`), so there is never a second
+                currency to switch to. */}
             <p className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">
               {formatCurrencyTotals(local?.totals ?? [])}
             </p>
@@ -532,8 +533,15 @@ export default function AccountsBalancesView() {
           <div className="h-20 w-px shrink-0 bg-gray-200 dark:bg-gray-800" />
           <div>
             <p className="text-sm text-gray-500 dark:text-gray-400">International Balance</p>
+            {/* One converted figure rather than the per-currency list: this
+                group can span USD/AED/GBP, and `totalUsd` is the server's own
+                sum at the live rates. */}
             <p className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">
-              {formatCurrencyTotals(international?.totals ?? [])}
+              <NumberFlow
+                value={international?.totalUsd ?? 0}
+                prefix="USD "
+                format={{ maximumFractionDigits: 0 }}
+              />
             </p>
             <p className="mt-1 text-xs text-gray-400">
               {international?.accountCount ?? 0} accounts
@@ -543,9 +551,15 @@ export default function AccountsBalancesView() {
         <div className="rounded-xl bg-black px-5 py-4 text-white">
           <p className="text-xs text-gray-300">Total Balance</p>
           <p className="mt-1 text-2xl font-semibold">
-            <NumberFlow value={overview?.balances.totalBalanceUsd ?? 0} prefix="USD " />
+            {/* Whole dollars, matching the Local/International cards beside it. */}
+            <NumberFlow
+              value={overview?.balances.totalBalanceUsd ?? 0}
+              prefix="USD "
+              format={{ maximumFractionDigits: 0 }}
+            />
           </p>
-          <p className="mt-1 text-xs text-gray-400">Converted at fixed reference rates</p>
+          {/* Rates are fetched live server-side now, not the old fixed table. */}
+          <p className="mt-1 text-xs text-gray-400">Converted at current rates</p>
         </div>
       </section>
 

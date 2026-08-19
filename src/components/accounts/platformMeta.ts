@@ -11,6 +11,14 @@ const FALLBACK_COLORS = [
   "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6",
 ];
 
+/**
+ * The panel/card surface every accounting screen sits its content on. Shared
+ * so a change to the border or dark-mode background lands everywhere at once
+ * rather than drifting per screen.
+ */
+export const CARD_CLASS =
+  "rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-901";
+
 /** Stable colour per string so the same platform/bank always renders alike. */
 export function colorFromString(value: string): string {
   const sum = value
@@ -24,6 +32,14 @@ export function formatMoney(currency: Currency | string, amount: number): string
   return `${currency} ${new Intl.NumberFormat("en-US", {
     maximumFractionDigits: 2,
   }).format(amount)}`;
+}
+
+/** Renders a per-currency total list as `PKR 8,165,000 · USD 1,200`. */
+export function formatCurrencyTotals(
+  totals: { currency: Currency; total: number }[]
+): string {
+  if (totals.length === 0) return "—";
+  return totals.map((entry) => formatMoney(entry.currency, entry.total)).join(" · ");
 }
 
 /**

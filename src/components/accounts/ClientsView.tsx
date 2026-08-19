@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import {
   LuChevronLeft,
   LuChevronRight,
+  LuList,
   LuPencil,
   LuPlus,
   LuSearch,
@@ -24,6 +25,7 @@ import type {
 import { avatarColors, initials } from "@/components/accounts/avatar";
 import { formatMoney } from "@/components/accounts/platformMeta";
 import CreateClientModal from "@/components/accounts/CreateClientModal";
+import ClientTransactionsModal from "@/components/accounts/ClientTransactionsModal";
 
 // Layout constants used to derive how many rows fit in the available space.
 // They must stay in sync with the markup below: the row height, the sticky
@@ -150,6 +152,8 @@ export default function ClientsView() {
   const [createOpen, setCreateOpen] = useState(false);
   const [renaming, setRenaming] = useState<AccountingClient | null>(null);
   const [deleting, setDeleting] = useState<AccountingClient | null>(null);
+  const [viewingTransactions, setViewingTransactions] =
+    useState<AccountingClient | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const tableSizerRef = useRef<HTMLDivElement>(null);
 
@@ -207,7 +211,10 @@ export default function ClientsView() {
   const total = meta?.total ?? 0;
   const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const rangeEnd = Math.min(page * pageSize, total);
-  const columnCount = canWrite ? 5 : 4;
+  // The Actions column renders for both roles: a CEO gets the read-only
+  // "view transactions" button, and only an accountant gets rename/delete
+  // beside it.
+  const columnCount = 5;
 
   const handleDelete = async () => {
     if (!deleting) return;
@@ -287,7 +294,7 @@ export default function ClientsView() {
                 <th className="w-[20%] px-5 text-right font-normal">Total Revenue</th>
                 <th className="w-[24%] px-5 text-right font-normal">Sales Recorded</th>
                 <th className="w-[10%] px-5 text-right font-normal">Payments</th>
-                {canWrite && <th className="w-[12%] px-5 text-right font-normal">Actions</th>}
+                <th className="w-[12%] px-5 text-right font-normal">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -326,35 +333,52 @@ export default function ClientsView() {
                             .join(" · ")}
                     </td>
                     <td className="px-5 text-right">{client._count.transactions}</td>
-                    {canWrite && (
-                      <td className="px-5">
-                        <div className="flex justify-end gap-1">
-                          <button
-                            type="button"
-                            title={
-                              hasTransactions
-                                ? "Clients with transactions can't be deleted"
-                                : `Delete ${client.clientName}`
-                            }
-                            aria-label={`Delete ${client.clientName}`}
-                            disabled={hasTransactions}
-                            onClick={() => setDeleting(client)}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-400 dark:hover:bg-red-500/10"
-                          >
-                            <LuTrash2 className="h-[19px] w-[19px]" />
-                          </button>
-                          <button
-                            type="button"
-                            title={`Rename ${client.clientName}`}
-                            aria-label={`Rename ${client.clientName}`}
-                            onClick={() => setRenaming(client)}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-brand-500/10 hover:text-brand-500"
-                          >
-                            <LuPencil className="h-[19px] w-[19px]" />
-                          </button>
-                        </div>
-                      </td>
-                    )}
+                    <td className="px-5">
+                      <div className="flex justify-end gap-1">
+                        {/* Read-only — both roles get this one. */}
+                        <button
+                          type="button"
+                          title={
+                            hasTransactions
+                              ? `View ${client._count.transactions} transactions`
+                              : `${client.clientName} has no transactions yet`
+                          }
+                          aria-label={`View transactions for ${client.clientName}`}
+                          disabled={!hasTransactions}
+                          onClick={() => setViewingTransactions(client)}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-brand-500/10 hover:text-brand-500 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-400"
+                        >
+                          <LuList className="h-[19px] w-[19px]" />
+                        </button>
+                        {canWrite && (
+                          <>
+                            <button
+                              type="button"
+                              title={
+                                hasTransactions
+                                  ? "Clients with transactions can't be deleted"
+                                  : `Delete ${client.clientName}`
+                              }
+                              aria-label={`Delete ${client.clientName}`}
+                              disabled={hasTransactions}
+                              onClick={() => setDeleting(client)}
+                              className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-400 dark:hover:bg-red-500/10"
+                            >
+                              <LuTrash2 className="h-[19px] w-[19px]" />
+                            </button>
+                            <button
+                              type="button"
+                              title={`Rename ${client.clientName}`}
+                              aria-label={`Rename ${client.clientName}`}
+                              onClick={() => setRenaming(client)}
+                              className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-brand-500/10 hover:text-brand-500"
+                            >
+                              <LuPencil className="h-[19px] w-[19px]" />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
@@ -431,6 +455,13 @@ export default function ClientsView() {
       </div>
       </div>
 
+      {/* Read-only, so deliberately not gated on `canWrite` — the backend
+          serves GET /clients to a CEO too, and this only renders what the
+          list row already carries. */}
+      <ClientTransactionsModal
+        client={viewingTransactions}
+        onClose={() => setViewingTransactions(null)}
+      />
       {canWrite && (
         <CreateClientModal isOpen={createOpen} onClose={() => setCreateOpen(false)} />
       )}

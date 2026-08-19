@@ -65,6 +65,18 @@ export const queryKeys = {
     ["accounting", "transactions", workspaceId, params] as const,
   accountingBankAccounts: (workspaceId: string | null, params: unknown) =>
     ["accounting", "bank-accounts", workspaceId, params] as const,
+  // Reports keys take their dates as discrete segments rather than a params
+  // object — they're scalars, so this gives stable structural equality without
+  // the caller needing to memoize an object literal.
+  accountingReportsBreakdown: (
+    workspaceId: string | null,
+    dateFrom: string | null,
+    dateTo: string | null
+  ) => ["accounting", "reports-breakdown", workspaceId, dateFrom, dateTo] as const,
+  accountingDailyReport: (workspaceId: string | null, date: string | null) =>
+    ["accounting", "daily-report", workspaceId, date] as const,
+  accountingMonthlyBreakdown: (workspaceId: string | null, year: number | null) =>
+    ["accounting", "monthly-breakdown", workspaceId, year] as const,
 } as const;
 
 /** Root key for every accounting query — used for prefix invalidation. */

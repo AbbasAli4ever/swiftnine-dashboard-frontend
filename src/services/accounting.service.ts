@@ -1,9 +1,10 @@
 import { api } from "@/lib/api";
+import { parseContentDispositionFilename } from "@/lib/download";
 
 // ── Envelopes ─────────────────────────────────────────────────────────────────
-// The accounting modules use the app's standard response envelope. Unlike most
-// of the API these endpoints are NOT workspace-scoped — they ignore the
-// `x-workspace-id` header the axios interceptor attaches unconditionally.
+// The accounting modules use the app's standard response envelope. Every one of
+// these endpoints is workspace-scoped and requires the `x-workspace-id` header
+// the axios interceptor attaches unconditionally — a request without it 403s.
 
 interface ApiWrapper<T> {
   success: boolean;
@@ -85,9 +86,19 @@ export interface AccountingClient {
   _count: { transactions: number };
   createdAt: string;
   updatedAt: string;
+  /**
+   * Every linked transaction, newest first. `GET /clients` embeds these on
+   * each row now, not just `GET /clients/:id` — so the list is enough to open
+   * a per-client transaction view without a second request.
+   *
+   * Unpaginated on the backend by design, so a client with a very long history
+   * returns all of it. Optional here so an older API build degrades to an
+   * empty list rather than crashing the table.
+   */
+  transactions?: ClientTransaction[];
 }
 
-/** A client's nested transaction, as returned by `GET /clients/:clientId`. */
+/** A client's nested transaction, as returned by `GET /clients`. */
 export interface ClientTransaction {
   id: string;
   saleAmount: number;
@@ -97,6 +108,9 @@ export interface ClientTransaction {
   saleDate: string;
   createdAt: string;
   updatedAt: string;
+  /** The account the payment came in through — the closest thing to a
+   *  "payment method" now that there's no PaymentPlatform enum. */
+  bankAccount: { id: string; bankName: string; logoUrl: string | null };
 }
 
 export interface AccountingClientDetail extends AccountingClient {
@@ -230,6 +244,14 @@ export interface TransactionListParams extends BaseListParams {
   /** Serialized comma-separated. */
   currency?: Currency[];
   /**
+   * Filters on the *linked bank account's* type, not a column on the
+   * transaction. Surfaced in the UI as "Payment Platform" — LOCAL means the
+   * Pakistan accounts, INTERNATIONAL everything else — since the old
+   * `PaymentPlatform` field was removed and the account now carries that
+   * meaning. Serialized comma-separated.
+   */
+  accountType?: AccountType[];
+  /**
    * Filter on `saleDate` (not `createdAt`). A bare `YYYY-MM-DD` is expanded
    * server-side to the start/end of that UTC day.
    */
@@ -282,16 +304,40 @@ export interface RevenueStat {
   changePercent: number;
 }
 
+/**
+ * Bank balances grouped by account type, plus the fixed conversion table used
+ * to reach `totalBalanceUsd`. Shared by `/overview` and `/daily-report`, which
+ * return a byte-identical shape.
+ *
+ * These are always **current** balances — there is no historical ledger, so a
+ * report for a past date still reports today's figures. Any screen showing
+ * these against a past date must say so.
+ */
+export interface BalanceSummary {
+  byAccountType: {
+    accountType: AccountType;
+    /** Per-currency native totals — a bucket can hold several (an
+     *  INTERNATIONAL group may span USD, AED, GBP…). */
+    totals: CurrencyTotal[];
+    accountCount: number;
+    /**
+     * Every currency in this bucket converted and summed into one USD figure —
+     * the single number to show when a group spans multiple currencies.
+     * Optional so an older API build degrades rather than rendering `NaN`.
+     */
+    totalUsd?: number;
+  }[];
+  totalBalanceUsd: number;
+  /**
+   * Live rates, refreshed hourly server-side with the static table as fallback,
+   * so these are fractional (`PKR: 277.73…`) rather than round placeholders.
+   * Read as "units of this currency per 1 USD".
+   */
+  exchangeRatesToUsd: Record<string, number>;
+}
+
 export interface OverviewResponse {
-  balances: {
-    byAccountType: {
-      accountType: AccountType;
-      totals: CurrencyTotal[];
-      accountCount: number;
-    }[];
-    totalBalanceUsd: number;
-    exchangeRatesToUsd: Record<string, number>;
-  };
+  balances: BalanceSummary;
   revenueSummary: {
     today: RevenueStat;
     thisMonth: RevenueStat;
@@ -523,3 +569,194 @@ export const accountingDashboardService = {
       })
       .then((r) => r.data.data),
 };
+
+// ── Reports ───────────────────────────────────────────────────────────────────
+// `/reports/breakdown` answers "what happened in this window", where every
+// `/overview` breakdown is all-time. The two are otherwise the same math.
+
+/** Max span `/reports/breakdown` accepts, mirroring the API's own cap so the
+ *  client can reject a bad range before spending a round trip on a 422. */
+export const REPORTS_MAX_RANGE_DAYS = 400;
+
+export interface ReportBankAccountRevenue {
+  id: string;
+  bankName: string;
+  accountType: AccountType;
+  currencyType: Currency;
+  /** Native-currency total; `null` when the account's sales in this period
+   *  span more than one currency. `totalRevenueUsd` is always populated. */
+  totalRevenue: number | null;
+  totalRevenueUsd: number;
+  salesCount: number;
+}
+
+export interface ReportCurrencyRevenue {
+  currency: Currency;
+  total: number;
+  totalUsd: number;
+  percent: number;
+}
+
+/**
+ * Ranked by **summed transaction revenue** in the period — deliberately not the
+ * same computation as `OverviewResponse.topClients`, which ranks by the
+ * hand-entered `Clients.totalRevenue` field that is known to drift from real
+ * activity. Kept as a separate type so the two can't be conflated.
+ */
+export interface ReportTopClient {
+  id: string;
+  clientName: string;
+  totalRevenue: number | null;
+  totalRevenueUsd: number;
+  salesCount: number;
+  currencyType: Currency | null;
+}
+
+export interface ReportsBreakdownResponse {
+  dateFrom: string;
+  dateTo: string;
+  /**
+   * Bank balances, narrowed by `bankAccountId`/`accountType`/`currency` only.
+   * The date range and `clientId` deliberately do **not** scope these: balances
+   * are current-state with no historical ledger, and an account isn't tied to
+   * one client. Optional so an older API build degrades gracefully.
+   */
+  balances?: BalanceSummary;
+  /** **Zero-filled**: every bank account appears, even with no sales in the
+   *  period. A caller must not treat a non-empty array as proof of activity. */
+  revenueByBankAccount: ReportBankAccountRevenue[];
+  /** Empty array when nothing sold in the period — no row-per-currency guarantee. */
+  revenueByCurrency: ReportCurrencyRevenue[];
+  /** Empty array when nothing sold; capped at 5 by the API. */
+  topClients: ReportTopClient[];
+}
+
+export interface DailyReportClientPayment {
+  id: string;
+  clientName: string;
+  saleAmount: number;
+  currency: Currency;
+  bankAccount: { id: string; bankName: string; logoUrl: string | null };
+}
+
+export interface DailyReportResponse {
+  date: string;
+  revenueUsd: number;
+  salesCount: number;
+  /** Current balances — see `BalanceSummary`; not as of `date`. */
+  balances: BalanceSummary;
+  clientPayments: DailyReportClientPayment[];
+}
+
+export interface MonthlyBreakdownResponse {
+  year: number;
+  /** Always exactly 12 points, January–December, `label` as `YYYY-MM`. */
+  points: { label: string; totalUsd: number }[];
+}
+
+export interface ReportExportResult {
+  blob: Blob;
+  filename: string;
+}
+
+/**
+ * Filters shared by `/reports/export` and `/reports/breakdown`, mirroring the
+ * Reports table's controls and matching `GET /transactions`'s own filter set:
+ * `currency`/`accountType` are comma-separated lists, `clientId`/`bankAccountId`
+ * single values.
+ */
+export interface ReportFilters {
+  clientId?: string;
+  bankAccountId?: string;
+  accountType?: AccountType[];
+  currency?: Currency[];
+}
+
+export const reportsService = {
+  /** Date-scoped revenue breakdown. Both dates required, `YYYY-MM-DD`,
+   *  `dateFrom <= dateTo`, span ≤ `REPORTS_MAX_RANGE_DAYS`. */
+  breakdown: (dateFrom: string, dateTo: string, filters: ReportFilters = {}) =>
+    api
+      .get<ApiWrapper<ReportsBreakdownResponse>>(
+        "/accounting-dashboard/reports/breakdown",
+        { params: serializeParams({ dateFrom, dateTo, ...filters }) }
+      )
+      .then((r) => r.data.data),
+
+  dailyReport: (date: string) =>
+    api
+      .get<ApiWrapper<DailyReportResponse>>("/accounting-dashboard/daily-report", {
+        params: { date },
+      })
+      .then((r) => r.data.data),
+
+  monthlyBreakdown: (year: number) =>
+    api
+      .get<ApiWrapper<MonthlyBreakdownResponse>>(
+        "/accounting-dashboard/monthly-breakdown",
+        { params: { year } }
+      )
+      .then((r) => r.data.data),
+
+  /**
+   * Downloads an `.xlsx` workbook for a single day or a whole range.
+   *
+   * The API accepts **either** `date` **or** `dateFrom` + `dateTo` — passing
+   * both, or only one half of a range, is a 422. A range whose ends are the
+   * same day is sent as `date`, which is the shape the endpoint documents for
+   * a single day (and keeps the single-day filename).
+   *
+   * Two traps handled here rather than at every call site:
+   * 1. With `responseType: "blob"` an **error** body is also a Blob, so the
+   *    usual `err.response.data.message` read yields garbage. Unwrap it back
+   *    to text and rethrow something a toast can display.
+   * 2. `Content-Disposition` is not CORS-safelisted, so cross-origin it reads
+   *    as `undefined` unless the API exposes it. The reconstructed name is
+   *    exact, so parsing is the optimisation and the fallback is the norm.
+   */
+  exportWorkbook: async (
+    dateFrom: string,
+    dateTo: string,
+    filters: ReportFilters = {}
+  ): Promise<ReportExportResult> => {
+    const isSingleDay = dateFrom === dateTo;
+    const dateParams = isSingleDay ? { date: dateFrom } : { dateFrom, dateTo };
+    const fallbackName = isSingleDay
+      ? `accounting-report-${dateFrom}.xlsx`
+      : `accounting-report-${dateFrom}_to_${dateTo}.xlsx`;
+
+    try {
+      const response = await api.get("/accounting-dashboard/reports/export", {
+        params: serializeParams({ ...dateParams, ...filters }),
+        responseType: "blob",
+      });
+      return {
+        blob: response.data as Blob,
+        filename:
+          parseContentDispositionFilename(
+            response.headers?.["content-disposition"]
+          ) ?? fallbackName,
+      };
+    } catch (err) {
+      throw await unwrapBlobError(err);
+    }
+  },
+};
+
+/** Rewrites an axios error whose body is a Blob into one carrying the real
+ *  JSON message, so `parseApiError` and toasts behave as they do elsewhere. */
+async function unwrapBlobError(err: unknown): Promise<unknown> {
+  const response = (err as { response?: { data?: unknown } })?.response;
+  if (!(response?.data instanceof Blob)) return err;
+
+  try {
+    const parsed = JSON.parse(await response.data.text()) as {
+      message?: string;
+    };
+    response.data = parsed;
+  } catch {
+    // Not JSON (an HTML error page, a truncated stream) — leave the original
+    // error alone rather than inventing a message for it.
+  }
+  return err;
+}
