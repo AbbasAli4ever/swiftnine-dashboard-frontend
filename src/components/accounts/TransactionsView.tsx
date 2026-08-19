@@ -20,6 +20,8 @@ import { useAccountingAccess } from "@/hooks/useAccountingAccess";
 import { useAccountingTransactions } from "@/hooks/useAccounting";
 import {
   CURRENCIES,
+  LOCAL_CURRENCY,
+  transactionCurrenciesForAccountType,
   type AccountingTransaction,
   type BankAccount,
   type ClientSearchResult,
@@ -83,6 +85,14 @@ function EditTransactionModal({
   );
   const [currency, setCurrency] = useState<Currency>(transaction.currency);
   const [bankAccount, setBankAccount] = useState<BankAccount | null>(null);
+  /**
+   * A LOCAL account only accepts PKR. Only a *newly picked* account tells us
+   * its type — a transaction's own nested `bankAccount` carries just
+   * `{ id, bankName, logoUrl }`, no `accountType` — so when the account isn't
+   * being changed this stays permissive and the server enforces the rule.
+   * Erring open avoids blocking a legitimate edit on missing information.
+   */
+  const isLocalAccount = bankAccount?.accountType === "LOCAL";
   const [description, setDescription] = useState(transaction.description ?? "");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -112,11 +122,11 @@ function EditTransactionModal({
           ? { clientId: client.id, clientName: client.clientName }
           : {}),
         saleAmount: nextAmount,
-        // Reassigning the bank account also moves the currency: the API rejects
-        // a transaction whose currency differs from its account's.
-        ...(bankAccount
-          ? { bankAccountId: bankAccount.id, currency: bankAccount.currencyType }
-          : { currency }),
+        // Currency is the user's own choice, independent of the account —
+        // only a LOCAL account constrains it (to PKR), which the field below
+        // enforces by offering nothing else.
+        currency,
+        ...(bankAccount ? { bankAccountId: bankAccount.id } : {}),
         saleDate: fromDateInputValue(saleDate),
         description: description.trim(),
       });
@@ -167,12 +177,14 @@ function EditTransactionModal({
             value={bankAccount}
             onChange={(next) => {
               setBankAccount(next);
-              if (next) setCurrency(next.currencyType);
+              // Only a LOCAL account forces the currency; an INTERNATIONAL one
+              // leaves the user's existing choice alone.
+              if (next?.accountType === "LOCAL") setCurrency(LOCAL_CURRENCY);
             }}
           />
           <p className="mt-1 text-[11px] text-gray-400">
             Currently {transaction.bankAccount?.bankName ?? "—"}. Moving it
-            reverses the old balance effect and applies it to the new account.
+            re-categorises the sale; account balances are unaffected.
           </p>
         </div>
 
@@ -193,14 +205,18 @@ function EditTransactionModal({
             <AccountingSelect
               label="Currency"
               value={currency}
-              options={CURRENCIES.map((code) => ({ value: code, label: code }))}
+              // PKR-only against a LOCAL account (a hard 400 otherwise), any
+              // currency against an INTERNATIONAL one.
+              options={(isLocalAccount
+                ? transactionCurrenciesForAccountType("LOCAL")
+                : CURRENCIES
+              ).map((code) => ({ value: code, label: code }))}
               onChange={(next) => setCurrency(next as Currency)}
-              // Locked while a new account is selected — its currency wins.
-              disabled={!!bankAccount}
+              disabled={isLocalAccount}
             />
-            {bankAccount && (
+            {isLocalAccount && (
               <span className="mt-1 block text-[11px] font-normal text-gray-400">
-                Set by {bankAccount.bankName}
+                Local account — PKR only
               </span>
             )}
           </div>

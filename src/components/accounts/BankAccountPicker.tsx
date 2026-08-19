@@ -9,10 +9,13 @@ import BankAvatar from "@/components/accounts/BankAvatar";
 import type { BankAccount } from "@/services/accounting.service";
 
 /**
- * Picks the bank account a transaction debits or credits. Required on create —
- * and because the API rejects a transaction whose `currency` doesn't match the
- * account's `currencyType`, selecting here is what drives the currency field
- * rather than the two being chosen independently.
+ * Picks the bank account a transaction is recorded against. Required on create.
+ *
+ * The account no longer dictates the transaction's currency — an INTERNATIONAL
+ * account takes any currency (Whop can record an HKD or AED sale). The one
+ * remaining rule is that a LOCAL account only accepts PKR, which the calling
+ * form enforces on its currency field. The `currencyType` shown per row is the
+ * account's own denomination, not a constraint on what it can receive.
  */
 export default function BankAccountPicker({
   value,

@@ -8,6 +8,8 @@ import { parseApiError } from "@/lib/api";
 import { useTransactionMutations } from "@/hooks/useAccounting";
 import {
   CURRENCIES,
+  LOCAL_CURRENCY,
+  transactionCurrenciesForAccountType,
   type BankAccount,
   type ClientSearchResult,
   type Currency,
@@ -38,6 +40,11 @@ export default function AddSaleModal({
   const [refId, setRefId] = useState("");
   const [description, setDescription] = useState("");
   const [bankAccount, setBankAccount] = useState<BankAccount | null>(null);
+  // LOCAL accounts are PKR-only; INTERNATIONAL ones take any currency.
+  const isLocalAccount = bankAccount?.accountType === "LOCAL";
+  const currencyOptions = isLocalAccount
+    ? transactionCurrenciesForAccountType("LOCAL")
+    : CURRENCIES;
   const [error, setError] = useState("");
   const [refIdError, setRefIdError] = useState("");
   const [clientError, setClientError] = useState("");
@@ -110,9 +117,10 @@ export default function AddSaleModal({
         bankAccountId: bankAccount.id,
         refId: refId.trim(),
         saleAmount: numericAmount,
-        // Always the account's own currency — the picker locks the field, and
-        // the API rejects any mismatch outright.
-        currency: bankAccount.currencyType,
+        // The user's choice, not the account's own currency: an INTERNATIONAL
+        // account takes any currency now. Only LOCAL is still pinned to PKR,
+        // which the picker enforces below.
+        currency,
         saleDate: fromDateInputValue(saleDate),
         description: description.trim() || undefined,
       });
@@ -194,9 +202,10 @@ export default function AddSaleModal({
               value={bankAccount}
               onChange={(next) => {
                 setBankAccount(next);
-                // The API requires currency === the account's currencyType, so
-                // the account is the single source of truth for it.
-                if (next) setCurrency(next.currencyType);
+                // A LOCAL account only accepts PKR, so pin it. An
+                // INTERNATIONAL one takes any currency — keep whatever the
+                // user already picked rather than overwriting their choice.
+                if (next?.accountType === "LOCAL") setCurrency(LOCAL_CURRENCY);
                 setBankError("");
               }}
               error={bankError}
@@ -209,15 +218,19 @@ export default function AddSaleModal({
               <AccountingSelect
                 label="Currency"
                 value={currency}
-                options={CURRENCIES.map((code) => ({ value: code, label: code }))}
+                // A LOCAL account is PKR-only (a hard 400 otherwise), so offer
+                // just that. INTERNATIONAL accounts are currency-agnostic —
+                // Whop can take an HKD or AED sale — so offer everything.
+                options={currencyOptions.map((code) => ({
+                  value: code,
+                  label: code,
+                }))}
                 onChange={(next) => setCurrency(next as Currency)}
-                // Locked once an account is chosen: a mismatch is a hard 400,
-                // so making it unselectable beats reporting it after the fact.
-                disabled={!!bankAccount}
+                disabled={isLocalAccount}
               />
-              {bankAccount && (
+              {isLocalAccount && (
                 <span className="mt-1 block text-[11px] font-normal text-gray-400">
-                  Set by {bankAccount.bankName}
+                  {bankAccount?.bankName} is a local account (PKR only)
                 </span>
               )}
             </div>

@@ -47,23 +47,43 @@ export const ACCOUNT_TYPES = ["LOCAL", "INTERNATIONAL"] as const;
 export type AccountType = (typeof ACCOUNT_TYPES)[number];
 
 /**
- * The only currency a LOCAL account can hold — the business operates in
- * Pakistan, so "local" means PKR by definition. Everything else is
- * INTERNATIONAL.
+ * The only currency a LOCAL account deals in — the business operates in
+ * Pakistan, so "local" means PKR by definition.
  *
- * This is a **frontend-only** constraint: the API accepts any `Currency` for
- * either `accountType` (verified by probing `POST /bank-accounts`). It's
- * enforced here to stop nonsense combinations being entered by hand, not
- * because the server would reject them — a record created outside this UI can
- * still pair LOCAL with any currency.
+ * For **transactions this is server-enforced**: posting a non-PKR sale to a
+ * LOCAL account returns `400 "A LOCAL bank account only accepts PKR
+ * transactions"`. An INTERNATIONAL account is currency-agnostic and accepts
+ * anything, PKR included (verified live).
+ *
+ * For **bank accounts themselves** it remains a frontend-only convention:
+ * `POST /bank-accounts` will accept any currency for either type, so this
+ * stops nonsense being entered by hand rather than mirroring a server rule.
  */
 export const LOCAL_CURRENCY = "PKR" satisfies Currency;
 
-/** Currencies selectable for a given account type. */
+/**
+ * Currencies a **bank account itself** can be denominated in. INTERNATIONAL
+ * excludes PKR, since a PKR-denominated account is by definition a local one.
+ * Frontend convention only — the API accepts any pairing.
+ */
 export function currenciesForAccountType(accountType: AccountType): readonly Currency[] {
   return accountType === "LOCAL"
     ? [LOCAL_CURRENCY]
     : CURRENCIES.filter((code) => code !== LOCAL_CURRENCY);
+}
+
+/**
+ * Currencies a **transaction** may be recorded in against an account of this
+ * type — a different question from what the account is denominated in.
+ *
+ * INTERNATIONAL returns every currency, PKR included: such an account can
+ * legitimately receive a PKR sale (verified live), so excluding it would block
+ * a valid entry. LOCAL is PKR-only, and that one *is* enforced server-side.
+ */
+export function transactionCurrenciesForAccountType(
+  accountType: AccountType
+): readonly Currency[] {
+  return accountType === "LOCAL" ? [LOCAL_CURRENCY] : CURRENCIES;
 }
 
 export type SortOrder = "asc" | "desc";

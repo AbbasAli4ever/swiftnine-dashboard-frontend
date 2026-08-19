@@ -476,3 +476,45 @@ Requested off a screenshot of three balance cards — Pakistan Balance (native P
 - Cross-checked the "Pakistan Balance" figure against the database directly (via Prisma, not raw SQL — a plain sum has none of the timezone-casting risk a date filter would): `bankAccount.groupBy` on `{ accountType: 'LOCAL' }` in the demo workspace returned `PKR 1,250,000` (1 account, HBL) — byte-for-byte the same number `/overview` returned, confirming the card reflects the real stored balance, not a stale or miscomputed value.
 - Confirmed revenue figures (`revenueSummary`, `revenueByBankAccount`, `revenueByCurrency`) already convert via these same live rates — no separate change was needed, since every revenue path already funnels through the shared `toUsd()`. Verified by recomputing each `totalUsd` from its native amount and the `exchangeRatesToUsd` returned in the same response: every figure matched exactly. Also added a live HKD bank account + transaction as a fresh test case — `revenueByCurrency`, `revenueByBankAccount`, and `revenueSummary.today` all picked it up correctly, converted at the live HKD rate, with no code changes required.
 
+
+## Follow-up: [2026-08-19] Transaction currency decoupled from bank account currency, and a reporting filter bug that would have followed
+
+Requested directly: a transaction's `currency` should no longer have to match its bank account's own `currencyType` — e.g. Whop (declared `USD`) should be able to take HKD, AED, or any other currency's sales interchangeably, not just USD.
+
+**`transaction.service.ts`**: removed `assertCurrencyMatches()` entirely (and its error, `TRANSACTION_CURRENCY_MISMATCH`, now deleted from `transaction.constants.ts` as dead code). `create()` still calls `findBankAccountOrThrow()` — that check stays, since a transaction must still reference a real bank account in the workspace — but no longer checks currency against it. `update()` simplified along the way: the old `balanceFieldsChanged` block re-validated and rewrote `bankAccountId`/`saleAmount`/`currency` together as a trio (because changing any one of them used to require re-checking the currency match); now each of the three is independent, so each is only touched when actually present in the payload — smaller and more direct than before, not just behavior-preserving. `findBankAccountOrThrow()`'s `currencyType` return field, no longer used anywhere, was dropped too. Updated the three Swagger descriptions (`create`/`update` DTOs and the create endpoint) that documented the old constraint.
+
+**Reporting-section bug this would have caused, fixed as part of the same change**: `accounting-dashboard.service.ts`'s `getRevenueByBankAccount()` filters *which accounts appear* in the breakdown using `bankAccountFilterWhere()`, which included a `currencyType: { in: filters.currency } }` clause — filtering the account list by the account's own declared currency. Once a transaction's currency can differ from its account's, this became a real bug, not just a latent one: filtering `/reports/breakdown?currency=AED` would have silently **dropped Whop** (declared `USD`) from the results entirely, even after it earned real AED revenue, because Whop itself never matched `currencyType: 'AED'`. Split the method into `bankAccountIdentityFilterWhere()` (`bankAccountId`/`accountType` only — real, fixed account properties, safe to filter the account list by) and `bankAccountFilterWhere()` (adds `currencyType`, used **only** by `getBalances()`, where "currency" correctly means the account's own held-currency balance — a distinct, still-single-currency-per-account concept, untouched by this change). `getRevenueByBankAccount()`'s account list now uses the identity-only filter, so a `currency` filter narrows which *transactions* count (already correct, via `transactionFilterWhere()`), not which accounts are eligible to appear.
+
+Also updated the `nativeTotal` comment and the `BankAccountRevenueItemDto.totalRevenue`/`currencyType` Swagger descriptions — null-when-ambiguous was previously framed as a defensive edge case (guarded by the now-removed constraint); it's a real, expected outcome now (multiple currencies on one account, or a single currency that isn't the account's own). The underlying `.get(account.currencyType) ?? null` lookup already handled both cases correctly — no logic change needed there, just outdated comments.
+
+### Verification
+- `tsc --noEmit`, `eslint` — clean.
+- Live: `POST /transactions` with `bankAccountId` = Whop (`currencyType: USD`) and `currency: AED` → `201`. Same for HBL (`currencyType: PKR`) with `currency: USD` → `201`. Both previously would have been `400 TRANSACTION_CURRENCY_MISMATCH`.
+- `GET /reports/breakdown?currency=AED` afterward: `revenueByBankAccount` correctly includes **Whop** (`totalRevenue: null`, `totalRevenueUsd: 245.23`, `salesCount: 1` — its real AED sale), alongside Emirates NBD (the actual AED-denominated account) and every other account zero-filled. `balances.byAccountType` stayed correctly scoped to true AED-denominated accounts only (Emirates NBD) — confirming the identity/currency filter split works as intended for both endpoints simultaneously.
+
+## Follow-up: [2026-08-19] Fixed: export's Revenue column was silently converting to USD
+
+Asked to confirm the export never converts amounts — it should show each transaction's own native amount, in its own currency, whether one currency or several are filtered in. Checking found the opposite was true: `report-export.service.ts`'s Revenue column used `transaction.saleAmountUsd`, a USD-converted figure computed in `getTransactionsForRange()` — a live HKD test transaction of `6000 HKD` was exporting as `769.23` (USD), not `6000`.
+
+**Fixed**: `getTransactionsForRange()` no longer computes `saleAmountUsd` at all — dropped from `TransactionExportRow` entirely as dead code once the export stopped needing it. `addTransactionsSheet()` now writes `transaction.saleAmount` (native) into the Revenue column; Currency (column 3) names the unit it's actually in.
+
+### Verification
+- `tsc --noEmit`, `eslint` — clean.
+- Live: `?currency=HKD` export now shows `Revenue: 6000, Currency: HKD` (previously `769.23`).
+- Live: `?currency=HKD,AED,GBP,USD,PKR` export — every row shows its own native amount in its own currency (PKR rows at `61000`/`56000`/`78000`/`42000`, not divided by 278; AED at `3500`/`4200`/`900`; GBP at `900`/`1250`; HKD at `6000`) — no conversion anywhere, confirmed across a mix of currencies in one file, not just a single-currency filter.
+
+## Follow-up: [2026-08-19] Reinstated one currency rule: LOCAL accounts only accept PKR
+
+The full currency/bank-account decoupling earlier today went one step too far — a LOCAL (Pakistan) bank account should still only ever take PKR transactions; only INTERNATIONAL accounts (Whop, Slash, ...) are meant to be currency-agnostic.
+
+**`transaction.service.ts`**: new `assertLocalAccountCurrency(accountType, currency)` — throws `TRANSACTION_LOCAL_ACCOUNT_CURRENCY` (new constant in `transaction.constants.ts`) when `accountType === 'LOCAL' && currency !== 'PKR'`. `findBankAccountOrThrow()` now also selects/returns `accountType` (needed for this check).
+
+- `create()`: validated once, right after the existence check.
+- `update()`: `bankAccountId` and `currency` are independent fields (from the earlier decoupling change), so whichever one is actually changing gets checked against the other's effective value — if `bankAccountId` changes, checked against `dto.currency ?? transaction.currency` on the *new* account; if only `currency` changes, checked against the *current* account (a fresh lookup, since `TRANSACTION_SELECT`'s embedded `bankAccount` doesn't carry `accountType`). If neither changes, nothing to re-validate.
+
+Updated the stale Swagger description on `PATCH /transactions/:id` while touching this code — it still said "reverses the transaction's prior effect on its old bank account," a leftover from before balances were decoupled from transactions entirely (a much earlier follow-up). Also updated the `create`/`update` DTO field descriptions and the `create` endpoint's `@ApiResponse` for `currency`/`bankAccountId` to state the LOCAL/PKR rule.
+
+### Verification
+- `tsc --noEmit`, `eslint` — clean.
+- Live: `POST /transactions` — HBL (LOCAL) + `PKR` → `201`; HBL (LOCAL) + `USD` → `400 "A LOCAL bank account only accepts PKR transactions"`; Whop (INTERNATIONAL) + `HKD` → `201` (unaffected, as intended).
+- Live: `PATCH /transactions/:id` — moving an existing HKD-via-Whop transaction onto HBL (LOCAL) → `400`; changing an existing HBL/PKR transaction's `currency` to `USD` with `bankAccountId` unchanged → `400`; changing that same transaction's `saleAmount` alone (no `bankAccountId`/`currency` in the payload) → `200`, no unnecessary re-validation triggered.
