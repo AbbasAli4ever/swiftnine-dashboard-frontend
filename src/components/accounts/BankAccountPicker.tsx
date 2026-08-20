@@ -96,9 +96,6 @@ export default function BankAccountPicker({
               <span className="flex-1 truncate text-gray-800 dark:text-gray-100">
                 {value.bankName}
               </span>
-              <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400">
-                {value.currencyType}
-              </span>
             </>
           ) : (
             <span className="flex-1 truncate text-gray-400">
@@ -139,12 +136,11 @@ export default function BankAccountPicker({
                   <span className="block truncate text-gray-800 dark:text-gray-100">
                     {account.bankName}
                   </span>
+                  {/* The balance line already names the currency, so no
+                      separate code column on the right. */}
                   <span className="block text-[11px] text-gray-400">
                     {formatMoney(account.currencyType, account.amount)}
                   </span>
-                </span>
-                <span className="shrink-0 text-[11px] font-medium text-gray-500 dark:text-gray-400">
-                  {account.currencyType}
                 </span>
               </button>
             ))}
