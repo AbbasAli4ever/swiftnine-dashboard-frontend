@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "cdn.swiftnine.com" },      
       { protocol: "https", hostname: "*.amazonaws.com" },
     ],
-  },       
+  },        
     
   webpack(config) {   
     config.module.rules.push({
