@@ -1,7 +1,13 @@
 "use client";
 
-import { ReactNode, useEffect, useRef, useState } from "react";
-import { LuCalendarDays, LuChevronDown } from "react-icons/lu";
+import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import {
+  LuCalendarDays,
+  LuChevronDown,
+  LuChevronLeft,
+  LuChevronRight,
+  LuX,
+} from "react-icons/lu";
 
 // Shared filter controls for the accounting screens. Extracted from
 // TransactionsView so the Reports screen uses the same implementation rather
@@ -16,6 +22,223 @@ export const DATE_LABELS: Record<DatePreset, string> = {
   "30": "Last 30 days",
   custom: "Custom range",
 };
+
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+/** `yyyy-mm-dd` for a local calendar cell — never `toISOString()`, which
+ *  shifts the day for anyone east/west of UTC. */
+function toIso(year: number, month: number, day: number): string {
+  return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function formatDisplay(iso: string): string {
+  if (!iso) return "";
+  const [year, month, day] = iso.split("-").map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+/** Weeks of the month as day numbers, padded with nulls so each row is 7 wide. */
+function buildCalendar(year: number, month: number): (number | null)[][] {
+  const leading = new Date(year, month, 1).getDay();
+  const total = new Date(year, month + 1, 0).getDate();
+  const cells: (number | null)[] = Array(leading).fill(null);
+  for (let day = 1; day <= total; day++) cells.push(day);
+  while (cells.length % 7 !== 0) cells.push(null);
+  const weeks: (number | null)[][] = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+  return weeks;
+}
+
+/**
+ * Inline two-tap range calendar. Replaces the pair of `<input type="date">`
+ * fields, which rendered as an OS-specific `dd/mm/yyyy` stub that gave no
+ * feedback about the range being built. Taps alternate from → to, and a tap
+ * before the current `from` restarts the range rather than producing an
+ * inverted one the API would reject.
+ */
+function RangeCalendar({
+  from,
+  to,
+  onChange,
+  onComplete,
+}: {
+  from: string;
+  to: string;
+  onChange: (from: string, to: string) => void;
+  /** Fired once the end date lands, so the owner can dismiss the panel. */
+  onComplete?: () => void;
+}) {
+  const today = new Date();
+  // Open on the month already selected so an existing range is visible.
+  const [view, setView] = useState(() => {
+    const anchor = from || to;
+    if (anchor) {
+      const [year, month] = anchor.split("-").map(Number);
+      return { year, month: month - 1 };
+    }
+    return { year: today.getFullYear(), month: today.getMonth() };
+  });
+
+  // While the month/year grid is open the header chevrons step years instead
+  // of months — stepping months there would be redundant with the grid.
+  const [picking, setPicking] = useState(false);
+
+  const weeks = useMemo(() => buildCalendar(view.year, view.month), [view]);
+  const todayIso = toIso(today.getFullYear(), today.getMonth(), today.getDate());
+
+  const shiftMonth = (delta: number) => {
+    const next = new Date(view.year, view.month + delta, 1);
+    setView({ year: next.getFullYear(), month: next.getMonth() });
+  };
+
+  const shiftYear = (delta: number) =>
+    setView((current) => ({ ...current, year: current.year + delta }));
+
+  const handleDayClick = (day: number) => {
+    const iso = toIso(view.year, view.month, day);
+    // A complete range, or a tap before the start, begins a new range.
+    if (!from || to || iso < from) {
+      onChange(iso, "");
+      return;
+    }
+    onChange(from, iso);
+    onComplete?.();
+  };
+
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between">
+        <button
+          type="button"
+          aria-label={picking ? "Previous year" : "Previous month"}
+          onClick={() => (picking ? shiftYear(-1) : shiftMonth(-1))}
+          className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-905 dark:hover:text-gray-200"
+        >
+          <LuChevronLeft className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          aria-expanded={picking}
+          onClick={() => setPicking((value) => !value)}
+          className="flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:text-white dark:hover:bg-gray-905"
+        >
+          {MONTHS[view.month]} {view.year}
+          <LuChevronDown
+            className={`h-3.5 w-3.5 text-gray-400 transition-transform ${picking ? "rotate-180" : ""}`}
+          />
+        </button>
+        <button
+          type="button"
+          aria-label={picking ? "Next year" : "Next month"}
+          onClick={() => (picking ? shiftYear(1) : shiftMonth(1))}
+          className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-905 dark:hover:text-gray-200"
+        >
+          <LuChevronRight className="h-4 w-4" />
+        </button>
+      </div>
+
+      {picking ? (
+        <div className="grid grid-cols-3 gap-1 py-1">
+          {MONTHS.map((name, index) => (
+            <button
+              key={name}
+              type="button"
+              aria-pressed={index === view.month}
+              onClick={() => {
+                setView((current) => ({ ...current, month: index }));
+                setPicking(false);
+              }}
+              className={`rounded-lg py-2 text-xs transition-colors ${
+                index === view.month
+                  ? "bg-brand-500 font-medium text-white"
+                  : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-905"
+              }`}
+            >
+              {name.slice(0, 3)}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-7 gap-0.5 text-center">
+          {WEEKDAYS.map((day) => (
+            <span
+              key={day}
+              className="py-1 text-[10px] font-medium text-gray-400 dark:text-gray-500"
+            >
+              {day}
+            </span>
+          ))}
+          {weeks.map((week, weekIndex) =>
+            week.map((day, dayIndex) => {
+              if (!day) return <span key={`${weekIndex}-${dayIndex}`} />;
+              const iso = toIso(view.year, view.month, day);
+              const isEdge = iso === from || (Boolean(to) && iso === to);
+              const inRange = Boolean(from && to) && iso > from && iso < to;
+              return (
+                <button
+                  key={`${weekIndex}-${dayIndex}`}
+                  type="button"
+                  aria-pressed={isEdge}
+                  onClick={() => handleDayClick(day)}
+                  className={`rounded-lg py-1.5 text-xs transition-colors ${
+                    isEdge
+                      ? "bg-brand-500 font-medium text-white"
+                      : inRange
+                        ? "bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400"
+                        : `text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-905 ${
+                            iso === todayIso
+                              ? "font-semibold text-brand-500 dark:text-brand-400"
+                              : ""
+                          }`
+                  }`}
+                >
+                  {day}
+                </button>
+              );
+            })
+          )}
+        </div>
+      )}
+
+      <div className="mt-2 flex items-center justify-between gap-2 text-xs">
+        <span className="truncate text-gray-500 dark:text-gray-400">
+          {from
+            ? to
+              ? `${formatDisplay(from)} — ${formatDisplay(to)}`
+              : `${formatDisplay(from)} — pick end date`
+            : "Pick a start date"}
+        </span>
+        {(from || to) && (
+          <button
+            type="button"
+            onClick={() => onChange("", "")}
+            className="flex shrink-0 items-center gap-1 text-gray-400 hover:text-red-500"
+          >
+            <LuX className="h-3 w-3" /> Clear
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 /**
  * Date-range filter. Unlike the mock version this drives the server-side
@@ -70,7 +293,7 @@ export function DateDropdown({
       </button>
       {open && (
         <div
-          className={`absolute ${align === "left" ? "left-0" : "right-0"} z-30 mt-2 w-72 rounded-xl border border-gray-200 bg-white p-3 shadow-xl dark:border-gray-700 dark:bg-gray-901`}
+          className={`absolute ${align === "left" ? "left-0" : "right-0"} z-30 mt-2 w-[290px] rounded-xl border border-gray-200 bg-white p-3 shadow-xl dark:border-gray-700 dark:bg-gray-901`}
         >
           {(["all", "7", "30"] as DatePreset[]).map((value) => (
             <button
@@ -93,28 +316,18 @@ export function DateDropdown({
           <p className="mb-2 px-1 text-xs font-semibold text-gray-500 dark:text-gray-400">
             Custom range
           </p>
-          <div className="grid grid-cols-2 gap-2">
-            <label className="text-xs text-gray-500 dark:text-gray-400">
-              From
-              <input
-                type="date"
-                value={from}
-                max={to || undefined}
-                onChange={(event) => onChange("custom", event.target.value, to)}
-                className="mt-1 h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-              />
-            </label>
-            <label className="text-xs text-gray-500 dark:text-gray-400">
-              To
-              <input
-                type="date"
-                value={to}
-                min={from || undefined}
-                onChange={(event) => onChange("custom", from, event.target.value)}
-                className="mt-1 h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-              />
-            </label>
-          </div>
+          <RangeCalendar
+            from={from}
+            to={to}
+            onComplete={() => setOpen(false)}
+            onChange={(nextFrom, nextTo) =>
+              // Clearing the range drops back to the unfiltered preset so the
+              // button stops reading "Custom range" with nothing selected.
+              nextFrom || nextTo
+                ? onChange("custom", nextFrom, nextTo)
+                : onChange("all", "", "")
+            }
+          />
         </div>
       )}
     </div>
