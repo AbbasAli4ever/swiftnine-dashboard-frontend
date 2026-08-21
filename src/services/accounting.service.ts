@@ -333,6 +333,16 @@ export interface RevenueStat {
  * report for a past date still reports today's figures. Any screen showing
  * these against a past date must say so.
  */
+/** A bank account as listed on `/overview`'s balance panels. */
+export interface OverviewBankAccount {
+  id: string;
+  bankName: string;
+  currencyType: Currency;
+  amount: number;
+  /** Nullable — an account without an uploaded logo falls back to initials. */
+  logoUrl?: string | null;
+}
+
 export interface BalanceSummary {
   byAccountType: {
     accountType: AccountType;
@@ -389,6 +399,8 @@ export interface OverviewResponse {
     totalRevenue: number | null;
     totalRevenueUsd: number;
     salesCount: number;
+    /** Nullable — an account without an uploaded logo falls back to initials. */
+    logoUrl?: string | null;
   }[];
   /**
    * All-time revenue grouped by `Transaction.currency`. Transaction-driven.
@@ -401,9 +413,15 @@ export interface OverviewResponse {
     totalUsd: number;
     percent: number;
   }[];
+  /**
+   * Top accounts per type by current balance, capped at 4 each. A narrower
+   * shape than the full `BankAccount` — `/overview` selects only these five
+   * fields, so typing it as `BankAccount` would promise `accountType`,
+   * `createdAt` and `updatedAt` that never arrive.
+   */
   bankAccounts: {
-    local: BankAccount[];
-    international: BankAccount[];
+    local: OverviewBankAccount[];
+    international: OverviewBankAccount[];
   };
   topClients: {
     id: string;

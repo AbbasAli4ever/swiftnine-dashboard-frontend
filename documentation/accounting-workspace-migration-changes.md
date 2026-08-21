@@ -518,3 +518,16 @@ Updated the stale Swagger description on `PATCH /transactions/:id` while touchin
 - `tsc --noEmit`, `eslint` — clean.
 - Live: `POST /transactions` — HBL (LOCAL) + `PKR` → `201`; HBL (LOCAL) + `USD` → `400 "A LOCAL bank account only accepts PKR transactions"`; Whop (INTERNATIONAL) + `HKD` → `201` (unaffected, as intended).
 - Live: `PATCH /transactions/:id` — moving an existing HKD-via-Whop transaction onto HBL (LOCAL) → `400`; changing an existing HBL/PKR transaction's `currency` to `USD` with `bankAccountId` unchanged → `400`; changing that same transaction's `saleAmount` alone (no `bankAccountId`/`currency` in the payload) → `200`, no unnecessary re-validation triggered.
+
+## Follow-up: [2026-08-19] Bank logo added to `/overview`'s bank account fields
+
+`logoUrl` was already available elsewhere (e.g. `GET /bank-accounts`, and embedded in `GET /clients`/`GET /transactions`), but missing from `/overview`. Added to both places `/overview` lists bank accounts:
+
+- **`revenueByBankAccount`** (`getRevenueByBankAccount()`): completed an in-progress edit found on disk — `logoUrl: true` had been added to the Prisma `select` but the mapped return object and the `BankAccountRevenueItem` type weren't updated to match, which failed to compile (`tsc` caught it: "Property 'logoUrl' is missing"). Also fixed the type to `string | null` (a bank account's `logoUrl` is nullable — the in-progress edit had it as `string`, non-nullable, which would have been wrong for every account without a logo).
+- **`bankAccounts.local`/`bankAccounts.international`** (`getBankAccountsByType()`): added the same field for consistency, since this is the other place `/overview` lists bank accounts (current-balance panel) — no reason for one bank-account list on the same endpoint to carry a logo and the other not to.
+
+DTOs updated to match: `BankAccountRevenueItemDto` and `BankAccountItemDto` (`dashboard-overview-response.dto.ts`) both gained `logoUrl` (`ApiPropertyOptional`, nullable).
+
+### Verification
+- `tsc --noEmit`, `eslint` — clean (the pre-existing compile error from the in-progress edit is gone).
+- Live: `GET /overview` — `logoUrl` present (as `null`, since no demo account has one uploaded) on every entry in `revenueByBankAccount`, `bankAccounts.local`, and `bankAccounts.international`.

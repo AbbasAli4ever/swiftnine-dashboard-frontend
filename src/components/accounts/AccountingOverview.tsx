@@ -13,8 +13,8 @@ import {
 import { useAccountingOverview } from "@/hooks/useAccounting";
 import { useInView } from "@/hooks/useInView";
 import type {
-  BankAccount,
   Currency,
+  OverviewBankAccount,
   OverviewPeriod,
   OverviewResponse,
 } from "@/services/accounting.service";
@@ -73,7 +73,7 @@ function findByAccountType(
   return overview?.balances.byAccountType.find((entry) => entry.accountType === accountType) ?? null;
 }
 
-function AccountRowItem({ account }: { account: BankAccount }) {
+function AccountRowItem({ account }: { account: OverviewBankAccount }) {
   return (
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-2.5">
@@ -116,7 +116,12 @@ export default function AccountingOverview() {
   const local = findByAccountType(overview, "LOCAL");
   const international = findByAccountType(overview, "INTERNATIONAL");
 
-  const bankRows = overview?.revenueByBankAccount ?? [];
+  // International accounts only. The API returns every account of both types;
+  // local ones are already covered by the Local Accounts panel below, so
+  // listing them here duplicated them on the same screen.
+  const bankRows = (overview?.revenueByBankAccount ?? []).filter(
+    (row) => row.accountType === "INTERNATIONAL"
+  );
   const currencyRows = overview?.revenueByCurrency ?? [];
   // Bar widths key off the USD figure — `totalRevenue` is nullable when an
   // account holds more than one currency, `totalRevenueUsd` never is.
@@ -376,7 +381,11 @@ export default function AccountingOverview() {
           <div className="no-scrollbar h-[300px] space-y-3 overflow-y-auto pr-1">
             {bankRows.map((row, i) => (
               <div key={row.id} className="group flex items-center gap-3">
-                <BankAvatar bankName={row.bankName} size={24} />
+                <BankAvatar
+                  bankName={row.bankName}
+                  logoUrl={row.logoUrl}
+                  size={24}
+                />
                 <span className="w-20 shrink-0 truncate text-sm text-gray-600 dark:text-gray-300">
                   {row.bankName}
                 </span>
@@ -398,7 +407,9 @@ export default function AccountingOverview() {
               </div>
             ))}
             {bankRows.length === 0 && (
-              <p className="py-6 text-center text-sm text-gray-400">No bank accounts yet.</p>
+              <p className="py-6 text-center text-sm text-gray-400">
+                No international accounts yet.
+              </p>
             )}
           </div>
         </div>
