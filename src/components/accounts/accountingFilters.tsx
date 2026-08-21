@@ -6,6 +6,7 @@ import {
   LuChevronDown,
   LuChevronLeft,
   LuChevronRight,
+  LuChevronUp,
   LuX,
 } from "react-icons/lu";
 
@@ -128,27 +129,47 @@ function RangeCalendar({
       <div className="mb-2 flex items-center justify-between">
         <button
           type="button"
-          aria-label={picking ? "Previous year" : "Previous month"}
-          onClick={() => (picking ? shiftYear(-1) : shiftMonth(-1))}
+          aria-label="Previous month"
+          onClick={() => shiftMonth(-1)}
           className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-905 dark:hover:text-gray-200"
         >
           <LuChevronLeft className="h-4 w-4" />
         </button>
+        {/* The label doubles as the month-grid toggle; the arrows beside it
+            step the year it already displays, so there is no second year
+            readout to keep in sync. */}
+        <span className="flex items-center gap-1">
+          <button
+            type="button"
+            aria-expanded={picking}
+            onClick={() => setPicking((value) => !value)}
+            className="rounded-lg px-2 py-1 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:text-white dark:hover:bg-gray-905"
+          >
+            {MONTHS[view.month]} {view.year}
+          </button>
+          <span className="flex flex-col">
+            <button
+              type="button"
+              aria-label="Next year"
+              onClick={() => shiftYear(1)}
+              className="rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-905 dark:hover:text-gray-200"
+            >
+              <LuChevronUp className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              aria-label="Previous year"
+              onClick={() => shiftYear(-1)}
+              className="rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-905 dark:hover:text-gray-200"
+            >
+              <LuChevronDown className="h-3.5 w-3.5" />
+            </button>
+          </span>
+        </span>
         <button
           type="button"
-          aria-expanded={picking}
-          onClick={() => setPicking((value) => !value)}
-          className="flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:text-white dark:hover:bg-gray-905"
-        >
-          {MONTHS[view.month]} {view.year}
-          <LuChevronDown
-            className={`h-3.5 w-3.5 text-gray-400 transition-transform ${picking ? "rotate-180" : ""}`}
-          />
-        </button>
-        <button
-          type="button"
-          aria-label={picking ? "Next year" : "Next month"}
-          onClick={() => (picking ? shiftYear(1) : shiftMonth(1))}
+          aria-label="Next month"
+          onClick={() => shiftMonth(1)}
           className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-905 dark:hover:text-gray-200"
         >
           <LuChevronRight className="h-4 w-4" />
