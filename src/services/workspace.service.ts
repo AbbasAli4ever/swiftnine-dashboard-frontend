@@ -72,7 +72,7 @@ export interface WorkspaceMember {
    * member has no invite record left to report, so this is `null` for everyone
    * who has actually joined. Backend types it `InviteStatus | null`.
    */
-  inviteStatus: "PENDING" | "ACCEPTED" | "REJECTED" | null;
+  inviteStatus: "PENDING" | "ACCEPTED" | "EXPIRED" | "REVOKED" | null;
   lastActive: string | null;
   invitedBy: string | null;
   invitedOn: string | null;

@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/queries/keys";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { useAuth } from "@/context/AuthContext";
+import { useAccountingRole } from "@/hooks/useAccounting";
 import { parseApiError } from "@/lib/api";
 import { PiExport } from "react-icons/pi";
 import ConfirmActionModal from "@/components/common/ConfirmActionModal";
@@ -125,6 +126,25 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
       .finally(() => setMembersLoading(false));
   }, [activeWorkspace, tab]);
 
+  /**
+   * Owner-gated UI must key off the workspace *role*, not `createdBy`. The
+   * backend authorizes these actions on `WorkspaceMember.role === "OWNER"`
+   * (both `RolesGuard` and `assertActorIsOwner`), and members can be promoted
+   * to OWNER via `changeMemberRole` or an OWNER invite — so keying off the
+   * creator denied promoted owners controls the API would have accepted.
+   *
+   * `createdBy` is consulted *only* while the role is genuinely unknown, so the
+   * creator's own controls don't flicker in on first paint. Once the query
+   * settles — success, 403, or network failure — the server's answer decides.
+   * Testing `workspaceRole === null` instead would be wrong: that value is also
+   * null on failure, which would keep the creator's UI unverified while a
+   * promoted owner lost everything — opposite outcomes from one cause.
+   */
+  const { workspaceRole, isLoading: isRoleLoading } = useAccountingRole();
+  const isOwner = isRoleLoading
+    ? activeWorkspace?.createdBy === user?.id
+    : workspaceRole === "OWNER";
+
   // Token usage for premium members only — standard members are unmetered, so
   // fetching a quota for them would be a wasted request per row. Usage is
   // owner-only information (the backend rejects non-owner reads too), so a
@@ -153,7 +173,10 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
     return () => {
       cancelled = true;
     };
-  }, [activeWorkspace, tab, members]);
+    // `isOwner` now derives from an async role query, so it can flip from false
+    // to true after this effect first runs — it has to be a dependency or the
+    // quota fetch would be skipped permanently for a real owner.
+  }, [activeWorkspace, tab, members, isOwner]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -179,7 +202,6 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
     return () => window.removeEventListener("scroll", handleScroll, true);
   }, [openMenuId]);
 
-  const isOwner = activeWorkspace?.createdBy === user?.id;
   const initial = workspaceInitial(name || activeWorkspace?.name || "W");
 
   const isDirty = useMemo(() => {
