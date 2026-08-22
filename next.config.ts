@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  images: {
+  images: { 
     remotePatterns: [
       { protocol: "https", hostname: "cdn.swiftnine.com" },      
       { protocol: "https", hostname: "*.amazonaws.com" },
@@ -13,7 +13,7 @@ const nextConfig: NextConfig = {
       test: /\.svg$/,
       use: ["@svgr/webpack"],
     });
-    return config;
+    return config;   
   },
 
   turbopack: {
