@@ -4,6 +4,7 @@ export interface AuthUser {
   id: string;
   fullName: string;
   email: string;
+  role?: string | null;
   avatarUrl: string | null;
   avatarColor: string;
 }
@@ -11,7 +12,8 @@ export interface AuthUser {
 interface AuthState {
   accessToken: string | null;
   user: AuthUser | null;
-  setAuth: (token: string, user: AuthUser) => void;
+  role: string | null;
+  setAuth: (token: string, user: AuthUser, role?: string) => void;
   clearAuth: () => void;
 }
 
@@ -92,17 +94,18 @@ function clearTokenFromSession(): void {
 export const useAuthStore = create<AuthState>((set) => ({
   accessToken: readTokenFromSession(),
   user: null,
+  role: null,
 
-  setAuth: (accessToken, user) => {
+  setAuth: (accessToken, user, role) => {
     writeTokenToSession(accessToken);
     markSessionExists();
-    set({ accessToken, user });
+    set({ accessToken, user, role: role ?? null });
   },
 
   clearAuth: () => {
     clearTokenFromSession();
     clearSessionExists();
-    set({ accessToken: null, user: null });
+    set({ accessToken: null, user: null, role: null });
   },
 }));
 

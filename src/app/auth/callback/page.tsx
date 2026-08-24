@@ -22,6 +22,7 @@ function CallbackHandler() {
 
   useEffect(() => {
     const token = searchParams.get("token");
+    const role = searchParams.get("role") ?? undefined;
 
     if (!token) {
       window.location.replace("/signin?error=oauth_failed");
@@ -48,7 +49,7 @@ function CallbackHandler() {
           email: data.email,
           avatarUrl: data.avatarUrl,
           avatarColor: data.avatarColor,
-        });
+        }, role);
         window.location.replace("/");
       })
       .catch(() => {
@@ -60,7 +61,7 @@ function CallbackHandler() {
           email: "",
           avatarUrl: null,
           avatarColor: "#6366f1",
-        });
+        }, role);
         window.location.replace("/");
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
