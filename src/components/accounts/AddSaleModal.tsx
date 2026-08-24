@@ -7,17 +7,22 @@ import { toast } from "sonner";
 import { parseApiError } from "@/lib/api";
 import { useTransactionMutations } from "@/hooks/useAccounting";
 import {
+  COMMISSION_CURRENCIES,
   CURRENCIES,
   LOCAL_CURRENCY,
   transactionCurrenciesForAccountType,
   type BankAccount,
   type ClientSearchResult,
+  type CommissionCurrency,
   type Currency,
+  type EmployeeSearchResult,
 } from "@/services/accounting.service";
 import AccountingSelect from "@/components/accounts/AccountingSelect";
 import ClientPicker from "@/components/accounts/ClientPicker";
 import BankAccountPicker from "@/components/accounts/BankAccountPicker";
+import EmployeePicker from "@/components/accounts/EmployeePicker";
 import CreateClientModal from "@/components/accounts/CreateClientModal";
+import EmployeeFormModal from "@/components/accounts/EmployeeFormModal";
 import {
   formatMoney,
   fromDateInputValue,
@@ -51,8 +56,15 @@ export default function AddSaleModal({
   const [bankError, setBankError] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // Optional: not every sale has an employee/commission attached.
+  const [employee, setEmployee] = useState<EmployeeSearchResult | null>(null);
+  const [commissionAmount, setCommissionAmount] = useState("");
+  const [commissionCurrency, setCommissionCurrency] =
+    useState<CommissionCurrency>("USD");
+
   // Opened from the picker's "Create <term>" row.
   const [createClientName, setCreateClientName] = useState<string | null>(null);
+  const [createEmployeeName, setCreateEmployeeName] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -67,17 +79,22 @@ export default function AddSaleModal({
     setRefIdError("");
     setClientError("");
     setBankError("");
+    setEmployee(null);
+    setCommissionAmount("");
+    setCommissionCurrency("USD");
   }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
-      // Let the nested create-client modal handle Escape while it's open.
-      if (event.key === "Escape" && createClientName === null) onClose();
+      // Let a nested create-client/create-employee modal handle Escape first.
+      if (event.key === "Escape" && createClientName === null && createEmployeeName === null) {
+        onClose();
+      }
     };
     document.addEventListener("keydown", closeOnEscape);
     return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [isOpen, onClose, createClientName]);
+  }, [isOpen, onClose, createClientName, createEmployeeName]);
 
   if (!isOpen) return null;
 
@@ -109,6 +126,19 @@ export default function AddSaleModal({
       setRefIdError("Reference ID is required.");
       return;
     }
+    const trimmedCommission = commissionAmount.trim();
+    let numericCommission: number | undefined;
+    if (trimmedCommission) {
+      if (!employee) {
+        setError("Select an employee before entering a commission.");
+        return;
+      }
+      numericCommission = Number(trimmedCommission);
+      if (!Number.isFinite(numericCommission) || numericCommission < 0) {
+        setError("Enter a commission amount of zero or more.");
+        return;
+      }
+    }
 
     setSaving(true);
     try {
@@ -123,19 +153,25 @@ export default function AddSaleModal({
         currency,
         saleDate: fromDateInputValue(saleDate),
         description: description.trim() || undefined,
+        employeeId: employee?.id,
+        commissionAmount: numericCommission,
+        commissionCurrency: numericCommission !== undefined ? commissionCurrency : undefined,
       });
       toast.success("Sale recorded");
       onClose();
     } catch (err) {
       const { message, code } = parseApiError(err);
-      // 409 is always a duplicate refId; 404 means the client vanished mid-flow.
+      // 409 is always a duplicate refId; 404 means the client/bank
+      // account/employee vanished mid-flow.
       if (code === "CONFLICT") {
         setRefIdError("This reference ID is already used.");
       } else if (code === "NOT_FOUND") {
-        // 404 covers both the client and the bank account disappearing.
         if (message.toLowerCase().includes("bank")) {
           setBankError("This bank account no longer exists. Pick another.");
           setBankAccount(null);
+        } else if (message.toLowerCase().includes("employee")) {
+          setError("This employee no longer exists. Pick another.");
+          setEmployee(null);
         } else {
           setClientError("This client no longer exists. Pick another.");
           setClient(null);
@@ -151,7 +187,7 @@ export default function AddSaleModal({
   return createPortal(
     <>
       <div
-        className="fixed inset-0 z-[10000] flex items-center justify-center overflow-y-auto p-4"
+        className="fixed inset-0 z-[10000] flex items-center justify-center p-4"
         role="dialog"
         aria-modal="true"
         aria-labelledby="add-sale-title"
@@ -162,25 +198,33 @@ export default function AddSaleModal({
           onClick={onClose}
           className="fixed inset-0 bg-black/45 backdrop-blur-[2px]"
         />
+        {/* Capped at the viewport with the field area as the only scrolling
+            region, so the header and Save button stay reachable however many
+            fields the form grows to (Employee/Commission added on top of the
+            original set). */}
         <form
           onSubmit={submit}
-          className="relative z-10 my-auto w-full max-w-[448px] rounded-[22px] bg-white p-6 shadow-2xl dark:border dark:border-gray-800 dark:bg-gray-950"
+          className="relative z-10 flex max-h-[calc(100vh-4rem)] w-full max-w-[448px] flex-col overflow-hidden rounded-[22px] bg-white shadow-2xl dark:border dark:border-gray-800 dark:bg-gray-950"
         >
-          <button
-            type="button"
-            aria-label="Close"
-            onClick={onClose}
-            className="absolute right-6 top-5 flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800"
-          >
-            <LuX className="h-4 w-4" />
-          </button>
-          <h2
-            id="add-sale-title"
-            className="text-base font-semibold text-gray-900 dark:text-gray-100"
-          >
-            Add Sale
-          </h2>
-          <p className="mt-9 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+          <div className="flex shrink-0 items-center justify-between border-b border-gray-100 p-6 pb-4 dark:border-gray-800">
+            <h2
+              id="add-sale-title"
+              className="text-base font-semibold text-gray-900 dark:text-gray-100"
+            >
+              Add Sale
+            </h2>
+            <button
+              type="button"
+              aria-label="Close"
+              onClick={onClose}
+              className="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800"
+            >
+              <LuX className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-800">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
             Sale Information
           </p>
 
@@ -264,6 +308,53 @@ export default function AddSaleModal({
           </div>
 
           <p className="mt-5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+            Commission (optional)
+          </p>
+          <div className="mt-3">
+            <EmployeePicker
+              value={employee}
+              onChange={(next) => {
+                setEmployee(next);
+                // A commission can't exist without an employee, so clearing
+                // the employee clears whatever commission was entered too.
+                if (!next) {
+                  setCommissionAmount("");
+                  setCommissionCurrency("USD");
+                }
+              }}
+              onCreateRequest={setCreateEmployeeName}
+            />
+          </div>
+          {employee && (
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                Commission Amount
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={commissionAmount}
+                  onChange={(event) => setCommissionAmount(event.target.value)}
+                  placeholder="0.00"
+                  className="mt-1.5 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm font-normal text-gray-700 outline-none placeholder:text-gray-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                />
+              </label>
+              <div className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                Commission Currency
+                <AccountingSelect
+                  label="Commission Currency"
+                  value={commissionCurrency}
+                  options={COMMISSION_CURRENCIES.map((code) => ({
+                    value: code,
+                    label: code,
+                  }))}
+                  onChange={(next) => setCommissionCurrency(next as CommissionCurrency)}
+                />
+              </div>
+            </div>
+          )}
+
+          <p className="mt-5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
             Reference Information
           </p>
           <label className="mt-3 block text-xs font-medium text-gray-600 dark:text-gray-300">
@@ -311,26 +402,30 @@ export default function AddSaleModal({
               </>
             )}
           </div>
-          {error && (
-            <p role="alert" className="mt-2 text-sm text-red-500">
-              {error}
-            </p>
-          )}
-          <div className="mt-9 grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="h-11 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="h-11 rounded-lg bg-[linear-gradient(90deg,#6547f7_0%,#7c2cf3_100%)] text-sm font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {saving ? "Saving..." : "Save Sale"}
-            </button>
+          </div>
+
+          <div className="shrink-0 border-t border-gray-100 p-6 pt-4 dark:border-gray-800">
+            {error && (
+              <p role="alert" className="mb-3 text-sm text-red-500">
+                {error}
+              </p>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="h-11 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="h-11 rounded-lg bg-[linear-gradient(90deg,#6547f7_0%,#7c2cf3_100%)] text-sm font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {saving ? "Saving..." : "Save Sale"}
+              </button>
+            </div>
           </div>
         </form>
       </div>
@@ -344,6 +439,15 @@ export default function AddSaleModal({
           setClient({ id: created.id, clientName: created.clientName });
           setClientError("");
           setCreateClientName(null);
+        }}
+      />
+      <EmployeeFormModal
+        isOpen={createEmployeeName !== null}
+        initialName={createEmployeeName ?? ""}
+        onClose={() => setCreateEmployeeName(null)}
+        onSaved={(created) => {
+          setEmployee({ id: created.id, name: created.name });
+          setCreateEmployeeName(null);
         }}
       />
     </>,

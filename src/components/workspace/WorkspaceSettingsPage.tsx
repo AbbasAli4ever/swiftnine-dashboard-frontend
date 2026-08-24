@@ -56,6 +56,17 @@ function workspaceInitial(name: string) {
 }
 
 /**
+ * Display-only labels. The underlying values stay CEO/ACCOUNTANT (that's
+ * what the API sends and accepts) — "CEO" and "Accountant" just aren't
+ * meaningful labels to someone reading this table, so relabel to what they
+ * actually mean: CEO is read-only, ACCOUNTANT is read + write.
+ */
+const ACCOUNTING_ROLE_LABELS: Record<AccountingRole, string> = {
+  CEO: "Read Only",
+  ACCOUNTANT: "Read & Write",
+};
+
+/**
  * Whether an accounting role can be assigned to this row.
  *
  * `PUT /organizations/members/:id/accounting-role` writes to a `WorkspaceMember`
@@ -305,7 +316,7 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
       );
       toast.success(
         accountingRole
-          ? `${member.fullName} is now ${accountingRole === "CEO" ? "CEO" : "an Accountant"}`
+          ? `${member.fullName} now has ${ACCOUNTING_ROLE_LABELS[accountingRole]} accounting access`
           : `Accounting access removed for ${member.fullName}`
       );
       // An OWNER can change their own role, and the accounting rail/menus read
@@ -536,8 +547,14 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
                                 an accounting role, and only *pending* invites
                                 carry an inviteStatus — an accepted member's is
                                 null. So the test is "not pending", not
-                                "=== ACCEPTED", which never matches. */}
-                            {isOwner && isAccountingRoleAssignable(member) ? (
+                                "=== ACCEPTED", which never matches.
+
+                                Gated on isPlatformAdmin, not isOwner/isOwner-of-
+                                this-workspace: granting accounting access is a
+                                company-level decision, not a workspace one, and
+                                the backend guard (PlatformAdminGuard) no longer
+                                checks workspace OWNER at all for this action. */}
+                            {user?.isPlatformAdmin && isAccountingRoleAssignable(member) ? (
                               <select
                                 aria-label={`Accounting access for ${member.fullName}`}
                                 value={member.accountingRole ?? ""}
@@ -550,8 +567,8 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
                                 className="rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
                               >
                                 <option value="">No access</option>
-                                <option value="ACCOUNTANT">Accountant</option>
-                                <option value="CEO">CEO</option>
+                                <option value="ACCOUNTANT">{ACCOUNTING_ROLE_LABELS.ACCOUNTANT}</option>
+                                <option value="CEO">{ACCOUNTING_ROLE_LABELS.CEO}</option>
                               </select>
                             ) : (
                               <span
@@ -566,11 +583,9 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
                                     : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
                                 }`}
                               >
-                                {member.accountingRole === "ACCOUNTANT"
-                                  ? "Accountant"
-                                  : member.accountingRole === "CEO"
-                                    ? "CEO"
-                                    : "—"}
+                                {member.accountingRole
+                                  ? ACCOUNTING_ROLE_LABELS[member.accountingRole]
+                                  : "—"}
                               </span>
                             )}
                           </td>

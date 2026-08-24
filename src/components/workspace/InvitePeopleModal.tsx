@@ -2,15 +2,11 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { LuCalculator, LuChevronDown, LuChevronUp, LuUserPlus, LuX } from "react-icons/lu";
+import { LuChevronDown, LuChevronUp, LuUserPlus, LuX } from "react-icons/lu";
 import { toast } from "sonner";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { parseApiError } from "@/lib/api";
-import {
-  workspaceService,
-  WorkspaceInviteRole,
-  type AccountingRole,
-} from "@/services/workspace.service";
+import { workspaceService, WorkspaceInviteRole } from "@/services/workspace.service";
 
 interface InvitePeopleModalProps {
   isOpen: boolean;
@@ -33,32 +29,6 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  */
 type UiRoleKey = "MEMBER" | "OWNER";
 
-/**
- * Accounting access, independent of the workspace role above — the two are
- * separate fields on the same membership. `null` means no accounting access.
- */
-const ACCOUNTING_ROLE_OPTIONS: Array<{
-  key: AccountingRole | null;
-  label: string;
-  description: string;
-}> = [
-  {
-    key: null,
-    label: "No access",
-    description: "Can't open the accounting area.",
-  },
-  {
-    key: "ACCOUNTANT",
-    label: "Accountant",
-    description: "Full access: can add sales, clients and bank accounts.",
-  },
-  {
-    key: "CEO",
-    label: "CEO",
-    description: "Read-only: sees the overview, can't enter or edit data.",
-  },
-];
-
 const ROLE_OPTIONS: Array<{
   key: UiRoleKey;
   label: string;
@@ -73,8 +43,7 @@ const ROLE_OPTIONS: Array<{
   {
     key: "OWNER",
     label: "Owner",
-    description:
-      "Full control: manages People, billing, workspace settings and accounting access.",
+    description: "Full control: manages People, billing and workspace settings.",
   },
 ];
 
@@ -98,21 +67,16 @@ export default function InvitePeopleModal({
   const { activeWorkspace } = useWorkspace();
   const [emailsInput, setEmailsInput] = useState("");
   const [selectedRole, setSelectedRole] = useState<UiRoleKey>("MEMBER");
-  const [accountingRole, setAccountingRole] = useState<AccountingRole | null>(null);
   const [isRoleOpen, setIsRoleOpen] = useState(false);
-  const [isAccountingOpen, setIsAccountingOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [inputError, setInputError] = useState<string | null>(null);
   const roleMenuRef = useRef<HTMLDivElement>(null);
-  const accountingMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isOpen) return;
     setEmailsInput("");
     setSelectedRole("MEMBER");
-    setAccountingRole(null);
     setIsRoleOpen(false);
-    setIsAccountingOpen(false);
     setInputError(null);
   }, [isOpen]);
 
@@ -121,10 +85,9 @@ export default function InvitePeopleModal({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !isSending) {
         // Escape closes an open dropdown first, and only closes the modal
-        // itself once neither is open.
-        if (isRoleOpen || isAccountingOpen) {
+        // itself once it isn't open.
+        if (isRoleOpen) {
           setIsRoleOpen(false);
-          setIsAccountingOpen(false);
           return;
         }
         onClose();
@@ -132,24 +95,20 @@ export default function InvitePeopleModal({
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [isOpen, isRoleOpen, isAccountingOpen, isSending, onClose]);
+  }, [isOpen, isRoleOpen, isSending, onClose]);
 
   useEffect(() => {
-    if (!isOpen || (!isRoleOpen && !isAccountingOpen)) return;
+    if (!isOpen || !isRoleOpen) return;
     const onMouseDown = (event: MouseEvent) => {
       const target = event.target as Node;
       if (!roleMenuRef.current?.contains(target)) setIsRoleOpen(false);
-      if (!accountingMenuRef.current?.contains(target)) setIsAccountingOpen(false);
     };
     document.addEventListener("mousedown", onMouseDown);
     return () => document.removeEventListener("mousedown", onMouseDown);
-  }, [isOpen, isRoleOpen, isAccountingOpen]);
+  }, [isOpen, isRoleOpen]);
 
   const parsedEmails = useMemo(() => parseEmails(emailsInput), [emailsInput]);
   const currentRole = ROLE_OPTIONS.find((r) => r.key === selectedRole) ?? ROLE_OPTIONS[0];
-  const currentAccounting =
-    ACCOUNTING_ROLE_OPTIONS.find((option) => option.key === accountingRole) ??
-    ACCOUNTING_ROLE_OPTIONS[0];
   // 1:1 with the API now that the UI only offers roles it accepts — no
   // translation layer to drift out of sync.
   const backendRole: WorkspaceInviteRole = selectedRole;
@@ -181,7 +140,6 @@ export default function InvitePeopleModal({
           workspaceService.invite(activeWorkspace.id, {
             email,
             role: backendRole,
-            accountingRole,
           })
         )
       );
@@ -272,10 +230,7 @@ export default function InvitePeopleModal({
           </p>
           <button
             type="button"
-            onClick={() => {
-              setIsRoleOpen((v) => !v);
-              setIsAccountingOpen(false);
-            }}
+            onClick={() => setIsRoleOpen((v) => !v)}
             className="flex w-full items-start gap-2 rounded-md border border-gray-200 bg-gray-50 p-2 text-left hover:border-violet-300 dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-gray-000"
           >
             <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-gray-200 text-gray-600 dark:bg-white/10 dark:text-gray-300">
@@ -341,91 +296,6 @@ export default function InvitePeopleModal({
 
           <p className="mt-1.5 text-[10px] text-gray-500 dark:text-gray-400">
             Workspace: {activeWorkspace?.name ?? "No workspace selected"}
-          </p>
-        </div>
-
-        {/* Separate from the workspace role above: the two are independent
-            fields on the same membership. An Admin isn't automatically a CEO,
-            and a plain Member can be an Accountant. */}
-        <div className="mt-3">
-          <p className="mb-1.5 text-xs font-normal text-gray-700 dark:text-gray-300">
-            Accounting access
-          </p>
-          <div className="relative" ref={accountingMenuRef}>
-            <button
-              type="button"
-              aria-haspopup="listbox"
-              aria-expanded={isAccountingOpen}
-              onClick={() => {
-                setIsAccountingOpen((v) => !v);
-                setIsRoleOpen(false);
-              }}
-              className="flex w-full items-start gap-2 rounded-md border border-gray-200 bg-gray-50 p-2 text-left hover:border-violet-300 dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-gray-000"
-            >
-              <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-gray-200 text-gray-600 dark:bg-white/10 dark:text-gray-300">
-                <LuCalculator className="h-3.5 w-3.5" />
-              </div>
-              <div className="flex-1">
-                <p className="text-base font-normal leading-none text-gray-900 dark:text-white">
-                  {currentAccounting.label}
-                </p>
-                <p className="mt-1 text-[11px] text-gray-600 dark:text-gray-400">
-                  {currentAccounting.description}
-                </p>
-              </div>
-              {isAccountingOpen ? (
-                <LuChevronUp className="mt-1 h-3.5 w-3.5 text-gray-500 dark:text-gray-400" />
-              ) : (
-                <LuChevronDown className="mt-1 h-3.5 w-3.5 text-gray-500 dark:text-gray-400" />
-              )}
-            </button>
-
-            {isAccountingOpen && (
-              <div
-                role="listbox"
-                aria-label="Accounting access"
-                className="absolute left-0 right-0 top-[calc(100%+6px)] z-20 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900"
-              >
-                <div className="border-b border-gray-200 px-3 py-2.5 dark:border-gray-800">
-                  <p className="text-xs font-normal text-gray-900 dark:text-gray-100">
-                    {currentAccounting.label}
-                  </p>
-                  <p className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">
-                    {currentAccounting.description}
-                  </p>
-                </div>
-
-                <div className="max-h-56 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-200 dark:[&::-webkit-scrollbar-thumb]:bg-gray-800">
-                  {ACCOUNTING_ROLE_OPTIONS.filter(
-                    (option) => option.key !== accountingRole
-                  ).map((option) => (
-                    <button
-                      key={option.key ?? "NONE"}
-                      type="button"
-                      role="option"
-                      aria-selected={false}
-                      onClick={() => {
-                        setAccountingRole(option.key);
-                        setIsAccountingOpen(false);
-                      }}
-                      className="w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800/70"
-                    >
-                      <p className="text-xs font-normal text-gray-900 dark:text-gray-100">
-                        {option.label}
-                      </p>
-                      <p className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">
-                        {option.description}
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-          <p className="mt-1.5 text-[10px] text-gray-500 dark:text-gray-400">
-            {accountingRole
-              ? "Applied when the invite is accepted."
-              : "Can also be granted later in People settings."}
           </p>
         </div>
 

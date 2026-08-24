@@ -7,6 +7,10 @@ export interface AuthUser {
   role?: string | null;
   avatarUrl: string | null;
   avatarColor: string;
+  /** Company-wide flag, not workspace-scoped. Only true for the platform
+   *  admin (set directly in the DB); gates the accounting-access dropdown
+   *  in Workspace Settings. */
+  isPlatformAdmin?: boolean;
 }
 
 interface AuthState {

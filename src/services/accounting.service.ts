@@ -62,6 +62,14 @@ export type AccountType = (typeof ACCOUNT_TYPES)[number];
 export const LOCAL_CURRENCY = "PKR" satisfies Currency;
 
 /**
+ * Commission is always paid in USD or PKR, independent of whatever currency
+ * the sale itself settled in — a narrower list than `CURRENCIES`. Source of
+ * truth is `COMMISSION_CURRENCY_VALUES` in `transaction.constants.ts`.
+ */
+export const COMMISSION_CURRENCIES = ["USD", "PKR"] as const;
+export type CommissionCurrency = (typeof COMMISSION_CURRENCIES)[number];
+
+/**
  * Currencies a **bank account itself** can be denominated in. INTERNATIONAL
  * excludes PKR, since a PKR-denominated account is by definition a local one.
  * Frontend convention only — the API accepts any pairing.
@@ -143,6 +151,43 @@ export interface ClientSearchResult {
   clientName: string;
 }
 
+/** An employee's nested transaction, as returned by `GET /employees`. */
+export interface EmployeeTransaction {
+  id: string;
+  saleAmount: number;
+  currency: Currency;
+  /** Manually entered — never computed from saleAmount. Null when this sale
+   *  carries no commission. */
+  commissionAmount: number | null;
+  commissionCurrency: CommissionCurrency | null;
+  refId: string;
+  description: string | null;
+  saleDate: string;
+  createdAt: string;
+  updatedAt: string;
+  client: { id: string; clientName: string };
+}
+
+export interface AccountingEmployee {
+  id: string;
+  name: string;
+  _count: { transactions: number };
+  /** Summed from this employee's transactions, grouped by commission currency. */
+  totalCommission: CurrencyTotal[];
+  createdAt: string;
+  updatedAt: string;
+  /** `GET /employees` embeds every linked transaction on each row, same as
+   *  `GET /clients` — unpaginated by design. Optional so an older API build
+   *  degrades to an empty list rather than crashing the table. */
+  transactions?: EmployeeTransaction[];
+}
+
+/** Minimal shape returned by `GET /employees/search`. */
+export interface EmployeeSearchResult {
+  id: string;
+  name: string;
+}
+
 export interface AccountingTransaction {
   id: string;
   clientId: string;
@@ -161,6 +206,14 @@ export interface AccountingTransaction {
   client?: { id: string; clientName: string };
   /** `logoUrl` may be absent on older responses — fall back to initials. */
   bankAccount?: { id: string; bankName: string; logoUrl?: string | null };
+  /** Who gets credited for this sale. Null on most historical transactions —
+   *  not every sale has an employee attached. */
+  employeeId?: string | null;
+  employee?: { id: string; name: string } | null;
+  /** Manually entered — never computed from saleAmount. Both null together,
+   *  or both set together; never just one. */
+  commissionAmount?: number | null;
+  commissionCurrency?: CommissionCurrency | null;
 }
 
 export interface BankAccount {
@@ -202,6 +255,12 @@ export interface CreateTransactionPayload {
   /** ISO datetime. Omit to default to now; set it to backdate a late entry. */
   saleDate?: string;
   description?: string;
+  /** Who gets credited for this sale. Optional — not every sale has one. */
+  employeeId?: string;
+  /** Manually entered — never computed from saleAmount. Must be sent together
+   *  with `commissionCurrency`, and only alongside `employeeId`. */
+  commissionAmount?: number;
+  commissionCurrency?: CommissionCurrency;
 }
 
 export interface UpdateTransactionPayload {
@@ -216,6 +275,19 @@ export interface UpdateTransactionPayload {
   currency?: Currency;
   saleDate?: string;
   description?: string;
+  /** Send `null` to clear the assignment — this also clears any commission,
+   *  since a commission can't exist without an employee. */
+  employeeId?: string | null;
+  commissionAmount?: number | null;
+  commissionCurrency?: CommissionCurrency | null;
+}
+
+export interface CreateEmployeePayload {
+  name: string;
+}
+
+export interface UpdateEmployeePayload {
+  name: string;
 }
 
 export interface CreateBankAccountPayload {
@@ -256,6 +328,10 @@ interface BaseListParams {
 
 export interface ClientListParams extends BaseListParams {
   sortBy?: "clientName" | "createdAt" | "updatedAt";
+}
+
+export interface EmployeeListParams extends BaseListParams {
+  sortBy?: "name" | "createdAt" | "updatedAt";
 }
 
 export interface TransactionListParams extends BaseListParams {
@@ -485,6 +561,41 @@ export const clientService = {
 
   /** Rejects with 409 if the client still has transactions. */
   delete: (clientId: string) => api.delete(`/clients/${clientId}`),
+};
+
+export const employeeService = {
+  list: (params?: EmployeeListParams) =>
+    api
+      .get<PaginatedApiWrapper<AccountingEmployee[]>>("/employees", {
+        params: serializeParams(params),
+      })
+      .then((r) => ({ items: r.data.data, meta: r.data.meta })),
+
+  /** Word-order-independent name search. Returns a plain array, not paginated. */
+  search: (q: string) =>
+    api
+      .get<ApiWrapper<EmployeeSearchResult[]>>("/employees/search", {
+        params: { q },
+      })
+      .then((r) => r.data.data),
+
+  get: (employeeId: string) =>
+    api
+      .get<ApiWrapper<AccountingEmployee>>(`/employees/${employeeId}`)
+      .then((r) => r.data.data),
+
+  create: (payload: CreateEmployeePayload) =>
+    api
+      .post<ApiWrapper<AccountingEmployee>>("/employees", payload)
+      .then((r) => r.data.data),
+
+  update: (employeeId: string, payload: UpdateEmployeePayload) =>
+    api
+      .patch<ApiWrapper<AccountingEmployee>>(`/employees/${employeeId}`, payload)
+      .then((r) => r.data.data),
+
+  /** Rejects with 409 if the employee still has transactions. */
+  delete: (employeeId: string) => api.delete(`/employees/${employeeId}`),
 };
 
 export const transactionService = {
