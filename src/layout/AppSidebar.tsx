@@ -68,10 +68,10 @@ type RailItem = {
 };
 
 const railItems: RailItem[] = [
-  { id: "lms",  label: "UNI",  icon: <LuBookOpen className="w-5 h-5" />,      panel: "lms" },
-  { id: "home", label: "Board", icon: <LuKanban className="w-5 h-5" />, panel: "home" },
-  { id: "chatbot", label: "SwiftBot", icon: <LuBotMessageSquare className="w-5 h-5" />, panel: "chatbot" },
   { id: "accounts", label: "Accounts", icon: <LuLandmark className="w-5 h-5" />, panel: "accounts" },
+  { id: "home", label: "Board", icon: <LuKanban className="w-5 h-5" />, panel: "home" },
+  { id: "lms",  label: "UNI",  icon: <LuBookOpen className="w-5 h-5" />,      panel: "lms" },
+  { id: "chatbot", label: "SwiftBot", icon: <LuBotMessageSquare className="w-5 h-5" />, panel: "chatbot" },
 ];
 
 type AccountingNavItem = {
