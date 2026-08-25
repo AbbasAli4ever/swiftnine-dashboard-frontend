@@ -170,11 +170,17 @@ export default function AccountingOverview() {
 
   const kpiCards = [
     {
-      label: "Today's Revenue",
+      // The `today` key is a misnomer the backend kept deliberately: renaming
+      // it would have made the field vanish from un-updated clients rather
+      // than merely change value. It carries *yesterday's* revenue, compared
+      // against the day before — two complete days, so the figure no longer
+      // reads as a large morning drop from comparing a partial day to a whole
+      // one.
+      label: "Yesterday's Revenue",
       value: revenueSummary.today.totalUsd,
       valuePrefix: "USD ",
       changePercent: revenueSummary.today.changePercent,
-      comparison: "vs yesterday",
+      comparison: "vs the day before",
     },
     {
       label: "This Month's Revenue",
@@ -480,7 +486,8 @@ export default function AccountingOverview() {
           <thead>
             <tr className="border-b border-gray-100 text-left text-xs uppercase tracking-wide text-gray-400 dark:border-gray-800">
               <th className="pb-2 font-normal">Client</th>
-              <th className="pb-2 text-right font-normal">Total Revenue</th>
+              <th className="pb-2 text-right font-normal">Sales</th>
+              <th className="pb-2 text-right font-normal">Total Revenue (USD)</th>
             </tr>
           </thead>
           <tbody>
@@ -497,15 +504,23 @@ export default function AccountingOverview() {
                     </span>
                   </div>
                 </td>
+                <td className="py-3 text-right text-sm text-gray-500 dark:text-gray-400">
+                  {client.salesCount}
+                </td>
+                {/* `totalRevenueUsd`, never `totalRevenue` — the latter is null
+                    unless every one of the client's sales shares a currency,
+                    and would render as "NaN" the moment one doesn't. */}
                 <td className="py-3 text-right text-sm font-medium text-gray-800 dark:text-gray-100">
-                  {formatMoney(client.currencyType ?? "USD", client.totalRevenue)}
+                  {formatMoney("USD", client.totalRevenueUsd)}
                 </td>
               </tr>
             ))}
+            {/* Clients with no transactions are absent rather than zero-filled,
+                so this list can be short or empty. */}
             {overview.topClients.length === 0 && (
               <tr>
-                <td colSpan={2} className="py-6 text-center text-sm text-gray-400">
-                  No clients yet.
+                <td colSpan={3} className="py-6 text-center text-sm text-gray-400">
+                  No client sales yet.
                 </td>
               </tr>
             )}

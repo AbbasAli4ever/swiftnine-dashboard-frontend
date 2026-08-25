@@ -54,6 +54,7 @@ import {
   LuKanban,
   LuBriefcase,
   LuBriefcaseBusiness,
+  LuStore,
   LuLandmark,
   LuArrowLeft,
 } from "react-icons/lu";
@@ -86,6 +87,7 @@ const accountingNavItems: AccountingNavItem[] = [
   { label: "Transactions",       path: "/accounts/transactions", icon: LuKanban },
   { label: "Clients",            path: "/accounts/clients",     icon: LuUsers },
   { label: "Employees",          path: "/accounts/employees",  icon: LuBriefcaseBusiness },
+  { label: "Vendors",            path: "/accounts/vendors",    icon: LuStore },
   { label: "Accounts & Balances", path: "/accounts/balances",   icon: LuBriefcase },
   { label: "Reports",            path: "/accounts/reports",     icon: LuBookOpen },
 ];

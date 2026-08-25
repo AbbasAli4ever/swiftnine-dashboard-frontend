@@ -3,10 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
+  LuChevronDown,
   LuChevronLeft,
   LuChevronRight,
   LuCoins,
   LuDatabase,
+  LuFileSpreadsheet,
+  LuFileText,
   LuLoaderCircle,
   LuUpload,
   LuWallet,
@@ -24,6 +27,7 @@ import {
   type AccountType,
   type ClientSearchResult,
   type Currency,
+  type ReportExportFormat,
   type ReportFilters,
 } from "@/services/accounting.service";
 import {
@@ -46,6 +50,28 @@ const TABLE_HEADER_HEIGHT = 40;
 const CARD_TITLE_BAR_HEIGHT = 48;
 const CARD_BORDER_HEIGHT = 2;
 const PAGINATION_ROW_HEIGHT = 44;
+
+/** The two export routes, which take identical params and differ only in the
+ *  file they return. */
+const EXPORT_FORMATS: {
+  format: ReportExportFormat;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  iconClass: string;
+}[] = [
+  {
+    format: "xlsx",
+    label: "Export as Excel",
+    icon: LuFileSpreadsheet,
+    iconClass: "text-emerald-600 dark:text-emerald-400",
+  },
+  {
+    format: "pdf",
+    label: "Export as PDF",
+    icon: LuFileText,
+    iconClass: "text-red-500 dark:text-red-400",
+  },
+];
 
 /** "Payment Platform" in the UI — the account's type is what carries that
  *  meaning now that `PaymentPlatform` is gone from the data model. */
@@ -157,11 +183,26 @@ export default function ReportsView() {
 
   const { transactions, meta, isLoading, error } = useAccountingTransactions(params);
   const { bankAccounts } = useBankAccounts({ limit: 100 });
-  const { exportReport, isExporting } = useReportExport();
+  const { exportReport, exportingFormat, isExporting } = useReportExport();
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (error) toast.error(error);
   }, [error]);
+
+  // Dismiss the format menu on an outside click, the same as the filter
+  // dropdowns beside it.
+  useEffect(() => {
+    if (!exportMenuOpen) return;
+    const close = (event: MouseEvent) => {
+      if (!exportMenuRef.current?.contains(event.target as Node)) {
+        setExportMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [exportMenuOpen]);
 
   const total = meta?.total ?? transactions.length;
   const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1;
@@ -172,9 +213,11 @@ export default function ReportsView() {
   const droppedFilters =
     bankAccountIds.length > 1 ? ["Account"] : ([] as string[]);
 
-  const handleExport = async () => {
+  const handleExport = async (format: ReportExportFormat) => {
+    setExportMenuOpen(false);
     // Mirrors the table's query exactly — the export takes the same filter set
     // as `GET /transactions`, including comma-separated currency/accountType.
+    // Both formats accept identical params, so this is shared.
     const filters: ReportFilters = {
       ...(clientId ? { clientId } : {}),
       ...(accountTypes.length ? { accountType: accountTypes } : {}),
@@ -190,8 +233,10 @@ export default function ReportsView() {
     const from = dateRange.from ?? isoDaysBefore(to, REPORTS_MAX_RANGE_DAYS);
 
     try {
-      await exportReport(from, to, filters);
-      toast.success("Report downloaded");
+      await exportReport(from, to, filters, format);
+      toast.success(
+        format === "pdf" ? "PDF downloaded" : "Excel file downloaded"
+      );
     } catch (err) {
       toast.error(parseApiError(err).message);
     }
@@ -249,20 +294,69 @@ export default function ReportsView() {
             bankAccounts.find((account) => account.id === id)?.bankName ?? "Account"
           }
         />
-        <button
-          type="button"
-          onClick={handleExport}
-          disabled={isExporting}
-          title="Download the filtered report as .xlsx"
-          className="ml-auto flex h-10 shrink-0 items-center gap-2 rounded-xl border border-brand-500 bg-white px-4 text-sm font-medium text-brand-500 shadow-sm transition-colors hover:bg-brand-500/5 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-gray-901 dark:hover:bg-brand-500/10"
-        >
-          {isExporting ? (
-            <LuLoaderCircle className="h-4 w-4 animate-spin" />
-          ) : (
-            <LuUpload className="h-4 w-4" />
-          )}
-          {isExporting ? "Exporting…" : "Export Report"}
-        </button>
+        <div ref={exportMenuRef} className="relative ml-auto shrink-0">
+          <button
+            type="button"
+            aria-haspopup="menu"
+            aria-expanded={exportMenuOpen}
+            onClick={() => setExportMenuOpen((open) => !open)}
+            disabled={isExporting}
+            title="Download the filtered report"
+            className="flex h-10 items-center gap-2 rounded-xl border border-brand-500 bg-white px-4 text-sm font-medium text-brand-500 shadow-sm transition-colors hover:bg-brand-500/5 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-gray-901 dark:hover:bg-brand-500/10"
+          >
+            {isExporting ? (
+              <LuLoaderCircle className="h-4 w-4 animate-spin" />
+            ) : (
+              <LuUpload className="h-4 w-4" />
+            )}
+            {isExporting ? "Exporting…" : "Export Report"}
+            <LuChevronDown
+              className={`h-4 w-4 transition-transform duration-200 ${
+                exportMenuOpen ? "rotate-180" : ""
+              }`}
+            />
+          </button>
+
+          {/* Kept mounted and collapsed rather than unmounted, so the rows can
+              animate out as well as in. `pointer-events-none` while closed
+              stops the hidden rows swallowing clicks on the table beneath. */}
+          <div
+            role="menu"
+            aria-label="Export format"
+            className={`absolute right-0 top-full z-30 mt-2 w-[190px] origin-top rounded-xl border border-gray-200 bg-white p-1.5 shadow-xl transition-all duration-200 ease-out dark:border-gray-700 dark:bg-gray-901 ${
+              exportMenuOpen
+                ? "visible translate-y-0 scale-100 opacity-100"
+                : "invisible pointer-events-none -translate-y-1 scale-95 opacity-0"
+            }`}
+          >
+            {EXPORT_FORMATS.map((option, index) => (
+              <button
+                key={option.format}
+                type="button"
+                role="menuitem"
+                disabled={isExporting}
+                onClick={() => handleExport(option.format)}
+                // Staggered so the rows cascade rather than appearing as one
+                // block; the delay only applies on the way in.
+                style={{
+                  transitionDelay: exportMenuOpen ? `${index * 45}ms` : "0ms",
+                }}
+                className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm text-gray-700 transition-all duration-200 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:text-gray-300 dark:hover:bg-gray-905 ${
+                  exportMenuOpen
+                    ? "translate-y-0 opacity-100"
+                    : "-translate-y-1 opacity-0"
+                }`}
+              >
+                {exportingFormat === option.format ? (
+                  <LuLoaderCircle className="h-4 w-4 shrink-0 animate-spin text-brand-500" />
+                ) : (
+                  <option.icon className={`h-4 w-4 shrink-0 ${option.iconClass}`} />
+                )}
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {droppedFilters.length > 0 && (
@@ -287,10 +381,10 @@ export default function ReportsView() {
               <thead className="sticky top-0 z-10 bg-white shadow-[0_1px_0_0_var(--color-gray-200)] dark:bg-gray-901 dark:shadow-[0_1px_0_0_var(--color-gray-800)]">
                 <tr className="h-10 text-xs font-normal text-gray-400">
                   <th className="w-[14%] px-5 font-normal">Date</th>
-                  <th className="w-[20%] px-5 font-normal">Revenue</th>
-                  <th className="w-[12%] px-5 font-normal">Currency</th>
                   <th className="w-[28%] px-5 font-normal">Client</th>
                   <th className="w-[26%] px-5 font-normal">Bank</th>
+                  <th className="w-[12%] px-5 font-normal">Currency</th>
+                  <th className="w-[20%] px-5 font-normal">Amount</th>
                 </tr>
               </thead>
               <tbody>
@@ -306,12 +400,6 @@ export default function ReportsView() {
                     >
                       {formatIsoDate(transaction.saleDate)}
                     </td>
-                    {/* The native amount — a transaction carries no
-                        USD-converted field, so nothing here is re-based. */}
-                    <td className="px-5 font-medium whitespace-nowrap text-gray-900 dark:text-gray-100">
-                      {formatMoney(transaction.currency, transaction.saleAmount)}
-                    </td>
-                    <td className="px-5 text-xs">{transaction.currency}</td>
                     <td className="truncate px-5" title={transaction.clientName}>
                       {transaction.clientName}
                     </td>
@@ -326,6 +414,12 @@ export default function ReportsView() {
                           {transaction.bankAccount?.bankName ?? "—"}
                         </span>
                       </div>
+                    </td>
+                    <td className="px-5 text-xs">{transaction.currency}</td>
+                    {/* The native amount — a transaction carries no
+                        USD-converted field, so nothing here is re-based. */}
+                    <td className="px-5 font-medium whitespace-nowrap text-gray-900 dark:text-gray-100">
+                      {formatMoney(transaction.currency, transaction.saleAmount)}
                     </td>
                   </tr>
                 ))}

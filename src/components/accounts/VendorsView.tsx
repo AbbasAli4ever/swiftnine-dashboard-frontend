@@ -2,12 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  LuBriefcaseBusiness,
   LuChevronLeft,
   LuChevronRight,
   LuPencil,
   LuPlus,
   LuSearch,
+  LuStore,
   LuTrash2,
   LuX,
 } from "react-icons/lu";
@@ -15,25 +15,25 @@ import { toast } from "sonner";
 import ConfirmActionModal from "@/components/common/ConfirmActionModal";
 import { parseApiError } from "@/lib/api";
 import { useAccountingAccess } from "@/hooks/useAccountingAccess";
-import { useAccountingEmployees } from "@/hooks/useAccounting";
+import { useAccountingVendors } from "@/hooks/useAccounting";
 import type {
-  AccountingEmployee,
-  EmployeeListParams,
+  AccountingVendor,
+  VendorListParams,
 } from "@/services/accounting.service";
 import { avatarColors, initials } from "@/components/accounts/avatar";
 import { formatMoney } from "@/components/accounts/platformMeta";
-import EmployeeFormModal from "@/components/accounts/EmployeeFormModal";
+import VendorFormModal from "@/components/accounts/VendorFormModal";
 
-// Same layout constants as ClientsView — must stay in sync with the markup
-// below for the same reason: row height, sticky header, card chrome and the
-// pagination row all factor into how many rows fit.
+// Same layout constants as EmployeesView — must stay in sync with the markup
+// below: row height, sticky header, card chrome and the pagination row all
+// factor into how many rows fit.
 const ROW_HEIGHT = 56;
 const TABLE_HEADER_HEIGHT = 40;
 const CARD_TITLE_BAR_HEIGHT = 44;
 const CARD_BORDER_HEIGHT = 2;
 const PAGINATION_ROW_HEIGHT = 44;
 
-export default function EmployeesView() {
+export default function VendorsView() {
   const { canWrite } = useAccountingAccess();
 
   const [search, setSearch] = useState("");
@@ -41,8 +41,8 @@ export default function EmployeesView() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<AccountingEmployee | null>(null);
-  const [deleting, setDeleting] = useState<AccountingEmployee | null>(null);
+  const [editing, setEditing] = useState<AccountingVendor | null>(null);
+  const [deleting, setDeleting] = useState<AccountingVendor | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const tableSizerRef = useRef<HTMLDivElement>(null);
 
@@ -75,19 +75,21 @@ export default function EmployeesView() {
     setPage(1);
   }, [debouncedSearch, pageSize]);
 
-  const params = useMemo<EmployeeListParams>(
+  const params = useMemo<VendorListParams>(
     () => ({
       q: debouncedSearch.trim() || undefined,
       page,
       limit: pageSize,
+      // `pendingPayment` is not a sortable field on the API, so the list is
+      // always name-ordered; sorting by amount would have to happen here.
       sortBy: "name",
       sortOrder: "asc",
     }),
     [debouncedSearch, page, pageSize]
   );
 
-  const { employees, meta, isLoading, error, deleteEmployee } =
-    useAccountingEmployees(params);
+  const { vendors, meta, isLoading, error, deleteVendor } =
+    useAccountingVendors(params);
 
   useEffect(() => {
     if (error) toast.error(error);
@@ -96,18 +98,18 @@ export default function EmployeesView() {
   const total = meta?.total ?? 0;
   const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const rangeEnd = Math.min(page * pageSize, total);
-  const columnCount = 5;
+  const columnCount = 3;
 
   const handleDelete = async () => {
     if (!deleting) return;
     setIsDeleting(true);
     try {
-      await deleteEmployee(deleting.id);
+      await deleteVendor(deleting.id);
       toast.success(`${deleting.name} deleted`);
       setDeleting(null);
     } catch (err) {
       const { message } = parseApiError(err);
-      toast.error(message || "Couldn't delete the employee.");
+      toast.error(message || "Couldn't delete the vendor.");
     } finally {
       setIsDeleting(false);
     }
@@ -117,7 +119,7 @@ export default function EmployeesView() {
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-[#fafaff] px-4 py-3 dark:bg-gray-907 sm:px-6">
       <div className="mb-3 flex shrink-0 flex-wrap items-center justify-end gap-2">
         <div className="relative w-full sm:w-[262px]">
-          <LuBriefcaseBusiness
+          <LuStore
             aria-hidden="true"
             className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-700 dark:text-gray-300"
           />
@@ -125,15 +127,15 @@ export default function EmployeesView() {
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Filter employee..."
-            aria-label="Filter employees"
+            placeholder="Filter vendor..."
+            aria-label="Filter vendors"
             className="h-10 w-full rounded-xl border border-gray-200 bg-white pl-10 pr-9 text-sm text-gray-800 shadow-sm outline-none placeholder:text-gray-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-901 dark:text-gray-100"
           />
           {search && (
             <button
               type="button"
               onClick={() => setSearch("")}
-              aria-label="Clear employee filter"
+              aria-label="Clear vendor filter"
               className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-905 dark:hover:text-gray-200"
             >
               <LuX className="h-4 w-4" />
@@ -147,7 +149,7 @@ export default function EmployeesView() {
             className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-[linear-gradient(90deg,#6547f7_0%,#7c2cf3_100%)] px-4 text-sm font-medium text-white transition-opacity hover:opacity-90"
           >
             <LuPlus className="h-4 w-4" />
-            Add Employee
+            Add Vendor
           </button>
         )}
       </div>
@@ -155,30 +157,27 @@ export default function EmployeesView() {
       <div ref={tableSizerRef} className="flex min-h-0 flex-1 flex-col">
       <section className="flex max-h-full min-h-0 flex-col overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-901">
         <div className="flex h-11 shrink-0 items-center justify-between border-b border-gray-200 px-5 dark:border-gray-800">
-          <h1 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Employees</h1>
-          <span className="text-xs text-gray-400">{total.toLocaleString()} employees</span>
+          <h1 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Vendors</h1>
+          <span className="text-xs text-gray-400">{total.toLocaleString()} vendors</span>
         </div>
 
         <div className="min-h-0 overflow-auto">
-          <table className="w-full min-w-[720px] table-fixed text-left">
+          <table className="w-full min-w-[560px] table-fixed text-left">
             <thead className="sticky top-0 z-10 bg-white shadow-[0_1px_0_0_var(--color-gray-200)] dark:bg-gray-901 dark:shadow-[0_1px_0_0_var(--color-gray-800)]">
               <tr className="h-10 text-xs text-gray-400">
-                {/* Every amount is PKR — the API has no currency column and
-                    never converts, so the unit is stated once per header
-                    rather than repeated on each row. */}
-                <th className="w-[30%] px-5 font-normal">Employee</th>
-                <th className="w-[20%] px-5 text-right font-normal">Paid (PKR)</th>
-                <th className="w-[20%] px-5 text-right font-normal">Pending (PKR)</th>
-                <th className="w-[18%] px-5 text-right font-normal">Total (PKR)</th>
-                <th className="w-[12%] px-5 text-right font-normal">Actions</th>
+                <th className="w-[52%] px-5 font-normal">Vendor</th>
+                <th className="w-[32%] px-5 text-right font-normal">
+                  Pending Payment (PKR)
+                </th>
+                <th className="w-[16%] px-5 text-right font-normal">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {employees.map((employee) => {
-                const { background, color } = avatarColors(employee.name);
+              {vendors.map((vendor) => {
+                const { background, color } = avatarColors(vendor.name);
                 return (
                   <tr
-                    key={employee.id}
+                    key={vendor.id}
                     style={{ height: ROW_HEIGHT }}
                     className="text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-905/70"
                   >
@@ -188,44 +187,37 @@ export default function EmployeesView() {
                           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold"
                           style={{ backgroundColor: background, color }}
                         >
-                          {initials(employee.name)}
+                          {initials(vendor.name)}
                         </span>
                         <span className="truncate font-medium text-gray-800 dark:text-gray-200">
-                          {employee.name}
+                          {vendor.name}
                         </span>
                       </div>
                     </td>
-                    <td className="px-5 text-right whitespace-nowrap">
-                      {formatMoney("PKR", employee.paidCommission)}
-                    </td>
-                    <td className="px-5 text-right whitespace-nowrap">
-                      {formatMoney("PKR", employee.pendingCommission)}
-                    </td>
-                    {/* Server-computed `paid + pending` — read-only everywhere. */}
                     <td className="px-5 text-right font-medium whitespace-nowrap text-gray-900 dark:text-gray-100">
-                      {formatMoney("PKR", employee.totalCommission)}
+                      {formatMoney("PKR", vendor.pendingPayment)}
                     </td>
                     <td className="px-5">
                       <div className="flex justify-end gap-1">
                         {canWrite && (
                           <>
-                            {/* Deletion is unconditional now that the
-                                transaction relation is gone — the confirm
-                                dialog is the only safeguard left. */}
+                            {/* A vendor has no linked records, so deletion is
+                                unconditional — this confirm is the only
+                                safeguard. */}
                             <button
                               type="button"
-                              title={`Delete ${employee.name}`}
-                              aria-label={`Delete ${employee.name}`}
-                              onClick={() => setDeleting(employee)}
+                              title={`Delete ${vendor.name}`}
+                              aria-label={`Delete ${vendor.name}`}
+                              onClick={() => setDeleting(vendor)}
                               className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-500/10"
                             >
                               <LuTrash2 className="h-[19px] w-[19px]" />
                             </button>
                             <button
                               type="button"
-                              title={`Edit ${employee.name}`}
-                              aria-label={`Edit ${employee.name}`}
-                              onClick={() => setEditing(employee)}
+                              title={`Edit ${vendor.name}`}
+                              aria-label={`Edit ${vendor.name}`}
+                              onClick={() => setEditing(vendor)}
                               className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-brand-500/10 hover:text-brand-500"
                             >
                               <LuPencil className="h-[19px] w-[19px]" />
@@ -237,7 +229,7 @@ export default function EmployeesView() {
                   </tr>
                 );
               })}
-              {isLoading && employees.length === 0 && (
+              {isLoading && vendors.length === 0 && (
                 <tr>
                   <td colSpan={columnCount} className="p-5">
                     <div className="space-y-2">
@@ -251,17 +243,17 @@ export default function EmployeesView() {
                   </td>
                 </tr>
               )}
-              {!isLoading && employees.length === 0 && (
+              {!isLoading && vendors.length === 0 && (
                 <tr>
                   <td colSpan={columnCount} className="h-64 px-6 text-center">
                     <LuSearch className="mx-auto mb-3 h-9 w-9 text-gray-300" />
                     <p className="font-medium text-gray-700 dark:text-gray-300">
-                      No employees found
+                      No vendors found
                     </p>
                     <p className="mt-1 text-sm text-gray-400">
                       {debouncedSearch.trim()
-                        ? "Try a different employee name."
-                        : "Add your first employee to start attributing sales."}
+                        ? "Try a different vendor name."
+                        : "Add your first vendor to start tracking what you owe."}
                     </p>
                     {debouncedSearch.trim() && (
                       <button
@@ -309,9 +301,9 @@ export default function EmployeesView() {
       </div>
 
       {canWrite && (
-        <EmployeeFormModal
+        <VendorFormModal
           isOpen={formOpen || editing !== null}
-          employee={editing}
+          vendor={editing}
           onClose={() => {
             setFormOpen(false);
             setEditing(null);
@@ -320,9 +312,9 @@ export default function EmployeesView() {
       )}
       <ConfirmActionModal
         isOpen={canWrite && Boolean(deleting)}
-        title="Delete employee?"
+        title="Delete vendor?"
         description={deleting ? `${deleting.name} will be permanently deleted.` : ""}
-        confirmLabel="Delete employee"
+        confirmLabel="Delete vendor"
         isLoading={isDeleting}
         onClose={() => setDeleting(null)}
         onConfirm={handleDelete}

@@ -107,8 +107,19 @@ export interface CurrencyTotal {
 export interface AccountingClient {
   id: string;
   clientName: string;
+  /**
+   * @deprecated Legacy hand-typed figure, frozen at `0` for every client
+   * created since the backend stopped accepting it. Never updates as sales
+   * come in — bind anything labelled "Total Revenue" to `totalRevenueUsd`.
+   */
   totalRevenue: number;
+  /** @deprecated Always `null` on newly created clients; revenue is USD. */
   currencyType: Currency | null;
+  /**
+   * Every currency in `totalSaleAmount` converted at live FX and summed. The
+   * real, transaction-derived revenue figure — always USD.
+   */
+  totalRevenueUsd: number;
   /** Summed from this client's transactions, grouped by currency. */
   totalSaleAmount: CurrencyTotal[];
   _count: { transactions: number };
@@ -151,39 +162,54 @@ export interface ClientSearchResult {
   clientName: string;
 }
 
-/** An employee's nested transaction, as returned by `GET /employees`. */
-export interface EmployeeTransaction {
-  id: string;
-  saleAmount: number;
-  currency: Currency;
-  /** Manually entered — never computed from saleAmount. Null when this sale
-   *  carries no commission. */
-  commissionAmount: number | null;
-  commissionCurrency: CommissionCurrency | null;
-  refId: string;
-  description: string | null;
-  saleDate: string;
-  createdAt: string;
-  updatedAt: string;
-  client: { id: string; clientName: string };
-}
-
+/**
+ * Commission no longer has any relation to `Transaction`. It is two manually
+ * entered PKR figures on the employee itself, plus a server-computed sum — so
+ * there is no nested transaction list, no `_count`, and no currency anywhere.
+ *
+ * The same shape comes back from create, list, get-one and update.
+ */
 export interface AccountingEmployee {
   id: string;
   name: string;
-  _count: { transactions: number };
-  /** Summed from this employee's transactions, grouped by commission currency. */
-  totalCommission: CurrencyTotal[];
+  /** PKR. Manually entered, never negative. */
+  paidCommission: number;
+  /** PKR. Manually entered, never negative. */
+  pendingCommission: number;
+  /**
+   * **Read-only.** `paid + pending`, recomputed server-side on every read, so
+   * it cannot drift. Sending it is ignored — never put it in a payload.
+   */
+  totalCommission: number;
   createdAt: string;
   updatedAt: string;
-  /** `GET /employees` embeds every linked transaction on each row, same as
-   *  `GET /clients` — unpaginated by design. Optional so an older API build
-   *  degrades to an empty list rather than crashing the table. */
-  transactions?: EmployeeTransaction[];
 }
 
 /** Minimal shape returned by `GET /employees/search`. */
 export interface EmployeeSearchResult {
+  id: string;
+  name: string;
+}
+
+/**
+ * A vendor is a name and one amount owed — nothing else. Deliberately shaped
+ * like {@link AccountingEmployee}, but with a single figure rather than a
+ * paid/pending pair, and no computed total to display alongside it.
+ *
+ * No relation to `Transaction`: `pendingPayment` is manual, never derived from
+ * a purchase or sale.
+ */
+export interface AccountingVendor {
+  id: string;
+  name: string;
+  /** PKR. Manually entered, never negative, defaults to 0. */
+  pendingPayment: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Minimal shape returned by `GET /vendors/search`. */
+export interface VendorSearchResult {
   id: string;
   name: string;
 }
@@ -230,14 +256,17 @@ export interface BankAccount {
 
 // ── Payloads ──────────────────────────────────────────────────────────────────
 
+/**
+ * `POST /clients` accepts `clientName` and nothing else. A sent
+ * `totalRevenue`/`currencyType` is silently discarded (still a 201), so those
+ * fields are omitted here rather than typed as optional — revenue is derived
+ * from transactions, never entered.
+ */
 export interface CreateClientPayload {
   clientName: string;
-  totalRevenue: number;
-  currencyType?: Currency;
 }
 
-/** `PATCH /clients/:clientId` accepts `clientName` only — revenue and currency
- *  are create-only on the backend today. */
+/** `PATCH /clients/:clientId` accepts `clientName` only. */
 export interface UpdateClientPayload {
   clientName: string;
 }
@@ -282,12 +311,36 @@ export interface UpdateTransactionPayload {
   commissionCurrency?: CommissionCurrency | null;
 }
 
+/** Commission fields are optional and default to `0` — never `null`. */
 export interface CreateEmployeePayload {
   name: string;
+  paidCommission?: number;
+  pendingCommission?: number;
 }
 
+/**
+ * Every field is optional and independent — send only what changed; editing one
+ * amount never disturbs the other. An empty body is a 422, so guard against
+ * submitting nothing.
+ *
+ * `totalCommission` is absent by design: it is computed, not written.
+ */
 export interface UpdateEmployeePayload {
+  name?: string;
+  paidCommission?: number;
+  pendingCommission?: number;
+}
+
+/** `pendingPayment` is optional and defaults to `0`. */
+export interface CreateVendorPayload {
   name: string;
+  pendingPayment?: number;
+}
+
+/** Both optional and independent — send only what changed. `{}` is a 422. */
+export interface UpdateVendorPayload {
+  name?: string;
+  pendingPayment?: number;
 }
 
 export interface CreateBankAccountPayload {
@@ -330,7 +383,14 @@ export interface ClientListParams extends BaseListParams {
   sortBy?: "clientName" | "createdAt" | "updatedAt";
 }
 
+/** `sortBy` deliberately excludes the commission fields — the API rejects
+ *  them, so sorting by amount has to happen client-side. */
 export interface EmployeeListParams extends BaseListParams {
+  sortBy?: "name" | "createdAt" | "updatedAt";
+}
+
+/** Same constraint as employees: `pendingPayment` is not a sortable field. */
+export interface VendorListParams extends BaseListParams {
   sortBy?: "name" | "createdAt" | "updatedAt";
 }
 
@@ -499,10 +559,19 @@ export interface OverviewResponse {
     local: OverviewBankAccount[];
     international: OverviewBankAccount[];
   };
+  /**
+   * Transaction-derived and sorted by `totalRevenueUsd` descending. Clients
+   * with no transactions are absent rather than zero-filled, so this can hold
+   * fewer than five entries — or none at all.
+   */
   topClients: {
     id: string;
     clientName: string;
-    totalRevenue: number;
+    /** `null` unless every one of the client's sales shares one currency. */
+    totalRevenue: number | null;
+    /** The figure to render — always USD. */
+    totalRevenueUsd: number;
+    salesCount: number;
     currencyType: Currency | null;
   }[];
 }
@@ -536,12 +605,15 @@ export const clientService = {
       })
       .then((r) => ({ items: r.data.data, meta: r.data.meta })),
 
-  /** Word-order-independent name search. Returns a plain array, not paginated. */
-  search: (q: string) =>
+  /**
+   * Every client in the workspace, uncapped and sorted A–Z. Despite the route
+   * name this no longer searches: the backend ignores `q` entirely (it returns
+   * the full list for any query), so filtering is the caller's job. Fetch once
+   * and filter locally rather than issuing a request per keystroke.
+   */
+  searchAll: () =>
     api
-      .get<ApiWrapper<ClientSearchResult[]>>("/clients/search", {
-        params: { q },
-      })
+      .get<ApiWrapper<ClientSearchResult[]>>("/clients/search")
       .then((r) => r.data.data),
 
   get: (clientId: string) =>
@@ -594,8 +666,45 @@ export const employeeService = {
       .patch<ApiWrapper<AccountingEmployee>>(`/employees/${employeeId}`, payload)
       .then((r) => r.data.data),
 
-  /** Rejects with 409 if the employee still has transactions. */
+  /** Unconditional — the old "still has transactions" guard went away with the
+   *  relation, so a confirm dialog is the only safeguard left. */
   delete: (employeeId: string) => api.delete(`/employees/${employeeId}`),
+};
+
+/** Mirrors {@link employeeService} — the resources are deliberately alike. */
+export const vendorService = {
+  list: (params?: VendorListParams) =>
+    api
+      .get<PaginatedApiWrapper<AccountingVendor[]>>("/vendors", {
+        params: serializeParams(params),
+      })
+      .then((r) => ({ items: r.data.data, meta: r.data.meta })),
+
+  /** Word-order-independent name search. Returns a plain array, not paginated. */
+  search: (q: string) =>
+    api
+      .get<ApiWrapper<VendorSearchResult[]>>("/vendors/search", {
+        params: { q },
+      })
+      .then((r) => r.data.data),
+
+  get: (vendorId: string) =>
+    api
+      .get<ApiWrapper<AccountingVendor>>(`/vendors/${vendorId}`)
+      .then((r) => r.data.data),
+
+  create: (payload: CreateVendorPayload) =>
+    api
+      .post<ApiWrapper<AccountingVendor>>("/vendors", payload)
+      .then((r) => r.data.data),
+
+  update: (vendorId: string, payload: UpdateVendorPayload) =>
+    api
+      .patch<ApiWrapper<AccountingVendor>>(`/vendors/${vendorId}`, payload)
+      .then((r) => r.data.data),
+
+  /** Unconditional — a vendor has no linked records to guard against. */
+  delete: (vendorId: string) => api.delete(`/vendors/${vendorId}`),
 };
 
 export const transactionService = {
@@ -808,6 +917,9 @@ export interface ReportExportResult {
   filename: string;
 }
 
+/** Both export routes take the same params and differ only in output format. */
+export type ReportExportFormat = "xlsx" | "pdf";
+
 /**
  * Filters shared by `/reports/export` and `/reports/breakdown`, mirroring the
  * Reports table's controls and matching `GET /transactions`'s own filter set:
@@ -866,16 +978,22 @@ export const reportsService = {
   exportWorkbook: async (
     dateFrom: string,
     dateTo: string,
-    filters: ReportFilters = {}
+    filters: ReportFilters = {},
+    /** `pdf` hits a sibling endpoint; params, filters and auth are identical. */
+    format: ReportExportFormat = "xlsx"
   ): Promise<ReportExportResult> => {
     const isSingleDay = dateFrom === dateTo;
     const dateParams = isSingleDay ? { date: dateFrom } : { dateFrom, dateTo };
     const fallbackName = isSingleDay
-      ? `accounting-report-${dateFrom}.xlsx`
-      : `accounting-report-${dateFrom}_to_${dateTo}.xlsx`;
+      ? `accounting-report-${dateFrom}.${format}`
+      : `accounting-report-${dateFrom}_to_${dateTo}.${format}`;
+    const path =
+      format === "pdf"
+        ? "/accounting-dashboard/reports/export/pdf"
+        : "/accounting-dashboard/reports/export";
 
     try {
-      const response = await api.get("/accounting-dashboard/reports/export", {
+      const response = await api.get(path, {
         params: serializeParams({ ...dateParams, ...filters }),
         responseType: "blob",
       });

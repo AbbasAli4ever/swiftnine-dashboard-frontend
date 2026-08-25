@@ -19,22 +19,18 @@ import { parseApiError } from "@/lib/api";
 import { useAccountingAccess } from "@/hooks/useAccountingAccess";
 import { useAccountingTransactions } from "@/hooks/useAccounting";
 import {
-  COMMISSION_CURRENCIES,
   CURRENCIES,
   LOCAL_CURRENCY,
   transactionCurrenciesForAccountType,
   type AccountingTransaction,
   type BankAccount,
   type ClientSearchResult,
-  type CommissionCurrency,
   type Currency,
-  type EmployeeSearchResult,
   type TransactionListParams,
 } from "@/services/accounting.service";
 import AccountingSelect from "@/components/accounts/AccountingSelect";
 import ClientPicker from "@/components/accounts/ClientPicker";
 import BankAccountPicker from "@/components/accounts/BankAccountPicker";
-import EmployeePicker from "@/components/accounts/EmployeePicker";
 import BankAvatar from "@/components/accounts/BankAvatar";
 import {
   DateDropdown,
@@ -79,9 +75,6 @@ function EditTransactionModal({
       bankAccountId?: string;
       saleDate?: string;
       description?: string;
-      employeeId?: string | null;
-      commissionAmount?: number | null;
-      commissionCurrency?: CommissionCurrency | null;
     }
   ) => Promise<void>;
 }) {
@@ -101,16 +94,6 @@ function EditTransactionModal({
    */
   const isLocalAccount = bankAccount?.accountType === "LOCAL";
   const [description, setDescription] = useState(transaction.description ?? "");
-  const initialEmployee = transaction.employee ?? null;
-  const [employee, setEmployee] = useState<EmployeeSearchResult | null>(
-    initialEmployee
-  );
-  const [commissionAmount, setCommissionAmount] = useState(
-    transaction.commissionAmount != null ? String(transaction.commissionAmount) : ""
-  );
-  const [commissionCurrency, setCommissionCurrency] = useState<CommissionCurrency>(
-    transaction.commissionCurrency ?? "USD"
-  );
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -130,23 +113,6 @@ function EditTransactionModal({
       return;
     }
 
-    const trimmedCommission = commissionAmount.trim();
-    const nextCommissionAmount = trimmedCommission ? Number(trimmedCommission) : null;
-    const nextCommissionCurrency = trimmedCommission ? commissionCurrency : null;
-    if (trimmedCommission && (!Number.isFinite(nextCommissionAmount) || nextCommissionAmount! < 0)) {
-      setError("Enter a commission amount of zero or more.");
-      return;
-    }
-    if (nextCommissionAmount !== null && !employee) {
-      setError("Select an employee before entering a commission.");
-      return;
-    }
-
-    const initialCommissionAmount = transaction.commissionAmount ?? null;
-    const initialCommissionCurrency = transaction.commissionCurrency ?? null;
-    const initialEmployeeId = initialEmployee?.id ?? null;
-    const currentEmployeeId = employee?.id ?? null;
-
     setSaving(true);
     try {
       await onSave(transaction.id, {
@@ -163,17 +129,8 @@ function EditTransactionModal({
         ...(bankAccount ? { bankAccountId: bankAccount.id } : {}),
         saleDate: fromDateInputValue(saleDate),
         description: description.trim(),
-        // Only sent when actually changed — same "diff against the current
-        // value" approach as clientId above.
-        ...(currentEmployeeId !== initialEmployeeId
-          ? { employeeId: currentEmployeeId }
-          : {}),
-        ...(nextCommissionAmount !== initialCommissionAmount
-          ? { commissionAmount: nextCommissionAmount }
-          : {}),
-        ...(nextCommissionCurrency !== initialCommissionCurrency
-          ? { commissionCurrency: nextCommissionCurrency }
-          : {}),
+        // Employee and commission are not editable here; omitting them leaves
+        // whatever the transaction already carries untouched.
       });
     } catch (err) {
       setError(parseApiError(err).message || "Couldn't update the transaction.");
@@ -295,47 +252,6 @@ function EditTransactionModal({
           />
         </label>
 
-        <div className="mt-3">
-          <EmployeePicker
-            value={employee}
-            onChange={(next) => {
-              setEmployee(next);
-              // A commission can't exist without an employee.
-              if (!next) {
-                setCommissionAmount("");
-                setCommissionCurrency("USD");
-              }
-            }}
-          />
-        </div>
-        {employee && (
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
-              Commission Amount
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={commissionAmount}
-                onChange={(event) => setCommissionAmount(event.target.value)}
-                placeholder="0.00"
-                className="mt-1.5 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none placeholder:text-gray-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-              />
-            </label>
-            <div className="text-xs font-medium text-gray-600 dark:text-gray-300">
-              Commission Currency
-              <AccountingSelect
-                label="Commission Currency"
-                value={commissionCurrency}
-                options={COMMISSION_CURRENCIES.map((code) => ({
-                  value: code,
-                  label: code,
-                }))}
-                onChange={(next) => setCommissionCurrency(next as CommissionCurrency)}
-              />
-            </div>
-          </div>
-        )}
 
         </div>
 
@@ -552,16 +468,14 @@ export default function TransactionsView() {
           </span>
         </div>
         <div className="min-h-0 overflow-auto">
-          <table className="w-full min-w-[1080px] table-fixed text-left">
+          <table className="w-full min-w-[860px] table-fixed text-left">
             <thead className="sticky top-0 z-10 bg-white shadow-[0_1px_0_0_var(--color-gray-200)] dark:bg-gray-901 dark:shadow-[0_1px_0_0_var(--color-gray-800)]">
               <tr className="h-10 text-xs font-normal text-gray-400">
-                <th className="w-[10%] px-5 font-normal">Sale Date</th>
-                <th className="w-[18%] px-5 font-normal">Client</th>
-                <th className="w-[14%] px-5 font-normal">Employee</th>
-                <th className="w-[16%] px-5 font-normal">Bank Account</th>
-                <th className="w-[10%] px-5 font-normal">Ref ID</th>
-                <th className="w-[11%] px-5 text-right font-normal">Amount</th>
-                <th className="w-[11%] px-5 text-right font-normal">Commission</th>
+                <th className="w-[14%] px-5 font-normal">Sale Date</th>
+                <th className="w-[24%] px-5 font-normal">Client</th>
+                <th className="w-[22%] px-5 font-normal">Bank Account</th>
+                <th className="w-[15%] px-5 font-normal">Ref ID</th>
+                <th className="w-[15%] px-5 text-right font-normal">Amount</th>
                 {canWrite && <th className="w-[10%] px-5 text-right font-normal">Actions</th>}
               </tr>
             </thead>
@@ -579,9 +493,6 @@ export default function TransactionsView() {
                     {formatIsoDate(transaction.saleDate)}
                   </td>
                   <td className="truncate px-5">{transaction.clientName}</td>
-                  <td className="truncate px-5 text-xs text-gray-500 dark:text-gray-400">
-                    {transaction.employee?.name ?? "—"}
-                  </td>
                   <td className="px-5">
                     <div className="flex items-center gap-3">
                       <BankAvatar
@@ -598,11 +509,6 @@ export default function TransactionsView() {
                   </td>
                   <td className="px-5 text-right font-medium whitespace-nowrap">
                     {formatMoney(transaction.currency, transaction.saleAmount)}
-                  </td>
-                  <td className="px-5 text-right text-xs text-gray-500 whitespace-nowrap dark:text-gray-400">
-                    {transaction.commissionAmount != null && transaction.commissionCurrency
-                      ? formatMoney(transaction.commissionCurrency, transaction.commissionAmount)
-                      : "—"}
                   </td>
                   {canWrite && (
                     <td className="px-5">
@@ -632,7 +538,7 @@ export default function TransactionsView() {
               ))}
               {isLoading && transactions.length === 0 && (
                 <tr>
-                  <td colSpan={canWrite ? 8 : 7} className="p-5">
+                  <td colSpan={canWrite ? 6 : 5} className="p-5">
                     <div className="space-y-2">
                       {Array.from({ length: 6 }).map((_, index) => (
                         <div
@@ -646,7 +552,7 @@ export default function TransactionsView() {
               )}
               {!isLoading && transactions.length === 0 && (
                 <tr>
-                  <td colSpan={canWrite ? 8 : 7} className="h-64 px-6 text-center">
+                  <td colSpan={canWrite ? 6 : 5} className="h-64 px-6 text-center">
                     <div className="mx-auto flex max-w-sm flex-col items-center">
                       <LuDatabase className="mb-3 h-9 w-9 text-gray-300" />
                       <p className="font-medium text-gray-700 dark:text-gray-300">

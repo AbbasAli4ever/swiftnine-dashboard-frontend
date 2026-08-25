@@ -1,14 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { LuChevronDown, LuPlus, LuX } from "react-icons/lu";
-import { useClientSearch } from "@/hooks/useAccounting";
+import { useClientAll } from "@/hooks/useAccounting";
 import type { ClientSearchResult } from "@/services/accounting.service";
 
 /**
- * Search-backed client combobox. `POST /transactions` requires a resolved
- * `clientId` — the API dropped the old find-or-create-by-name behavior — so this
- * is the only way to attach a sale to a client.
+ * Client combobox. `POST /transactions` requires a resolved `clientId` — the
+ * API dropped the old find-or-create-by-name behavior — so this is the only way
+ * to attach a sale to a client.
+ *
+ * Opening it lists every client A–Z; typing narrows that list locally. The
+ * backend stopped filtering (`/clients/search` ignores `q` and returns
+ * everything), so filtering here is not an optimisation but the only place it
+ * happens.
  *
  * `onCreateRequest`, when provided, surfaces a "Create <term>" row so an
  * accountant entering a sale for a first-time client isn't stuck.
@@ -18,7 +23,7 @@ export default function ClientPicker({
   onChange,
   onCreateRequest,
   label = "Client",
-  placeholder = "Search clients...",
+  placeholder = "Select or search clients...",
   autoFocus = false,
   error,
 }: {
@@ -33,7 +38,7 @@ export default function ClientPicker({
   const [term, setTerm] = useState("");
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const { results, isLoading } = useClientSearch(term);
+  const { clients, isLoading } = useClientAll();
 
   useEffect(() => {
     const close = (event: MouseEvent) => {
@@ -50,6 +55,22 @@ export default function ClientPicker({
   };
 
   const trimmed = term.trim();
+
+  // Substring match, and A–Z regardless of the order the API returned. The
+  // backend already sorts, but re-sorting keeps the list correct if it stops.
+  const results = useMemo(() => {
+    const needle = trimmed.toLowerCase();
+    return clients
+      .filter((client) =>
+        needle ? client.clientName.toLowerCase().includes(needle) : true
+      )
+      .sort((a, b) =>
+        a.clientName.localeCompare(b.clientName, undefined, {
+          sensitivity: "base",
+        })
+      );
+  }, [clients, trimmed]);
+
   const showCreate =
     onCreateRequest &&
     trimmed.length > 0 &&
@@ -103,13 +124,10 @@ export default function ClientPicker({
 
         {open && !value && (
           <div className="absolute left-0 right-0 z-40 mt-1 max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">
-            {trimmed.length === 0 && (
+            {isLoading && results.length === 0 && (
               <p className="px-3 py-2 text-xs text-gray-400">
-                Start typing to search clients.
+                Loading clients...
               </p>
-            )}
-            {trimmed.length > 0 && isLoading && (
-              <p className="px-3 py-2 text-xs text-gray-400">Searching...</p>
             )}
             {results.map((client) => (
               <button
@@ -121,8 +139,10 @@ export default function ClientPicker({
                 {client.clientName}
               </button>
             ))}
-            {trimmed.length > 0 && !isLoading && results.length === 0 && !showCreate && (
-              <p className="px-3 py-2 text-xs text-gray-400">No clients found.</p>
+            {!isLoading && results.length === 0 && !showCreate && (
+              <p className="px-3 py-2 text-xs text-gray-400">
+                {trimmed ? "No clients found." : "No clients yet."}
+              </p>
             )}
             {showCreate && (
               <button

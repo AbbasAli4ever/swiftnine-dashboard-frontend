@@ -65,6 +65,12 @@ export const queryKeys = {
     ["accounting", "employee", workspaceId, employeeId] as const,
   accountingEmployeeSearch: (workspaceId: string | null, q: string) =>
     ["accounting", "employee-search", workspaceId, q] as const,
+  accountingVendors: (workspaceId: string | null, params: unknown) =>
+    ["accounting", "vendors", workspaceId, params] as const,
+  accountingVendor: (workspaceId: string | null, vendorId: string) =>
+    ["accounting", "vendor", workspaceId, vendorId] as const,
+  accountingVendorSearch: (workspaceId: string | null, q: string) =>
+    ["accounting", "vendor-search", workspaceId, q] as const,
   accountingDashboardSearch: (workspaceId: string | null, q: string) =>
     ["accounting", "dashboard-search", workspaceId, q] as const,
   accountingTransactions: (workspaceId: string | null, params: unknown) =>

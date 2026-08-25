@@ -174,11 +174,13 @@ export default function AccountingSearchModal({
                   >
                     {initials(client.clientName)}
                   </span>
+                  {/* No revenue figure here: this endpoint returns only the
+                      legacy `totalRevenue`, which is frozen at 0 for every
+                      client created since the backend stopped accepting it.
+                      Showing a permanent "USD 0" would be worse than showing
+                      nothing — the real figure lives on the Clients screen. */}
                   <span className="flex-1 truncate text-sm text-gray-800 dark:text-gray-100">
                     {client.clientName}
-                  </span>
-                  <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400">
-                    {formatMoney(client.currencyType ?? "USD", client.totalRevenue)}
                   </span>
                 </button>
               );

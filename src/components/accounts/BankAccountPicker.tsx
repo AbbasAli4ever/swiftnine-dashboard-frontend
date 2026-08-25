@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { LuChevronDown, LuLandmark } from "react-icons/lu";
 import { useBankAccounts } from "@/hooks/useAccounting";
-import { formatMoney } from "@/components/accounts/platformMeta";
 import BankAvatar from "@/components/accounts/BankAvatar";
 import type { BankAccount } from "@/services/accounting.service";
 
@@ -135,11 +134,6 @@ export default function BankAccountPicker({
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-gray-800 dark:text-gray-100">
                     {account.bankName}
-                  </span>
-                  {/* The balance line already names the currency, so no
-                      separate code column on the right. */}
-                  <span className="block text-[11px] text-gray-400">
-                    {formatMoney(account.currencyType, account.amount)}
                   </span>
                 </span>
               </button>

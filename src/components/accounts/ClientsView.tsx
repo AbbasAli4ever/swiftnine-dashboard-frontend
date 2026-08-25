@@ -214,7 +214,7 @@ export default function ClientsView() {
   // The Actions column renders for both roles: a CEO gets the read-only
   // "view transactions" button, and only an accountant gets rename/delete
   // beside it.
-  const columnCount = 5;
+  const columnCount = 4;
 
   const handleDelete = async () => {
     if (!deleting) return;
@@ -290,11 +290,10 @@ export default function ClientsView() {
           <table className="w-full min-w-[820px] table-fixed text-left">
             <thead className="sticky top-0 z-10 bg-white shadow-[0_1px_0_0_var(--color-gray-200)] dark:bg-gray-901 dark:shadow-[0_1px_0_0_var(--color-gray-800)]">
               <tr className="h-10 text-xs text-gray-400">
-                <th className="w-[34%] px-5 font-normal">Client</th>
-                <th className="w-[20%] px-5 text-right font-normal">Total Revenue</th>
-                <th className="w-[24%] px-5 text-right font-normal">Sales Recorded</th>
-                <th className="w-[10%] px-5 text-right font-normal">Payments</th>
-                <th className="w-[12%] px-5 text-right font-normal">Actions</th>
+                <th className="w-[46%] px-5 font-normal">Client</th>
+                <th className="w-[28%] px-5 text-right font-normal">Total Amount (USD)</th>
+                <th className="w-[12%] px-5 text-right font-normal">Payments</th>
+                <th className="w-[14%] px-5 text-right font-normal">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -320,17 +319,12 @@ export default function ClientsView() {
                         </span>
                       </div>
                     </td>
+                    {/* `totalRevenueUsd`, not the legacy hand-typed
+                        `totalRevenue` — that one is frozen at 0 for every
+                        client created since the backend stopped accepting it.
+                        Every currency converted at live FX and summed. */}
                     <td className="px-5 text-right font-medium whitespace-nowrap">
-                      {formatMoney(client.currencyType ?? "USD", client.totalRevenue)}
-                    </td>
-                    <td className="px-5 text-right text-xs text-gray-500 dark:text-gray-400">
-                      {/* Summed from transactions — independent of totalRevenue,
-                          which is entered by hand and never reconciled. */}
-                      {client.totalSaleAmount.length === 0
-                        ? "—"
-                        : client.totalSaleAmount
-                            .map((entry) => formatMoney(entry.currency, entry.total))
-                            .join(" · ")}
+                      {formatMoney("USD", client.totalRevenueUsd)}
                     </td>
                     <td className="px-5 text-right">{client._count.transactions}</td>
                     <td className="px-5">

@@ -6,17 +6,13 @@ import { LuX } from "react-icons/lu";
 import { toast } from "sonner";
 import { parseApiError } from "@/lib/api";
 import { useClientMutations } from "@/hooks/useAccounting";
-import {
-  CURRENCIES,
-  type AccountingClient,
-  type Currency,
-} from "@/services/accounting.service";
-import AccountingSelect from "@/components/accounts/AccountingSelect";
+import { type AccountingClient } from "@/services/accounting.service";
 
 /**
- * Creates a client via `POST /clients`. `totalRevenue` and `currencyType` are
- * create-only on the backend — `PATCH /clients/:id` accepts `clientName` alone —
- * so they must be captured here or not at all.
+ * Creates a client via `POST /clients`, which accepts `clientName` and nothing
+ * else. There is no opening-revenue or currency input: the server assigns both
+ * automatically and silently discards anything sent for them. Revenue is
+ * derived from transactions (`totalRevenueUsd`) and always USD.
  */
 export default function CreateClientModal({
   isOpen,
@@ -32,8 +28,6 @@ export default function CreateClientModal({
 }) {
   const { createClient } = useClientMutations();
   const [clientName, setClientName] = useState(initialName);
-  const [totalRevenue, setTotalRevenue] = useState("0");
-  const [currencyType, setCurrencyType] = useState<Currency>("USD");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -42,8 +36,6 @@ export default function CreateClientModal({
   useEffect(() => {
     if (!isOpen) return;
     setClientName(initialName);
-    setTotalRevenue("0");
-    setCurrencyType("USD");
     setError("");
   }, [isOpen, initialName]);
 
@@ -61,24 +53,15 @@ export default function CreateClientModal({
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     const name = clientName.trim();
-    const revenue = Number(totalRevenue);
 
     if (!name) {
       setError("Enter a client name.");
       return;
     }
-    if (!Number.isFinite(revenue) || revenue < 0) {
-      setError("Total revenue must be zero or more.");
-      return;
-    }
 
     setSaving(true);
     try {
-      const created = await createClient({
-        clientName: name,
-        totalRevenue: revenue,
-        currencyType,
-      });
+      const created = await createClient({ clientName: name });
       toast.success(`${created.clientName} created`);
       onCreated?.(created);
       onClose();
@@ -132,32 +115,9 @@ export default function CreateClientModal({
           />
         </label>
 
-        <div className="mt-3 grid grid-cols-2 gap-3">
-          <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
-            Total Revenue
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={totalRevenue}
-              onChange={(event) => setTotalRevenue(event.target.value)}
-              className="mt-1.5 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-            />
-          </label>
-          <div className="text-xs font-medium text-gray-600 dark:text-gray-300">
-            Currency
-            <AccountingSelect
-              label="Currency"
-              value={currencyType}
-              options={CURRENCIES.map((code) => ({ value: code, label: code }))}
-              onChange={(next) => setCurrencyType(next as Currency)}
-            />
-          </div>
-        </div>
-
         <p className="mt-3 rounded-lg bg-gray-50 px-3 py-2.5 text-[11px] leading-4 text-gray-500 dark:bg-gray-900 dark:text-gray-400">
-          Total revenue and currency can only be set now — they can&apos;t be edited later.
-          Recording sales does not change this figure.
+          The total amount is calculated from this client&apos;s sales and shown
+          in USD. There is nothing to enter here.
         </p>
 
         {error && (

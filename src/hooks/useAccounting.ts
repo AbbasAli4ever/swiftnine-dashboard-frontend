@@ -15,6 +15,7 @@ import {
   employeeService,
   reportsService,
   transactionService,
+  vendorService,
   REPORTS_MAX_RANGE_DAYS,
   type BankAccountListParams,
   type ClientListParams,
@@ -22,14 +23,18 @@ import {
   type CreateClientPayload,
   type CreateEmployeePayload,
   type CreateTransactionPayload,
+  type CreateVendorPayload,
   type EmployeeListParams,
   type OverviewPeriod,
+  type ReportExportFormat,
   type ReportFilters,
   type TransactionListParams,
   type UpdateBankAccountPayload,
   type UpdateClientPayload,
   type UpdateEmployeePayload,
   type UpdateTransactionPayload,
+  type UpdateVendorPayload,
+  type VendorListParams,
 } from "@/services/accounting.service";
 
 /**
@@ -229,7 +234,9 @@ export function useEmployeeMutations() {
     [invalidateAccounting]
   );
 
-  const renameEmployee = useCallback(
+  /** Renamed from `renameEmployee`: a PATCH now edits the commission figures
+   *  as well as the name, and takes only the fields that changed. */
+  const updateEmployee = useCallback(
     async (employeeId: string, payload: UpdateEmployeePayload) => {
       const updated = await employeeService.update(employeeId, payload);
       await invalidateAccounting();
@@ -246,7 +253,39 @@ export function useEmployeeMutations() {
     [invalidateAccounting]
   );
 
-  return { createEmployee, renameEmployee, deleteEmployee };
+  return { createEmployee, updateEmployee, deleteEmployee };
+}
+
+export function useVendorMutations() {
+  const invalidateAccounting = useInvalidateAccounting();
+
+  const createVendor = useCallback(
+    async (payload: CreateVendorPayload) => {
+      const created = await vendorService.create(payload);
+      await invalidateAccounting();
+      return created;
+    },
+    [invalidateAccounting]
+  );
+
+  const updateVendor = useCallback(
+    async (vendorId: string, payload: UpdateVendorPayload) => {
+      const updated = await vendorService.update(vendorId, payload);
+      await invalidateAccounting();
+      return updated;
+    },
+    [invalidateAccounting]
+  );
+
+  const deleteVendor = useCallback(
+    async (vendorId: string) => {
+      await vendorService.delete(vendorId);
+      await invalidateAccounting();
+    },
+    [invalidateAccounting]
+  );
+
+  return { createVendor, updateVendor, deleteVendor };
 }
 
 export function useTransactionMutations() {
@@ -364,33 +403,28 @@ export function useAccountingClient(clientId: string | null) {
 }
 
 /**
- * Debounced client lookup for the transaction client picker. `POST /transactions`
- * requires a resolved clientId, so this is the only way to attach a sale.
+ * Every client in the workspace, A–Z, for the transaction client picker.
+ * `POST /transactions` requires a resolved clientId, so this is the only way to
+ * attach a sale.
+ *
+ * The endpoint stopped filtering server-side — it ignores `q` and always
+ * returns the full list — so this fetches once and the caller filters the
+ * result locally. No debounce, and no request per keystroke.
  */
-export function useClientSearch(term: string, debounceMs = 300) {
+export function useClientAll() {
   const { workspaceId, isReady } = useAccountingQueryGate();
-  const [debounced, setDebounced] = useState(term);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(term), debounceMs);
-    return () => clearTimeout(timer);
-  }, [term, debounceMs]);
-
-  const trimmed = debounced.trim();
 
   const query = useQuery({
-    queryKey: queryKeys.accountingClientSearch(workspaceId, trimmed),
-    queryFn: () => clientService.search(trimmed),
-    enabled: isReady && trimmed.length > 0,
+    queryKey: queryKeys.accountingClientSearch(workspaceId, "all"),
+    queryFn: () => clientService.searchAll(),
+    enabled: isReady,
     staleTime: 30_000,
     retry: ACCOUNTING_RETRY,
   });
 
   return {
-    results: query.data ?? [],
-    // Treat the debounce gap as loading so the dropdown doesn't flash "no
-    // results" between a keystroke and the request going out.
-    isLoading: query.isFetching || (trimmed.length > 0 && debounced !== term),
+    clients: query.data ?? [],
+    isLoading: query.isFetching,
     error: toAccountingError(query.error),
   };
 }
@@ -404,7 +438,7 @@ export function useAccountingEmployees(params: EmployeeListParams) {
     () => queryKeys.accountingEmployees(workspaceId, params),
     [workspaceId, params]
   );
-  const { createEmployee, renameEmployee, deleteEmployee } = useEmployeeMutations();
+  const { createEmployee, updateEmployee, deleteEmployee } = useEmployeeMutations();
 
   const query = useQuery({
     queryKey,
@@ -422,8 +456,40 @@ export function useAccountingEmployees(params: EmployeeListParams) {
     error: toAccountingError(query.error),
     refetch: () => queryClient.invalidateQueries({ queryKey }),
     createEmployee,
-    renameEmployee,
+    updateEmployee,
     deleteEmployee,
+  };
+}
+
+// ── Vendors ───────────────────────────────────────────────────────────────────
+
+export function useAccountingVendors(params: VendorListParams) {
+  const { workspaceId, isReady } = useAccountingQueryGate();
+  const queryClient = useQueryClient();
+  const queryKey = useMemo(
+    () => queryKeys.accountingVendors(workspaceId, params),
+    [workspaceId, params]
+  );
+  const { createVendor, updateVendor, deleteVendor } = useVendorMutations();
+
+  const query = useQuery({
+    queryKey,
+    queryFn: () => vendorService.list(params),
+    enabled: isReady,
+    staleTime: 60_000,
+    retry: ACCOUNTING_RETRY,
+  });
+
+  return {
+    vendors: query.data?.items ?? [],
+    meta: query.data?.meta ?? null,
+    isLoading: query.isLoading,
+    isFetching: query.isFetching,
+    error: toAccountingError(query.error),
+    refetch: () => queryClient.invalidateQueries({ queryKey }),
+    createVendor,
+    updateVendor,
+    deleteVendor,
   };
 }
 
@@ -657,34 +723,39 @@ export function useMonthlyBreakdown(year: number | null, enabled = true) {
 }
 
 /**
- * One-shot `.xlsx` download. Not a react-query mutation: there's no cacheable
- * result and nothing to invalidate — it matches the module's other write-side
- * helpers, which are plain async callbacks that throw for the caller to toast.
+ * One-shot `.xlsx`/`.pdf` download. Not a react-query mutation: there's no
+ * cacheable result and nothing to invalidate — it matches the module's other
+ * write-side helpers, which are plain async callbacks that throw for the caller
+ * to toast.
  */
 export function useReportExport() {
-  const [isExporting, setIsExporting] = useState(false);
+  /** Which format is in flight, so each menu row can spin independently. */
+  const [exportingFormat, setExportingFormat] =
+    useState<ReportExportFormat | null>(null);
 
   const exportReport = useCallback(
     async (
       dateFrom: string,
       dateTo: string,
-      filters: ReportFilters = {}
+      filters: ReportFilters = {},
+      format: ReportExportFormat = "xlsx"
     ) => {
       // Guard against a double-click producing two downloads of the same file.
-      setIsExporting(true);
+      setExportingFormat(format);
       try {
         const { blob, filename } = await reportsService.exportWorkbook(
           dateFrom,
           dateTo,
-          filters
+          filters,
+          format
         );
         downloadBlob(blob, filename);
       } finally {
-        setIsExporting(false);
+        setExportingFormat(null);
       }
     },
     []
   );
 
-  return { exportReport, isExporting };
+  return { exportReport, exportingFormat, isExporting: exportingFormat !== null };
 }

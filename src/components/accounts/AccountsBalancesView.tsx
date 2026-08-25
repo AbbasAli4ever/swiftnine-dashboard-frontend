@@ -39,14 +39,20 @@ import {
 } from "@/components/accounts/platformMeta";
 
 // Layout constants used to derive how many rows fit in the available space.
-// They must stay in sync with the markup below: the row height, the sticky
-// column header, the card's title bar + borders, and the pagination row that
-// sits inside the sizer beneath the card.
+// They must stay in sync with the markup below: the row height, the column
+// header, the card's title bar + borders, and the pagination row beneath it.
 const ROW_HEIGHT = 55;
 const TABLE_HEADER_HEIGHT = 40;
 const CARD_TITLE_BAR_HEIGHT = 48;
 const CARD_BORDER_HEIGHT = 2;
 const PAGINATION_ROW_HEIGHT = 44;
+/** The view's own `py-3`. */
+const CONTAINER_BOTTOM_PADDING = 12;
+// Floor on the derived size. A short viewport measures out at 5-6 rows, which
+// splits a handful of accounts across pages; below this height the page scrolls
+// instead. Above it the extra room is used — a viewport that fits 11 rows
+// paginates at 11.
+const MIN_PAGE_SIZE = 10;
 
 const TYPE_LABELS: Record<AccountType, string> = {
   LOCAL: "Local Accounts",
@@ -363,6 +369,17 @@ function BankAccountModal({
               step="0.01"
               value={amount}
               onChange={(event) => setAmount(event.target.value)}
+              // A default of "0" would otherwise force the user to delete it
+              // before typing — or leave them with "0500". Clearing on focus
+              // makes the field behave like the empty placeholder it looks
+              // like; leaving it blank restores the zero on the way out.
+              onFocus={() => {
+                if (Number(amount) === 0) setAmount("");
+              }}
+              onBlur={() => {
+                if (amount.trim() === "") setAmount("0");
+              }}
+              placeholder="0"
               className="h-10 w-full rounded-lg border border-gray-200 bg-white pl-12 pr-3 text-sm font-normal text-gray-800 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
             />
           </div>
@@ -407,47 +424,52 @@ export default function AccountsBalancesView() {
   const { canWrite } = useAccountingAccess();
   const [accountType, setAccountType] = useState<AccountType>("LOCAL");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
   const [editing, setEditing] = useState<BankAccount | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<BankAccount | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const tableSizerRef = useRef<HTMLDivElement>(null);
-  const titleBarRef = useRef<HTMLDivElement>(null);
-  const paginationRef = useRef<HTMLDivElement>(null);
+  const [pageSize, setPageSize] = useState(MIN_PAGE_SIZE);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   // The summary comes from the dashboard aggregate rather than summing the
   // paginated list, so the totals match the Overview screen exactly.
   const { overview } = useAccountingOverview("daily");
 
-  // Derives the page size from the space actually left for rows. Rather than
-  // subtracting hardcoded chrome offsets — which overestimate here, since this
-  // page has a tall summary card and tab row above the table — measure the two
-  // real non-row elements inside the sizer: the card's title bar and the
-  // pagination row beneath it.
+  // Derives the page size from the room left below the card's top edge — not
+  // from the card's own height, which now grows with its rows and would feed
+  // back into the count. The summary card and tab row above are accounted for
+  // implicitly: they push the card's top down, leaving less space here.
   useEffect(() => {
-    const sizer = tableSizerRef.current;
-    if (!sizer) return;
+    const container = containerRef.current;
+    if (!container) return;
 
     const updatePageSize = () => {
+      const card = cardRef.current;
+      if (!card) return;
+      // offsetTop, not getBoundingClientRect: once the view scrolls, viewport
+      // coordinates shift with the scroll position and the measurement would
+      // change as the user scrolls. offsetTop is scroll-independent — it is
+      // measured against the container, which carries `relative` for that.
+      const available = container.clientHeight - card.offsetTop;
       const chrome =
-        (titleBarRef.current?.offsetHeight ?? CARD_TITLE_BAR_HEIGHT) +
-        (paginationRef.current?.offsetHeight ?? PAGINATION_ROW_HEIGHT) +
+        CARD_TITLE_BAR_HEIGHT +
+        PAGINATION_ROW_HEIGHT +
         CARD_BORDER_HEIGHT +
-        TABLE_HEADER_HEIGHT;
+        TABLE_HEADER_HEIGHT +
+        // clientHeight spans the padding box, so the container's own bottom
+        // padding is still inside `available` and has to come off too.
+        CONTAINER_BOTTOM_PADDING;
       const nextSize = Math.max(
-        1,
-        Math.floor((sizer.clientHeight - chrome) / ROW_HEIGHT)
+        MIN_PAGE_SIZE,
+        Math.floor((available - chrome) / ROW_HEIGHT)
       );
       setPageSize((current) => (current === nextSize ? current : nextSize));
     };
 
+    updatePageSize();
     const observer = new ResizeObserver(updatePageSize);
-    observer.observe(sizer);
-    // Watch the measured chrome too — the pagination row wraps on narrow
-    // widths, which changes its height and so the row count.
-    if (titleBarRef.current) observer.observe(titleBarRef.current);
-    if (paginationRef.current) observer.observe(paginationRef.current);
+    observer.observe(container);
     return () => observer.disconnect();
   }, []);
 
@@ -517,7 +539,10 @@ export default function AccountsBalancesView() {
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-[#FAFAFF] px-4 py-3 dark:bg-gray-907 sm:px-6">
+    <div
+      ref={containerRef}
+      className="relative flex h-full min-h-0 flex-1 flex-col overflow-y-auto bg-[#FAFAFF] px-4 py-3 dark:bg-gray-907 sm:px-6"
+    >
       <section className="grid shrink-0 grid-cols-1 gap-4 rounded-xl border border-gray-100 bg-white p-6 dark:border-gray-800 dark:bg-gray-901 md:grid-cols-3">
         <div className="flex items-center gap-8 md:col-span-2">
           <div>
@@ -592,15 +617,12 @@ export default function AccountsBalancesView() {
         )}
       </div>
 
-      {/* Sizer: claims the leftover vertical space so the ResizeObserver can
-          measure it, but renders nothing itself. The card inside sizes to its
-          rows and only scrolls once it hits the sizer's height. */}
-      <div ref={tableSizerRef} className="mt-4 flex min-h-0 flex-1 flex-col">
-      <section className="flex max-h-full min-h-0 flex-col overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-901">
-        <div
-          ref={titleBarRef}
-          className="flex h-12 shrink-0 items-center justify-between border-b border-gray-200 px-5 dark:border-gray-800"
-        >
+      {/* The card grows to fit its rows — a full page of accounts is always
+          shown whole, and the view scrolls as a page rather than the table
+          scrolling inside a fixed-height card. */}
+      <div ref={cardRef} className="mt-4 flex shrink-0 flex-col">
+      <section className="flex flex-col overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-901">
+        <div className="flex h-12 shrink-0 items-center justify-between border-b border-gray-200 px-5 dark:border-gray-800">
           <h1 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
             {TYPE_LABELS[accountType]}
           </h1>
@@ -609,9 +631,11 @@ export default function AccountsBalancesView() {
           </span>
         </div>
 
-        <div className="min-h-0 overflow-auto">
+        {/* Horizontal only — the card is as tall as its rows, so there is
+            nothing to scroll vertically. */}
+        <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] table-fixed text-left">
-            <thead className="sticky top-0 z-10 bg-white shadow-[0_1px_0_0_var(--color-gray-200)] dark:bg-gray-901 dark:shadow-[0_1px_0_0_var(--color-gray-800)]">
+            <thead className="bg-white shadow-[0_1px_0_0_var(--color-gray-200)] dark:bg-gray-901 dark:shadow-[0_1px_0_0_var(--color-gray-800)]">
               <tr className="h-10 text-xs font-normal text-gray-400">
                 <th className="w-[38%] px-5 font-normal">Bank</th>
                 <th className="w-[14%] px-5 font-normal">Currency</th>
@@ -706,12 +730,9 @@ export default function AccountsBalancesView() {
         </div>
       </section>
 
-      {/* Inside the sizer and directly after the card, so it tracks the card's
-          bottom edge instead of being pinned to the bottom of the page. */}
-      <div
-        ref={paginationRef}
-        className="flex shrink-0 items-center justify-between gap-3 pt-3 text-sm text-gray-600 dark:text-gray-400"
-      >
+      {/* Directly after the card, so it sits at the card's bottom edge rather
+          than being pinned to the bottom of the viewport. */}
+      <div className="flex shrink-0 items-center justify-between gap-3 pt-3 text-sm text-gray-600 dark:text-gray-400">
         <span>
           {rangeStart.toLocaleString()}&ndash;{rangeEnd.toLocaleString()} of{" "}
           {total.toLocaleString()}

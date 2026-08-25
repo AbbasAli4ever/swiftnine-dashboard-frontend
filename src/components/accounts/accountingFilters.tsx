@@ -262,6 +262,214 @@ function RangeCalendar({
 }
 
 /**
+ * Single-date calendar. Same month/year navigation as {@link RangeCalendar},
+ * but one tap commits the date instead of building a range — the two share the
+ * grid helpers rather than each carrying their own copy.
+ */
+function SingleCalendar({
+  value,
+  max,
+  onChange,
+}: {
+  value: string;
+  /** `yyyy-mm-dd`; later days render disabled. */
+  max?: string;
+  onChange: (iso: string) => void;
+}) {
+  const today = new Date();
+  const [view, setView] = useState(() => {
+    if (value) {
+      const [year, month] = value.split("-").map(Number);
+      return { year, month: month - 1 };
+    }
+    return { year: today.getFullYear(), month: today.getMonth() };
+  });
+  const [picking, setPicking] = useState(false);
+
+  const weeks = useMemo(() => buildCalendar(view.year, view.month), [view]);
+  const todayIso = toIso(today.getFullYear(), today.getMonth(), today.getDate());
+
+  const shiftMonth = (delta: number) => {
+    const next = new Date(view.year, view.month + delta, 1);
+    setView({ year: next.getFullYear(), month: next.getMonth() });
+  };
+  const shiftYear = (delta: number) =>
+    setView((current) => ({ ...current, year: current.year + delta }));
+
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between">
+        <button
+          type="button"
+          aria-label="Previous month"
+          onClick={() => shiftMonth(-1)}
+          className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-905 dark:hover:text-gray-200"
+        >
+          <LuChevronLeft className="h-4 w-4" />
+        </button>
+        <span className="flex items-center gap-1">
+          <button
+            type="button"
+            aria-expanded={picking}
+            onClick={() => setPicking((open) => !open)}
+            className="rounded-lg px-2 py-1 text-sm font-medium text-gray-800 hover:bg-gray-100 dark:text-white dark:hover:bg-gray-905"
+          >
+            {MONTHS[view.month]} {view.year}
+          </button>
+          <span className="flex flex-col">
+            <button
+              type="button"
+              aria-label="Next year"
+              onClick={() => shiftYear(1)}
+              className="rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-905 dark:hover:text-gray-200"
+            >
+              <LuChevronUp className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              aria-label="Previous year"
+              onClick={() => shiftYear(-1)}
+              className="rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-905 dark:hover:text-gray-200"
+            >
+              <LuChevronDown className="h-3.5 w-3.5" />
+            </button>
+          </span>
+        </span>
+        <button
+          type="button"
+          aria-label="Next month"
+          onClick={() => shiftMonth(1)}
+          className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-905 dark:hover:text-gray-200"
+        >
+          <LuChevronRight className="h-4 w-4" />
+        </button>
+      </div>
+
+      {picking ? (
+        <div className="grid grid-cols-3 gap-1 py-1">
+          {MONTHS.map((name, index) => (
+            <button
+              key={name}
+              type="button"
+              aria-pressed={index === view.month}
+              onClick={() => {
+                setView((current) => ({ ...current, month: index }));
+                setPicking(false);
+              }}
+              className={`rounded-lg py-2 text-xs transition-colors ${
+                index === view.month
+                  ? "bg-brand-500 font-medium text-white"
+                  : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-905"
+              }`}
+            >
+              {name.slice(0, 3)}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-7 gap-0.5 text-center">
+          {WEEKDAYS.map((day) => (
+            <span
+              key={day}
+              className="py-1 text-[10px] font-medium text-gray-400 dark:text-gray-500"
+            >
+              {day}
+            </span>
+          ))}
+          {weeks.map((week, weekIndex) =>
+            week.map((day, dayIndex) => {
+              if (!day) return <span key={`${weekIndex}-${dayIndex}`} />;
+              const iso = toIso(view.year, view.month, day);
+              const disabled = Boolean(max) && iso > max!;
+              const selected = iso === value;
+              return (
+                <button
+                  key={`${weekIndex}-${dayIndex}`}
+                  type="button"
+                  disabled={disabled}
+                  aria-pressed={selected}
+                  onClick={() => onChange(iso)}
+                  className={`rounded-lg py-1.5 text-xs transition-colors ${
+                    selected
+                      ? "bg-brand-500 font-medium text-white"
+                      : disabled
+                        ? "cursor-not-allowed text-gray-300 dark:text-gray-600"
+                        : `text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-905 ${
+                            iso === todayIso
+                              ? "font-semibold text-brand-500 dark:text-brand-400"
+                              : ""
+                          }`
+                  }`}
+                >
+                  {day}
+                </button>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Form field that opens {@link SingleCalendar} in a dropdown. Replaces
+ * `<input type="date">` so the picker matches the range filter on the
+ * Transactions and Reports screens instead of the OS date stub.
+ */
+export function SingleDateField({
+  value,
+  max,
+  onChange,
+  placeholder = "Pick a date",
+}: {
+  value: string;
+  max?: string;
+  onChange: (iso: string) => void;
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const close = (event: MouseEvent) => {
+      if (!ref.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative mt-1.5">
+      <button
+        type="button"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        className="flex h-10 w-full items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-left text-sm font-normal text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+      >
+        <span className={`flex-1 truncate ${value ? "" : "text-gray-400"}`}>
+          {value ? formatDisplay(value) : placeholder}
+        </span>
+        <LuCalendarDays className="h-4 w-4 shrink-0 text-gray-600 dark:text-gray-400" />
+      </button>
+      {open && (
+        <div className="absolute right-0 z-40 mt-2 w-[290px] rounded-xl border border-gray-200 bg-white p-3 shadow-xl dark:border-gray-700 dark:bg-gray-901">
+          <SingleCalendar
+            value={value}
+            max={max}
+            onChange={(iso) => {
+              onChange(iso);
+              setOpen(false);
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
  * Date-range filter. Unlike the mock version this drives the server-side
  * `dateFrom`/`dateTo` params, which filter on `saleDate` — so a preset now
  * narrows the whole result set rather than just the current page.

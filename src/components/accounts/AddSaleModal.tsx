@@ -2,29 +2,24 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { LuCalendarDays, LuX } from "react-icons/lu";
+import { LuX } from "react-icons/lu";
 import { toast } from "sonner";
 import { parseApiError } from "@/lib/api";
 import { useTransactionMutations } from "@/hooks/useAccounting";
 import {
-  COMMISSION_CURRENCIES,
   CURRENCIES,
   LOCAL_CURRENCY,
   transactionCurrenciesForAccountType,
   type BankAccount,
   type ClientSearchResult,
-  type CommissionCurrency,
   type Currency,
-  type EmployeeSearchResult,
 } from "@/services/accounting.service";
 import AccountingSelect from "@/components/accounts/AccountingSelect";
 import ClientPicker from "@/components/accounts/ClientPicker";
 import BankAccountPicker from "@/components/accounts/BankAccountPicker";
-import EmployeePicker from "@/components/accounts/EmployeePicker";
 import CreateClientModal from "@/components/accounts/CreateClientModal";
-import EmployeeFormModal from "@/components/accounts/EmployeeFormModal";
+import { SingleDateField } from "@/components/accounts/accountingFilters";
 import {
-  formatMoney,
   fromDateInputValue,
   todayDateInputValue,
 } from "@/components/accounts/platformMeta";
@@ -40,7 +35,7 @@ export default function AddSaleModal({
 
   const [client, setClient] = useState<ClientSearchResult | null>(null);
   const [currency, setCurrency] = useState<Currency>("USD");
-  const [amount, setAmount] = useState("0.00");
+  const [amount, setAmount] = useState("0");
   const [saleDate, setSaleDate] = useState(todayDateInputValue);
   const [refId, setRefId] = useState("");
   const [description, setDescription] = useState("");
@@ -56,21 +51,14 @@ export default function AddSaleModal({
   const [bankError, setBankError] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Optional: not every sale has an employee/commission attached.
-  const [employee, setEmployee] = useState<EmployeeSearchResult | null>(null);
-  const [commissionAmount, setCommissionAmount] = useState("");
-  const [commissionCurrency, setCommissionCurrency] =
-    useState<CommissionCurrency>("USD");
-
   // Opened from the picker's "Create <term>" row.
   const [createClientName, setCreateClientName] = useState<string | null>(null);
-  const [createEmployeeName, setCreateEmployeeName] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
     setClient(null);
     setCurrency("USD");
-    setAmount("0.00");
+    setAmount("0");
     setSaleDate(todayDateInputValue());
     setRefId("");
     setDescription("");
@@ -79,22 +67,19 @@ export default function AddSaleModal({
     setRefIdError("");
     setClientError("");
     setBankError("");
-    setEmployee(null);
-    setCommissionAmount("");
-    setCommissionCurrency("USD");
   }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
-      // Let a nested create-client/create-employee modal handle Escape first.
-      if (event.key === "Escape" && createClientName === null && createEmployeeName === null) {
+      // Let a nested create-client modal handle Escape first.
+      if (event.key === "Escape" && createClientName === null) {
         onClose();
       }
     };
     document.addEventListener("keydown", closeOnEscape);
     return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [isOpen, onClose, createClientName, createEmployeeName]);
+  }, [isOpen, onClose, createClientName]);
 
   if (!isOpen) return null;
 
@@ -126,19 +111,6 @@ export default function AddSaleModal({
       setRefIdError("Reference ID is required.");
       return;
     }
-    const trimmedCommission = commissionAmount.trim();
-    let numericCommission: number | undefined;
-    if (trimmedCommission) {
-      if (!employee) {
-        setError("Select an employee before entering a commission.");
-        return;
-      }
-      numericCommission = Number(trimmedCommission);
-      if (!Number.isFinite(numericCommission) || numericCommission < 0) {
-        setError("Enter a commission amount of zero or more.");
-        return;
-      }
-    }
 
     setSaving(true);
     try {
@@ -153,25 +125,19 @@ export default function AddSaleModal({
         currency,
         saleDate: fromDateInputValue(saleDate),
         description: description.trim() || undefined,
-        employeeId: employee?.id,
-        commissionAmount: numericCommission,
-        commissionCurrency: numericCommission !== undefined ? commissionCurrency : undefined,
       });
       toast.success("Sale recorded");
       onClose();
     } catch (err) {
       const { message, code } = parseApiError(err);
-      // 409 is always a duplicate refId; 404 means the client/bank
-      // account/employee vanished mid-flow.
+      // 409 is always a duplicate refId; 404 means the client or bank account
+      // vanished mid-flow.
       if (code === "CONFLICT") {
         setRefIdError("This reference ID is already used.");
       } else if (code === "NOT_FOUND") {
         if (message.toLowerCase().includes("bank")) {
           setBankError("This bank account no longer exists. Pick another.");
           setBankAccount(null);
-        } else if (message.toLowerCase().includes("employee")) {
-          setError("This employee no longer exists. Pick another.");
-          setEmployee(null);
         } else {
           setClientError("This client no longer exists. Pick another.");
           setClient(null);
@@ -200,8 +166,7 @@ export default function AddSaleModal({
         />
         {/* Capped at the viewport with the field area as the only scrolling
             region, so the header and Save button stay reachable however many
-            fields the form grows to (Employee/Commission added on top of the
-            original set). */}
+            fields the form grows to. */}
         <form
           onSubmit={submit}
           className="relative z-10 flex max-h-[calc(100vh-4rem)] w-full max-w-[448px] flex-col overflow-hidden rounded-[22px] bg-white shadow-2xl dark:border dark:border-gray-800 dark:bg-gray-950"
@@ -289,70 +254,29 @@ export default function AddSaleModal({
                 step="0.01"
                 value={amount}
                 onChange={(event) => setAmount(event.target.value)}
-                className="mt-1.5 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm font-normal text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                // A default of "0" would otherwise force the user to delete it
+                // before typing — or leave them with "0500". Clearing on focus
+                // makes the field behave like the empty placeholder it looks
+                // like; leaving it blank restores the zero on the way out.
+                onFocus={() => {
+                  if (Number(amount) === 0) setAmount("");
+                }}
+                onBlur={() => {
+                  if (amount.trim() === "") setAmount("0");
+                }}
+                placeholder="0"
+                className="mt-1.5 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm font-normal text-gray-700 outline-none placeholder:text-gray-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
               />
             </label>
-            <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
+            <div className="text-xs font-medium text-gray-600 dark:text-gray-300">
               Sale Date
-              <div className="relative mt-1.5">
-                <input
-                  type="date"
-                  value={saleDate}
-                  max={todayDateInputValue()}
-                  onChange={(event) => setSaleDate(event.target.value)}
-                  className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 pr-9 text-sm font-normal text-gray-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-                />
-                <LuCalendarDays className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-600 dark:text-gray-400" />
-              </div>
-            </label>
-          </div>
-
-          <p className="mt-5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-            Commission (optional)
-          </p>
-          <div className="mt-3">
-            <EmployeePicker
-              value={employee}
-              onChange={(next) => {
-                setEmployee(next);
-                // A commission can't exist without an employee, so clearing
-                // the employee clears whatever commission was entered too.
-                if (!next) {
-                  setCommissionAmount("");
-                  setCommissionCurrency("USD");
-                }
-              }}
-              onCreateRequest={setCreateEmployeeName}
-            />
-          </div>
-          {employee && (
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
-                Commission Amount
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={commissionAmount}
-                  onChange={(event) => setCommissionAmount(event.target.value)}
-                  placeholder="0.00"
-                  className="mt-1.5 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm font-normal text-gray-700 outline-none placeholder:text-gray-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-                />
-              </label>
-              <div className="text-xs font-medium text-gray-600 dark:text-gray-300">
-                Commission Currency
-                <AccountingSelect
-                  label="Commission Currency"
-                  value={commissionCurrency}
-                  options={COMMISSION_CURRENCIES.map((code) => ({
-                    value: code,
-                    label: code,
-                  }))}
-                  onChange={(next) => setCommissionCurrency(next as CommissionCurrency)}
-                />
-              </div>
+              <SingleDateField
+                value={saleDate}
+                max={todayDateInputValue()}
+                onChange={setSaleDate}
+              />
             </div>
-          )}
+          </div>
 
           <p className="mt-5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
             Reference Information
@@ -385,23 +309,6 @@ export default function AddSaleModal({
               className="mt-1.5 h-20 w-full resize-none rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-800 outline-none placeholder:text-gray-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
             />
           </label>
-          <div className="mt-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-3 text-xs leading-4 text-gray-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-gray-300">
-            {bankAccount ? (
-              <>
-                Saving will add{" "}
-                {formatMoney(bankAccount.currencyType, Number(amount) || 0)} to{" "}
-                <span className="font-medium">{bankAccount.bankName}</span> and
-                update the dashboard totals. It does not change the client&apos;s
-                stored total revenue.
-              </>
-            ) : (
-              <>
-                Saving updates the selected bank account&apos;s balance and the
-                dashboard totals. It does not change the client&apos;s stored
-                total revenue.
-              </>
-            )}
-          </div>
           </div>
 
           <div className="shrink-0 border-t border-gray-100 p-6 pt-4 dark:border-gray-800">
@@ -439,15 +346,6 @@ export default function AddSaleModal({
           setClient({ id: created.id, clientName: created.clientName });
           setClientError("");
           setCreateClientName(null);
-        }}
-      />
-      <EmployeeFormModal
-        isOpen={createEmployeeName !== null}
-        initialName={createEmployeeName ?? ""}
-        onClose={() => setCreateEmployeeName(null)}
-        onSaved={(created) => {
-          setEmployee({ id: created.id, name: created.name });
-          setCreateEmployeeName(null);
         }}
       />
     </>,
