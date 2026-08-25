@@ -12,6 +12,7 @@ import {
   accountingDashboardService,
   bankAccountService,
   clientService,
+  employeeService,
   reportsService,
   transactionService,
   REPORTS_MAX_RANGE_DAYS,
@@ -19,12 +20,15 @@ import {
   type ClientListParams,
   type CreateBankAccountPayload,
   type CreateClientPayload,
+  type CreateEmployeePayload,
   type CreateTransactionPayload,
+  type EmployeeListParams,
   type OverviewPeriod,
   type ReportFilters,
   type TransactionListParams,
   type UpdateBankAccountPayload,
   type UpdateClientPayload,
+  type UpdateEmployeePayload,
   type UpdateTransactionPayload,
 } from "@/services/accounting.service";
 
@@ -213,6 +217,38 @@ export function useClientMutations() {
   return { createClient, renameClient, deleteClient };
 }
 
+export function useEmployeeMutations() {
+  const invalidateAccounting = useInvalidateAccounting();
+
+  const createEmployee = useCallback(
+    async (payload: CreateEmployeePayload) => {
+      const created = await employeeService.create(payload);
+      await invalidateAccounting();
+      return created;
+    },
+    [invalidateAccounting]
+  );
+
+  const renameEmployee = useCallback(
+    async (employeeId: string, payload: UpdateEmployeePayload) => {
+      const updated = await employeeService.update(employeeId, payload);
+      await invalidateAccounting();
+      return updated;
+    },
+    [invalidateAccounting]
+  );
+
+  const deleteEmployee = useCallback(
+    async (employeeId: string) => {
+      await employeeService.delete(employeeId);
+      await invalidateAccounting();
+    },
+    [invalidateAccounting]
+  );
+
+  return { createEmployee, renameEmployee, deleteEmployee };
+}
+
 export function useTransactionMutations() {
   const invalidateAccounting = useInvalidateAccounting();
 
@@ -354,6 +390,68 @@ export function useClientSearch(term: string, debounceMs = 300) {
     results: query.data ?? [],
     // Treat the debounce gap as loading so the dropdown doesn't flash "no
     // results" between a keystroke and the request going out.
+    isLoading: query.isFetching || (trimmed.length > 0 && debounced !== term),
+    error: toAccountingError(query.error),
+  };
+}
+
+// ── Employees ─────────────────────────────────────────────────────────────────
+
+export function useAccountingEmployees(params: EmployeeListParams) {
+  const { workspaceId, isReady } = useAccountingQueryGate();
+  const queryClient = useQueryClient();
+  const queryKey = useMemo(
+    () => queryKeys.accountingEmployees(workspaceId, params),
+    [workspaceId, params]
+  );
+  const { createEmployee, renameEmployee, deleteEmployee } = useEmployeeMutations();
+
+  const query = useQuery({
+    queryKey,
+    queryFn: () => employeeService.list(params),
+    enabled: isReady,
+    staleTime: 60_000,
+    retry: ACCOUNTING_RETRY,
+  });
+
+  return {
+    employees: query.data?.items ?? [],
+    meta: query.data?.meta ?? null,
+    isLoading: query.isLoading,
+    isFetching: query.isFetching,
+    error: toAccountingError(query.error),
+    refetch: () => queryClient.invalidateQueries({ queryKey }),
+    createEmployee,
+    renameEmployee,
+    deleteEmployee,
+  };
+}
+
+/**
+ * Debounced employee lookup for the transaction employee picker, same shape
+ * as `useClientSearch`.
+ */
+export function useEmployeeSearch(term: string, debounceMs = 300) {
+  const { workspaceId, isReady } = useAccountingQueryGate();
+  const [debounced, setDebounced] = useState(term);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(term), debounceMs);
+    return () => clearTimeout(timer);
+  }, [term, debounceMs]);
+
+  const trimmed = debounced.trim();
+
+  const query = useQuery({
+    queryKey: queryKeys.accountingEmployeeSearch(workspaceId, trimmed),
+    queryFn: () => employeeService.search(trimmed),
+    enabled: isReady && trimmed.length > 0,
+    staleTime: 30_000,
+    retry: ACCOUNTING_RETRY,
+  });
+
+  return {
+    results: query.data ?? [],
     isLoading: query.isFetching || (trimmed.length > 0 && debounced !== term),
     error: toAccountingError(query.error),
   };

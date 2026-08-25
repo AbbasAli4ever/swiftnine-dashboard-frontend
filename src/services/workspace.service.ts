@@ -122,8 +122,10 @@ export const workspaceService = {
       .then((r) => r.data.data),
 
   /**
-   * Grant or revoke accounting access. OWNER-only server-side; `null` revokes.
-   * Mirrors `changeMemberRole` above — same endpoint shape and body convention.
+   * Grant or revoke accounting access. Platform-admin-only server-side (a
+   * company-wide flag, not workspace-scoped) — `null` revokes. No
+   * `x-workspace-id` header: the guard behind this endpoint doesn't check
+   * workspace membership at all, unlike `changeMemberRole` above.
    */
   changeMemberAccountingRole: (
     workspaceId: string,
@@ -131,11 +133,10 @@ export const workspaceService = {
     accountingRole: AccountingRole | null
   ) =>
     api
-      .put(
-        `/organizations/members/${memberId}/accounting-role`,
-        { workspaceId, accountingRole },
-        { headers: { "x-workspace-id": workspaceId } }
-      )
+      .put(`/organizations/members/${memberId}/accounting-role`, {
+        workspaceId,
+        accountingRole,
+      })
       .then((r) => r.data),
 
   // Requires the office-admin secret key in addition to OWNER role — the role
@@ -224,16 +225,14 @@ export const workspaceService = {
       })
       .then((r) => r.data),
 
+  // An invite carries a workspace role only — accounting access can no
+  // longer be attached to one. It's granted separately, after acceptance,
+  // via `changeMemberAccountingRole`, which only a platform admin can call.
   inviteBulk: (
     workspaceId: string,
     payload: {
       emails: string[];
       role?: WorkspaceInviteRole;
-      /** Accounting access to grant once the invite is accepted. Omit or send
-       *  null for none. Stored on the invite and copied onto the membership
-       *  row at acceptance. Note the members list reports `accountingRole:
-       *  null` for still-pending invites regardless of what was requested. */
-      accountingRole?: AccountingRole | null;
     }
   ) =>
     api
@@ -247,11 +246,6 @@ export const workspaceService = {
     payload: {
       email: string;
       role?: WorkspaceInviteRole;
-      /** Accounting access to grant once the invite is accepted. Omit or send
-       *  null for none. Stored on the invite and copied onto the membership
-       *  row at acceptance. Note the members list reports `accountingRole:
-       *  null` for still-pending invites regardless of what was requested. */
-      accountingRole?: AccountingRole | null;
     }
   ) =>
     api

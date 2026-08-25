@@ -61,12 +61,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       api
         .get<AuthUser>("/user/profile")
         .then(({ data }) => {
-          setAuth(state.accessToken!, data);
+          setAuth(state.accessToken!, data, data.role ?? undefined);
         })
         .catch(() => {
           clearAuth();
           refreshSession()
-            .then((data) => setAuth(data.accessToken, data.user))
+            .then((data) => setAuth(data.accessToken, data.user, data.user.role ?? undefined))
             .catch(() => clearAuth());
         })
         .finally(() => setIsLoading(false));
@@ -83,7 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     refreshSession()
-      .then((data) => setAuth(data.accessToken, data.user))
+      .then((data) => setAuth(data.accessToken, data.user, data.user.role ?? undefined))
       .catch(() => clearAuth())
       .finally(() => setIsLoading(false));
 
@@ -97,7 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         "/auth/login",
         { email, password }
       );
-      setAuth(data.accessToken, data.user);
+      setAuth(data.accessToken, data.user, data.user.role ?? undefined);
     },
     [setAuth]
   );
@@ -119,7 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         "/auth/verify-email",
         { email, otp }
       );
-      setAuth(data.accessToken, data.user);
+      setAuth(data.accessToken, data.user, data.user.role ?? undefined);
       // Accounting access is per-workspace now and resolves asynchronously, so
       // it can't steer this redirect. Everyone lands on the portal picker; the
       // accounting rail appears once workspace membership loads.
