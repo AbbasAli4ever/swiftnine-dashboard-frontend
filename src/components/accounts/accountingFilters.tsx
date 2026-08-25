@@ -15,14 +15,40 @@ import {
 // than a copy that drifts — both drive the identical `GET /transactions`
 // query params.
 
-export type DatePreset = "all" | "7" | "30" | "custom";
+/**
+ * `all` means genuinely unfiltered — no date params at all. Screens that own
+ * an export must not offer it: the export API reads "no dates" as *today*,
+ * so an all-time table beside a one-day file is the exact mismatch this
+ * module exists to avoid. Reports therefore offers {@link REPORT_DATE_PRESETS}
+ * instead, which starts at `today`.
+ */
+export type DatePreset =
+  | "all"
+  | "today"
+  | "week"
+  | "month"
+  | "7"
+  | "30"
+  | "custom";
 
+/** Every label states the span it actually sends — a picker that reads
+ *  "Date Range" while sending 400 days was the original defect here. */
 export const DATE_LABELS: Record<DatePreset, string> = {
-  all: "Date Range",
+  all: "All time",
+  today: "Today",
+  week: "This week",
+  month: "This month",
   "7": "Last 7 days",
   "30": "Last 30 days",
   custom: "Custom range",
 };
+
+/** Rows offered by the Transactions filter, which has no export to match. */
+export const TRANSACTION_DATE_PRESETS: DatePreset[] = ["all", "7", "30"];
+
+/** Rows offered by Reports. No "all time": the export would silently narrow
+ *  it to today, so the option cannot be honoured. */
+export const REPORT_DATE_PRESETS: DatePreset[] = ["today", "week", "month"];
 
 const MONTHS = [
   "January",
@@ -115,6 +141,9 @@ function RangeCalendar({
 
   const handleDayClick = (day: number) => {
     const iso = toIso(view.year, view.month, day);
+    // A sale cannot be dated in the future, so a range reaching past today
+    // could only ever return zero extra rows.
+    if (iso > todayIso) return;
     // A complete range, or a tap before the start, begins a new range.
     if (!from || to || iso < from) {
       onChange(iso, "");
@@ -213,10 +242,12 @@ function RangeCalendar({
               const iso = toIso(view.year, view.month, day);
               const isEdge = iso === from || (Boolean(to) && iso === to);
               const inRange = Boolean(from && to) && iso > from && iso < to;
+              const isFuture = iso > todayIso;
               return (
                 <button
                   key={`${weekIndex}-${dayIndex}`}
                   type="button"
+                  disabled={isFuture}
                   aria-pressed={isEdge}
                   onClick={() => handleDayClick(day)}
                   className={`rounded-lg py-1.5 text-xs transition-colors ${
@@ -224,11 +255,13 @@ function RangeCalendar({
                       ? "bg-brand-500 font-medium text-white"
                       : inRange
                         ? "bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400"
-                        : `text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-905 ${
-                            iso === todayIso
-                              ? "font-semibold text-brand-500 dark:text-brand-400"
-                              : ""
-                          }`
+                        : isFuture
+                          ? "cursor-not-allowed text-gray-300 dark:text-gray-600"
+                          : `text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-905 ${
+                              iso === todayIso
+                                ? "font-semibold text-brand-500 dark:text-brand-400"
+                                : ""
+                            }`
                   }`}
                 >
                   {day}
@@ -480,11 +513,19 @@ export function DateDropdown({
   to,
   onChange,
   align = "right",
+  presets = TRANSACTION_DATE_PRESETS,
+  clearPreset = "all",
 }: {
   preset: DatePreset;
   from: string;
   to: string;
   onChange: (preset: DatePreset, from?: string, to?: string) => void;
+  /** Which quick-pick rows to offer. Screens with an export pass
+   *  {@link REPORT_DATE_PRESETS}, which omits the unfilterable "all time". */
+  presets?: DatePreset[];
+  /** Where clearing a custom range lands. Reports has no "all time" to fall
+   *  back to, so it returns to `today` rather than an option it cannot honour. */
+  clearPreset?: DatePreset;
   /** Which edge the panel hangs from. The panel is wider than its button, so
    *  a left-positioned control needs `left` or the panel runs off-screen —
    *  and vice versa for a right-aligned filter bar. */
@@ -524,7 +565,7 @@ export function DateDropdown({
         <div
           className={`absolute ${align === "left" ? "left-0" : "right-0"} z-30 mt-2 w-[290px] rounded-xl border border-gray-200 bg-white p-3 shadow-xl dark:border-gray-700 dark:bg-gray-901`}
         >
-          {(["all", "7", "30"] as DatePreset[]).map((value) => (
+          {presets.map((value) => (
             <button
               key={value}
               type="button"
@@ -550,11 +591,12 @@ export function DateDropdown({
             to={to}
             onComplete={() => setOpen(false)}
             onChange={(nextFrom, nextTo) =>
-              // Clearing the range drops back to the unfiltered preset so the
-              // button stops reading "Custom range" with nothing selected.
+              // Clearing the range drops back to the screen's default preset
+              // so the button stops reading "Custom range" with nothing
+              // selected.
               nextFrom || nextTo
                 ? onChange("custom", nextFrom, nextTo)
-                : onChange("all", "", "")
+                : onChange(clearPreset, "", "")
             }
           />
         </div>

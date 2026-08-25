@@ -333,7 +333,11 @@ export default function TransactionsView() {
   // YYYY-MM-DD to UTC day boundaries on `saleDate`.
   const dateRange = useMemo(() => {
     if (datePreset === "custom") {
-      return { from: dateFrom || undefined, to: dateTo || undefined };
+      // Both ends or neither: a lone date is a 422, and a start tapped
+      // without an end is a half-built range, not a filter.
+      return dateFrom && dateTo
+        ? { from: dateFrom, to: dateTo }
+        : { from: undefined, to: undefined };
     }
     if (datePreset === "7" || datePreset === "30") {
       const start = new Date();

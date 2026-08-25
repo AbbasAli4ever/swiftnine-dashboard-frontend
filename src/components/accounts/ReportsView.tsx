@@ -23,7 +23,6 @@ import { parseApiError } from "@/lib/api";
 import {
   ACCOUNT_TYPES,
   CURRENCIES,
-  REPORTS_MAX_RANGE_DAYS,
   type AccountType,
   type ClientSearchResult,
   type Currency,
@@ -31,8 +30,10 @@ import {
   type ReportFilters,
 } from "@/services/accounting.service";
 import {
+  DATE_LABELS,
   DateDropdown,
   FilterDropdown,
+  REPORT_DATE_PRESETS,
   type DatePreset,
 } from "@/components/accounts/accountingFilters";
 import ClientPicker from "@/components/accounts/ClientPicker";
@@ -40,7 +41,6 @@ import BankAvatar from "@/components/accounts/BankAvatar";
 import {
   formatIsoDate,
   formatMoney,
-  toDateInputValue,
 } from "@/components/accounts/platformMeta";
 
 // Must stay in sync with the markup below — see TransactionsView, which uses
@@ -88,6 +88,12 @@ function todayLocalIso(): string {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
+/** Day of week for a `YYYY-MM-DD`, 0 = Sunday, read in UTC so the answer does
+ *  not shift with the host's offset. */
+function utcWeekday(iso: string): number {
+  return new Date(`${iso}T00:00:00.000Z`).getUTCDay();
+}
+
 /** Steps back N days from a `YYYY-MM-DD`, in UTC so the digits survive the
  *  round trip regardless of the host's offset. */
 function isoDaysBefore(iso: string, days: number): string {
@@ -97,7 +103,9 @@ function isoDaysBefore(iso: string, days: number): string {
 }
 
 export default function ReportsView() {
-  const [datePreset, setDatePreset] = useState<DatePreset>("all");
+  // Today, matching what the export API resolves to when sent no dates — the
+  // table on screen and the file it exports must always cover the same span.
+  const [datePreset, setDatePreset] = useState<DatePreset>("today");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [client, setClient] = useState<ClientSearchResult | null>(null);
@@ -147,19 +155,44 @@ export default function ReportsView() {
     return () => observer.disconnect();
   }, []);
 
-  // A relative preset resolves to concrete dates; the API expands a bare
-  // YYYY-MM-DD to UTC day boundaries on `saleDate`.
+  /**
+   * The one source of truth for the date filter — the table and both exports
+   * read this, so a file can never cover a different span than the rows on
+   * screen. Previously the export substituted its own 400-day fallback when
+   * this resolved to "no dates", producing a file labelled with a range the
+   * picker never showed.
+   *
+   * A relative preset resolves to concrete dates; the API expands a bare
+   * YYYY-MM-DD to UTC day boundaries on `saleDate`.
+   */
   const dateRange = useMemo(() => {
     if (datePreset === "custom") {
-      return { from: dateFrom || undefined, to: dateTo || undefined };
+      // A half-built custom range (a start tapped, no end yet) is incomplete:
+      // the API 422s on one date without the other, so treat it as unset
+      // rather than sending a lone key.
+      return dateFrom && dateTo
+        ? { from: dateFrom, to: dateTo }
+        : { from: undefined, to: undefined };
     }
-    if (datePreset === "7" || datePreset === "30") {
-      const days = Number(datePreset);
-      const start = new Date();
-      start.setDate(start.getDate() - (days - 1));
-      return { from: toDateInputValue(start.toISOString()), to: todayLocalIso() };
+
+    const to = todayLocalIso();
+    switch (datePreset) {
+      case "week":
+        // Week-to-date, Monday-based: `getUTCDay()` calls Sunday 0, so shift
+        // it to 6 and every other day back by one.
+        return { from: isoDaysBefore(to, (utcWeekday(to) + 6) % 7), to };
+      case "month":
+        // Month-to-date — the 1st of the current month through today.
+        return { from: `${to.slice(0, 7)}-01`, to };
+      case "7":
+      case "30":
+        return { from: isoDaysBefore(to, Number(datePreset) - 1), to };
+      default:
+        // `today` — the default, and the same day the export API resolves to
+        // when sent no date params at all. Both ends are today, so the table
+        // and the file cover exactly one day.
+        return { from: to, to };
     }
-    return { from: undefined, to: undefined };
   }, [datePreset, dateFrom, dateTo]);
 
   const params = useMemo(
@@ -225,12 +258,14 @@ export default function ReportsView() {
       ...(bankAccountIds.length === 1 ? { bankAccountId: bankAccountIds[0] } : {}),
     };
 
-    // Always send an explicit range: given no dates the endpoint silently
-    // exports *today*, which would contradict a table showing all history.
-    // With no date filter set, fall back to the widest span the API accepts
-    // (400 days) rather than an open-ended one it would reject.
-    const to = dateRange.to ?? todayLocalIso();
-    const from = dateRange.from ?? isoDaysBefore(to, REPORTS_MAX_RANGE_DAYS);
+    // The same range the table is showing — no private fallback here. The
+    // only way to reach this with an unset range is a half-built custom
+    // range, which the API would reject as a lone date anyway.
+    const { from, to } = dateRange;
+    if (!from || !to) {
+      toast.error("Pick both a start and an end date before exporting.");
+      return;
+    }
 
     try {
       await exportReport(from, to, filters, format);
@@ -238,7 +273,10 @@ export default function ReportsView() {
         format === "pdf" ? "PDF downloaded" : "Excel file downloaded"
       );
     } catch (err) {
-      toast.error(parseApiError(err).message);
+      // Surfaces the server's own per-field text — notably the 400-day cap,
+      // which a wide custom range trips and which nothing in the UI states.
+      const { message, details } = parseApiError(err);
+      toast.error(details?.[0]?.message || message || "Export failed.");
     }
   };
 
@@ -251,6 +289,8 @@ export default function ReportsView() {
           from={dateFrom}
           to={dateTo}
           align="left"
+          presets={REPORT_DATE_PRESETS}
+          clearPreset="today"
           onChange={(preset, from, to) => {
             setDatePreset(preset);
             setDateFrom(from ?? "");
@@ -441,10 +481,14 @@ export default function ReportsView() {
                   <tr>
                     <td colSpan={5} className="h-64 px-6 text-center">
                       <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        No transactions match these filters
+                        No sales in {DATE_LABELS[datePreset].toLowerCase()}
                       </p>
+                      {/* Names the span explicitly: the export covers exactly
+                          these rows, so an empty table means an empty file —
+                          worth saying before the user downloads one. */}
                       <p className="mt-1 text-sm text-gray-400">
-                        Try widening the date range or clearing a filter.
+                        Exporting now would produce an empty file. Widen the
+                        date range or clear a filter.
                       </p>
                     </td>
                   </tr>
