@@ -11,7 +11,7 @@ export default function MinimizedTaskBar() {
   if (minimizedTasks.length === 0) return null;
 
   return (
-    <div className="fixed bottom-4 left-[336px] z-40 flex flex-col gap-2">
+    <div className="fixed bottom-4 left-[352px] z-40 flex flex-col gap-2">
       {minimizedTasks.map((draft: MinimizedTaskDraft) => (
         <div
           key={draft.taskId}

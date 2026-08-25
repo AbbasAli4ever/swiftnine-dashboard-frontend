@@ -70,8 +70,8 @@ type RailItem = {
 };
 
 const railItems: RailItem[] = [
-  { id: "accounts", label: "Accounts", icon: <LuLandmark className="w-5 h-5" />, panel: "accounts" },
-  { id: "home", label: "Board", icon: <LuKanban className="w-5 h-5" />, panel: "home" },
+  { id: "accounts", label: "Dashboard", icon: <LuLandmark className="w-5 h-5" />, panel: "accounts" },
+  { id: "home", label: "Projects", icon: <LuKanban className="w-5 h-5" />, panel: "home" },
   { id: "lms",  label: "UNI",  icon: <LuBookOpen className="w-5 h-5" />,      panel: "lms" },
   { id: "chatbot", label: "SwiftBot", icon: <LuBotMessageSquare className="w-5 h-5" />, panel: "chatbot" },
 ];
@@ -1263,8 +1263,8 @@ const AppSidebar: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => 
           so it would be a column of empty space plus actions (Invite) that
           aren't theirs. Settings stays reachable from the accounting panel. */}
       {!isAccountant && (
-      <div className="flex flex-col w-14 shrink-0 mx-1 mb-2 dark:bg-gray-901 bg-[#000000] rounded-[10px] overflow-hidden">
-        <nav className="flex flex-col items-center gap-3 flex-1 pt-2">
+      <div className="flex flex-col w-[72px] shrink-0 mx-1 mb-2 dark:bg-gray-901 bg-[#000000] rounded-[10px] overflow-hidden">
+        <nav className="flex flex-col items-stretch gap-3 flex-1 pt-2 px-1.5">
           {visibleRailItems.map((item) => {
             const isActive = activeRail === item.id && !isSettingsActive;
             return (
@@ -1272,7 +1272,7 @@ const AppSidebar: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => 
                 key={item.id}
                 onClick={() => handleRailClick(item.id)}
                 title={item.label}
-                className={`relative flex flex-col items-center justify-center w-10 h-10 rounded-xl transition-all duration-150
+                className={`relative flex flex-col items-center justify-center w-full h-12 px-1 rounded-xl transition-all duration-150
                   ${isActive
                     ? "text-white"
                     : "text-gray-400 hover:bg-white/10 hover:text-white"
@@ -1280,7 +1280,7 @@ const AppSidebar: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => 
                 style={isActive ? { background: "linear-gradient(180deg, #FB64B6 0%, #AD46FF 50%, #2B7FFF 100%)" } : undefined}
               >
                 {item.icon}
-                <span className="text-[9px] mt-0.5 leading-none">{item.label}</span>
+                <span className="text-[9px] mt-1 leading-none w-full text-center truncate">{item.label}</span>
               </button>
             );
           })}
@@ -1302,19 +1302,19 @@ const AppSidebar: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => 
         </nav>
 
         {/* Bottom rail actions */}
-        <div className="flex flex-col items-center gap-1 pb-3 border-t border-white/10 pt-2">
+        <div className="flex flex-col items-stretch gap-1 pb-3 px-1.5 border-t border-white/10 pt-2">
           <button
             title="Invite"
             onClick={() => setInviteOpen(true)}
-            className="flex flex-col items-center justify-center w-10 h-10 rounded-xl text-gray-400 hover:bg-white/10 hover:text-white transition-all"
+            className="flex flex-col items-center justify-center w-full h-12 px-1 rounded-xl text-gray-400 hover:bg-white/10 hover:text-white transition-all"
           >
             <GoPersonAdd className="w-5 h-5" />
-            <span className="text-[9px] mt-0.5 leading-none">Invite</span>
+            <span className="text-[9px] mt-1 leading-none w-full text-center truncate">Invite</span>
           </button>
           <button
             title="Settings"
             onClick={handleSettingsClick}
-            className={`flex flex-col items-center justify-center w-10 h-10 rounded-xl transition-all duration-150
+            className={`flex flex-col items-center justify-center w-full h-12 px-1 rounded-xl transition-all duration-150
               ${isSettingsActive
                 ? "text-white"
                 : "text-gray-400 hover:bg-white/10 hover:text-white"
@@ -1322,7 +1322,7 @@ const AppSidebar: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => 
             style={isSettingsActive ? { background: "linear-gradient(180deg, #FB64B6 0%, #AD46FF 50%, #2B7FFF 100%)" } : undefined}
           >
             <LuSettings className="w-5 h-5" />
-            <span className="text-[9px] mt-0.5 leading-none">Settings</span>
+            <span className="text-[9px] mt-1 leading-none w-full text-center truncate">Settings</span>
           </button>
         </div>
       </div>

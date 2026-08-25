@@ -73,8 +73,8 @@ const AppHeader: React.FC = () => {
 
   return (
     <header className="sticky top-0 z-40 flex items-center h-10 bg-white dark:bg-gray-907  border-gray-200 dark:border-gray-800">
-      {/* Left: workspace switcher — matches sidebar width (56px rail + 264px panel) */}
-      <div className="relative flex items-center w-[320px] shrink-0 ml-1 h-full">
+      {/* Left: workspace switcher — matches sidebar width (72px rail + 264px panel) */}
+      <div className="relative flex items-center w-[336px] shrink-0 ml-1 h-full">
         <button
           ref={switcherTriggerRef}
           onClick={() => setSwitcherOpen((v) => !v)}

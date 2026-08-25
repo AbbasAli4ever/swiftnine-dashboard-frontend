@@ -72,11 +72,12 @@ export default function AdminLayoutClient({
         <AppSidebar hasHeader={true} />
 
         {/* Main area — offset by sidebar width */}
-        {/* Sidebar is 64px icon rail + 264px panel. Accountants don't get the
-            rail, so the content offset drops to the panel width alone. */}
+        {/* Sidebar is 72px icon rail (plus its 8px of margins) + 264px panel.
+            Accountants don't get the rail, so the content offset drops to the
+            panel width alone. */}
         <div
           className={`flex flex-col flex-1 min-w-0 overflow-hidden ${
-            isAccountant ? "ml-[264px]" : "ml-[320px]"
+            isAccountant ? "ml-[264px]" : "ml-[336px]"
           }`}
         >
           {/* Content row: main + profile panels side by side */}
