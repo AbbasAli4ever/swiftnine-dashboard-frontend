@@ -26,11 +26,14 @@ import {
   type BankAccount,
   type ClientSearchResult,
   type Currency,
+  type EmployeeSearchResult,
   type TransactionListParams,
 } from "@/services/accounting.service";
 import AccountingSelect from "@/components/accounts/AccountingSelect";
 import ClientPicker from "@/components/accounts/ClientPicker";
 import BankAccountPicker from "@/components/accounts/BankAccountPicker";
+import EmployeePicker from "@/components/accounts/EmployeePicker";
+import EmployeeFormModal from "@/components/accounts/EmployeeFormModal";
 import BankAvatar from "@/components/accounts/BankAvatar";
 import {
   DateDropdown,
@@ -75,6 +78,8 @@ function EditTransactionModal({
       bankAccountId?: string;
       saleDate?: string;
       description?: string;
+      employeeId?: string | null;
+      commissionAmount?: number | null;
     }
   ) => Promise<void>;
 }) {
@@ -94,22 +99,43 @@ function EditTransactionModal({
    */
   const isLocalAccount = bankAccount?.accountType === "LOCAL";
   const [description, setDescription] = useState(transaction.description ?? "");
+  /* Seeded from what the transaction already carries. `employeeId` and
+     `commissionAmount` are a both-or-neither pair per request, so they are
+     only ever sent together — including when clearing, which is
+     `employeeId: null` + `commissionAmount: 0`. */
+  const [employee, setEmployee] = useState<EmployeeSearchResult | null>(
+    transaction.employee
+      ? { id: transaction.employee.id, name: transaction.employee.name }
+      : null
+  );
+  const [commission, setCommission] = useState(
+    String(transaction.commissionAmount ?? 0)
+  );
+  const [commissionError, setCommissionError] = useState("");
+  /** "Create <term>" from the employee picker, same as the sale modal. */
+  const [createEmployeeName, setCreateEmployeeName] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      // Let the nested create-employee modal take Escape first.
+      if (event.key === "Escape" && createEmployeeName === null) onClose();
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [onClose]);
+  }, [onClose, createEmployeeName]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     const nextAmount = Number(amount);
     if (!Number.isFinite(nextAmount) || nextAmount < 0) {
       setError("Enter an amount of zero or more.");
+      return;
+    }
+    const nextCommission = Number(commission);
+    if (employee && (!Number.isFinite(nextCommission) || nextCommission < 0)) {
+      setCommissionError("Enter a commission of zero or more.");
       return;
     }
 
@@ -129,8 +155,13 @@ function EditTransactionModal({
         ...(bankAccount ? { bankAccountId: bankAccount.id } : {}),
         saleDate: fromDateInputValue(saleDate),
         description: description.trim(),
-        // Employee and commission are not editable here; omitting them leaves
-        // whatever the transaction already carries untouched.
+        // Always sent as a pair. Clearing the employee sends an explicit null
+        // alongside a zero amount, which is how the API clears the link.
+        ...(employee
+          ? { employeeId: employee.id, commissionAmount: nextCommission }
+          : transaction.employeeId
+            ? { employeeId: null, commissionAmount: 0 }
+            : {}),
       });
     } catch (err) {
       setError(parseApiError(err).message || "Couldn't update the transaction.");
@@ -140,6 +171,7 @@ function EditTransactionModal({
   };
 
   return createPortal(
+    <>
     <div
       className="fixed inset-0 z-[10000] flex items-center justify-center p-4"
       role="dialog"
@@ -205,7 +237,16 @@ function EditTransactionModal({
               step="0.01"
               value={amount}
               onChange={(event) => setAmount(event.target.value)}
-              className="mt-1.5 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+              // Seeded from the existing sale, so usually non-zero — but a
+              // zero-amount sale would otherwise force a delete before typing.
+              onFocus={() => {
+                if (Number(amount) === 0) setAmount("");
+              }}
+              onBlur={() => {
+                if (amount.trim() === "") setAmount("0");
+              }}
+              placeholder="0"
+              className="mt-1.5 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 outline-none placeholder:text-gray-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
             />
           </label>
           <div className="text-xs font-medium text-gray-600 dark:text-gray-300">
@@ -252,6 +293,58 @@ function EditTransactionModal({
           />
         </label>
 
+        <div className="mt-3">
+          <EmployeePicker
+            onCreateRequest={setCreateEmployeeName}
+            value={employee}
+            onChange={(next) => {
+              setEmployee(next);
+              if (!next) {
+                setCommission("0");
+                setCommissionError("");
+              }
+            }}
+          />
+        </div>
+        {employee && (
+          <label className="mt-3 block text-xs font-medium text-gray-600 dark:text-gray-300">
+            Commission (PKR)
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={commission}
+              onChange={(event) => {
+                setCommission(event.target.value);
+                setCommissionError("");
+              }}
+              // Clear a leading "0" on focus so it doesn't become "0500".
+              onFocus={() => {
+                if (Number(commission) === 0) setCommission("");
+              }}
+              onBlur={() => {
+                if (commission.trim() === "") setCommission("0");
+              }}
+              placeholder="0"
+              className={`mt-1.5 h-10 w-full rounded-lg border bg-white px-3 text-sm text-gray-800 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 dark:bg-gray-800 dark:text-gray-100 ${
+                commissionError ? "border-red-400" : "border-gray-200 dark:border-gray-700"
+              }`}
+            />
+            {commissionError && (
+              <span role="alert" className="mt-1 block text-xs font-normal text-red-500">
+                {commissionError}
+              </span>
+            )}
+            {/* The increment is create-only server-side, so an edit here does
+                NOT move the employee's pending total. Saying so avoids a
+                silent drift the user can't see from this screen. */}
+            <span className="mt-1 block text-[11px] font-normal text-amber-600 dark:text-amber-500">
+              Changing this won&apos;t update the employee&apos;s pending
+              commission — adjust that on the employee record.
+            </span>
+          </label>
+        )}
+
 
         </div>
 
@@ -279,7 +372,17 @@ function EditTransactionModal({
           </div>
         </div>
       </form>
-    </div>,
+    </div>
+    <EmployeeFormModal
+      isOpen={createEmployeeName !== null}
+      initialName={createEmployeeName ?? ""}
+      onClose={() => setCreateEmployeeName(null)}
+      onSaved={(created) => {
+        setEmployee({ id: created.id, name: created.name });
+        setCreateEmployeeName(null);
+      }}
+    />
+    </>,
     document.body
   );
 }
@@ -472,14 +575,16 @@ export default function TransactionsView() {
           </span>
         </div>
         <div className="min-h-0 overflow-auto">
-          <table className="w-full min-w-[860px] table-fixed text-left">
+          <table className="w-full min-w-[1100px] table-fixed text-left">
             <thead className="sticky top-0 z-10 bg-white shadow-[0_1px_0_0_var(--color-gray-200)] dark:bg-gray-901 dark:shadow-[0_1px_0_0_var(--color-gray-800)]">
               <tr className="h-10 text-xs font-normal text-gray-400">
-                <th className="w-[14%] px-5 font-normal">Sale Date</th>
-                <th className="w-[24%] px-5 font-normal">Client</th>
-                <th className="w-[22%] px-5 font-normal">Bank Account</th>
-                <th className="w-[15%] px-5 font-normal">Ref ID</th>
-                <th className="w-[15%] px-5 text-right font-normal">Amount</th>
+                <th className="w-[12%] px-5 font-normal">Sale Date</th>
+                <th className="w-[18%] px-5 font-normal">Client</th>
+                <th className="w-[17%] px-5 font-normal">Bank Account</th>
+                <th className="w-[12%] px-5 font-normal">Ref ID</th>
+                <th className="w-[13%] px-5 text-right font-normal">Amount</th>
+                <th className="w-[14%] px-5 font-normal">Employee</th>
+                <th className="w-[14%] px-5 text-right font-normal">Commission</th>
                 {canWrite && <th className="w-[10%] px-5 text-right font-normal">Actions</th>}
               </tr>
             </thead>
@@ -514,6 +619,15 @@ export default function TransactionsView() {
                   <td className="px-5 text-right font-medium whitespace-nowrap">
                     {formatMoney(transaction.currency, transaction.saleAmount)}
                   </td>
+                  <td className="truncate px-5 text-xs text-gray-500 dark:text-gray-400">
+                    {transaction.employee?.name ?? "—"}
+                  </td>
+                  {/* Commission is PKR regardless of the sale's own currency. */}
+                  <td className="px-5 text-right whitespace-nowrap">
+                    {transaction.employee
+                      ? formatMoney(LOCAL_CURRENCY, transaction.commissionAmount ?? 0)
+                      : "—"}
+                  </td>
                   {canWrite && (
                     <td className="px-5">
                       <div className="flex justify-end gap-1">
@@ -542,7 +656,7 @@ export default function TransactionsView() {
               ))}
               {isLoading && transactions.length === 0 && (
                 <tr>
-                  <td colSpan={canWrite ? 6 : 5} className="p-5">
+                  <td colSpan={canWrite ? 8 : 7} className="p-5">
                     <div className="space-y-2">
                       {Array.from({ length: 6 }).map((_, index) => (
                         <div
@@ -556,7 +670,7 @@ export default function TransactionsView() {
               )}
               {!isLoading && transactions.length === 0 && (
                 <tr>
-                  <td colSpan={canWrite ? 6 : 5} className="h-64 px-6 text-center">
+                  <td colSpan={canWrite ? 8 : 7} className="h-64 px-6 text-center">
                     <div className="mx-auto flex max-w-sm flex-col items-center">
                       <LuDatabase className="mb-3 h-9 w-9 text-gray-300" />
                       <p className="font-medium text-gray-700 dark:text-gray-300">

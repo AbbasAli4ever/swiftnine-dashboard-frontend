@@ -6,7 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/queries/keys";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { useAuth } from "@/context/AuthContext";
-import { useAccountingRole } from "@/hooks/useAccounting";
+import { useWorkspaceManageAccess } from "@/hooks/useWorkspaceManageAccess";
 import { parseApiError } from "@/lib/api";
 import { PiExport } from "react-icons/pi";
 import ConfirmActionModal from "@/components/common/ConfirmActionModal";
@@ -15,7 +15,6 @@ import {
   LuChevronDown,
   LuEllipsis,
   LuSearch,
-  LuShield,
   LuSparkles,
   LuCoins,
   LuRotateCcw,
@@ -138,23 +137,21 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
   }, [activeWorkspace, tab]);
 
   /**
-   * Owner-gated UI must key off the workspace *role*, not `createdBy`. The
-   * backend authorizes these actions on `WorkspaceMember.role === "OWNER"`
-   * (both `RolesGuard` and `assertActorIsOwner`), and members can be promoted
-   * to OWNER via `changeMemberRole` or an OWNER invite — so keying off the
-   * creator denied promoted owners controls the API would have accepted.
+   * Management-gated UI keys off the workspace *role*, not `createdBy`, and
+   * admits MANAGER alongside OWNER: every backend route behind these controls
+   * is `@Roles('OWNER', 'MANAGER')`, so gating on OWNER alone would show a
+   * manager a read-only page the API would have accepted writes from.
    *
-   * `createdBy` is consulted *only* while the role is genuinely unknown, so the
-   * creator's own controls don't flicker in on first paint. Once the query
-   * settles — success, 403, or network failure — the server's answer decides.
-   * Testing `workspaceRole === null` instead would be wrong: that value is also
-   * null on failure, which would keep the creator's UI unverified while a
-   * promoted owner lost everything — opposite outcomes from one cause.
+   * The OWNER row needs no special handling here: the role badge names it, and
+   * no control in this page can promote or demote it.
+   *
+   * `isRealOwner` is NOT the same gate. The AI-tier and token-allowance routes
+   * (`TokenAllowanceController`, `AiTierController`) are `@Roles('OWNER')` —
+   * OWNER alone, no MANAGER — so the Usage column and the AI-tier / token
+   * controls must stay owner-only or a manager gets a column of 403s.
    */
-  const { workspaceRole, isLoading: isRoleLoading } = useAccountingRole();
-  const isOwner = isRoleLoading
-    ? activeWorkspace?.createdBy === user?.id
-    : workspaceRole === "OWNER";
+  const { canManageWorkspace: isOwner, isOwner: isRealOwner } =
+    useWorkspaceManageAccess();
 
   // Token usage for premium members only — standard members are unmetered, so
   // fetching a quota for them would be a wasted request per row. Usage is
@@ -162,7 +159,7 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
   // member viewer skips this fetch entirely rather than firing requests that
   // will only 403.
   useEffect(() => {
-    if (!activeWorkspace || tab !== "people" || !isOwner) return;
+    if (!activeWorkspace || tab !== "people" || !isRealOwner) return;
     const premium = members.filter((m) => m.aiModelTier === "PREMIUM");
     if (premium.length === 0) return;
 
@@ -184,10 +181,10 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
     return () => {
       cancelled = true;
     };
-    // `isOwner` now derives from an async role query, so it can flip from false
+    // `isRealOwner` now derives from an async role query, so it can flip from false
     // to true after this effect first runs — it has to be a dependency or the
     // quota fetch would be skipped permanently for a real owner.
-  }, [activeWorkspace, tab, members, isOwner]);
+  }, [activeWorkspace, tab, members, isRealOwner]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -281,22 +278,11 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
     }
   };
 
-  const handleChangeRole = async (member: WorkspaceMember) => {
-    if (!activeWorkspace) return;
-    setOpenMenuId(null);
-    const newRole = member.role === "OWNER" ? "MEMBER" : "OWNER";
-    try {
-      await workspaceService.changeMemberRole(activeWorkspace.id, member.id, newRole);
-      setMembers(prev => prev.map(m => m.id === member.id ? { ...m, role: newRole } : m));
-      toast.success(`Role changed to ${newRole === "OWNER" ? "Owner" : "Member"}`);
-    } catch (err) {
-      toast.error(parseApiError(err).message);
-    }
-  };
-
   /**
    * Accounting access is granted per workspace membership, independent of the
-   * OWNER/MEMBER role. `null` revokes it. OWNER-only server-side.
+   * workspace role. `null` revokes it. Platform-admin only server-side
+   * (`PlatformAdminGuard`) — deliberately NOT something an OWNER or MANAGER
+   * can do, which is why the control is gated on `user.isPlatformAdmin`.
    */
   const handleChangeAccountingRole = async (
     member: WorkspaceMember,
@@ -438,13 +424,17 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
                 placeholder="Search by name or email"
                 className="h-[48px] w-full rounded-lg border border-violet-300  bg-white pl-9 pr-36 text-sm text-gray-800 placeholder:text-gray-400 focus:border-blue-600 focus:outline-none dark:border-gray-905 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-gray-000"
               />
-              <button
-                type="button"
-                onClick={() => setInviteOpen(true)}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md bg-violet-500 px-3 py-1 text-sm font-normal text-white hover:bg-violet-600 dark:bg-gray-000 dark:text-black dark:hover:bg-gray-200"
-              >
-                + Invite people
-              </button>
+              {/* Inviting is OWNER/MANAGER-only server-side, so a plain MEMBER
+                  never sees the entry point. */}
+              {isOwner && (
+                <button
+                  type="button"
+                  onClick={() => setInviteOpen(true)}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md bg-violet-500 px-3 py-1 text-sm font-normal text-white hover:bg-violet-600 dark:bg-gray-000 dark:text-black dark:hover:bg-gray-200"
+                >
+                  + Invite people
+                </button>
+              )}
             </div>
           </div>
 
@@ -468,7 +458,7 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
                   <col className="w-[7%]" />
                   <col className="w-[11%]" />
                   <col className="w-[10%]" />
-                  {isOwner && <col className="w-[13%]" />}
+                  {isRealOwner && <col className="w-[13%]" />}
                   <col className="w-[9%]" />
                   <col className="w-[8%]" />
                   <col className="w-[8%]" />
@@ -481,7 +471,7 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
                     <th className="px-4 py-3 text-left">Role</th>
                     <th className="px-4 py-3 text-left">Accounting</th>
                     <th className="px-4 py-3 text-left">Subscription</th>
-                    {isOwner && <th className="px-4 py-3 text-left">Usage</th>}
+                    {isRealOwner && <th className="px-4 py-3 text-left">Usage</th>}
                     <th className="px-4 py-3 text-left">Last Active</th>
                     <th className="px-4 py-3 text-left">Invited By</th>
                     <th className="px-4 py-3 text-left">Invited On</th>
@@ -491,20 +481,29 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
                 <tbody>
                   {membersLoading ? (
                     <tr>
-                      <td colSpan={isOwner ? 10 : 9} className="px-4 py-10 text-center text-sm text-gray-400">
+                      <td colSpan={isRealOwner ? 10 : 9} className="px-4 py-10 text-center text-sm text-gray-400">
                         Loading members...
                       </td>
                     </tr>
                   ) : filteredMembers.length === 0 ? (
                     <tr>
-                      <td colSpan={isOwner ? 10 : 9} className="px-4 py-10 text-center text-sm text-gray-400">
+                      <td colSpan={isRealOwner ? 10 : 9} className="px-4 py-10 text-center text-sm text-gray-400">
                         No members found.
                       </td>
                     </tr>
                   ) : (
                     filteredMembers.map((member) => {
                       const isMe = member.id === user?.id;
-                      const isTargetOwner = member.role === "OWNER";
+                      /* MANAGER is a distinct role, not a member — folding it
+                         into "Member" would hide that they hold full
+                         workspace-management rights. */
+                      const roleLabel =
+                        member.role === "OWNER" ? "Owner"
+                        : member.role === "MANAGER" ? "Manager"
+                        : member.role === "ADMIN" ? "Admin"
+                        : "Member";
+                      const isPrivilegedRole =
+                        member.role === "OWNER" || member.role === "MANAGER";
                       return (
                         <tr key={member.id} className="border-b border-gray-100 align-middle last:border-0 dark:border-gray-800/70">
                           <td className="px-4 py-3">
@@ -534,11 +533,11 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
 
                           <td className="px-4 py-3">
                             <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-normal ${
-                              isTargetOwner
+                              isPrivilegedRole
                                 ? "bg-violet-100 text-violet-700 dark:bg-gray-905 dark:text-gray-100"
                                 : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
                             }`}>
-                              {isTargetOwner ? "Owner" : "Member"}
+                              {roleLabel}
                             </span>
                           </td>
 
@@ -606,7 +605,7 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
                             )}
                           </td>
 
-                          {isOwner && (
+                          {isRealOwner && (
                             <td className="px-4 py-3">
                               {(() => {
                                 if (member.aiModelTier !== "PREMIUM") {
@@ -700,69 +699,75 @@ export function WorkspaceSettingsContent({ tab }: { tab: string }) {
         {isOwner && openMenuId && menuPos && (() => {
           const member = filteredMembers.find(m => m.id === openMenuId);
           if (!member) return null;
-          const isTargetOwner = member.role === "OWNER";
+          /* No "Change to Owner/Member" entry: OWNER is set once at workspace
+             creation and no API path can grant or revoke it, so a role toggle
+             here could only ever produce a call the backend rejects. The rest
+             of the menu is unaffected.
+
+             The AI-tier and token-allowance entries are owner-only, not
+             manager-visible: `AiTierController` and `TokenAllowanceController`
+             are both `@Roles('OWNER')`, so a manager clicking them would only
+             ever collect a 403. Remove stays available to both. */
           return (
             <div
               ref={menuRef}
               className="fixed z-9999 w-62 rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900"
               style={{ top: menuPos.top, right: menuPos.right }}
             >
-              <button
-                type="button"
-                onClick={() => handleChangeRole(member)}
-                className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800 rounded-t-xl"
-              >
-                <LuShield className="h-4 w-4 text-gray-400" />
-                Change to {isTargetOwner ? "Member" : "Owner"}
-              </button>
-              <div className="mx-3 border-t border-gray-100 dark:border-gray-800" />
-              <button
-                type="button"
-                onClick={() => {
-                  setOpenMenuId(null);
-                  setMenuPos(null);
-                  setTierTarget(member);
-                }}
-                className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
-              >
-                <LuSparkles className="h-4 w-4 text-gray-400" />
-                {member.aiModelTier === "PREMIUM"
-                  ? "Downgrade to Standard"
-                  : "Upgrade to SwiftNine Premium"}
-              </button>
-              {member.aiModelTier === "PREMIUM" && (
+              {isRealOwner && (
                 <>
                   <button
                     type="button"
                     onClick={() => {
                       setOpenMenuId(null);
                       setMenuPos(null);
-                      setAllowanceTarget({ member, mode: "edit" });
+                      setTierTarget(member);
                     }}
-                    className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
+                    className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800 rounded-t-xl"
                   >
-                    <LuCoins className="h-4 w-4 text-gray-400" />
-                    Edit token limit
+                    <LuSparkles className="h-4 w-4 text-gray-400" />
+                    {member.aiModelTier === "PREMIUM"
+                      ? "Downgrade to Standard"
+                      : "Upgrade to SwiftNine Premium"}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOpenMenuId(null);
-                      setMenuPos(null);
-                      setAllowanceTarget({ member, mode: "reset" });
-                    }}
-                    className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
-                  >
-                    <LuRotateCcw className="h-4 w-4 text-gray-400" />
-                    Reset tokens now
-                  </button>
+                  {member.aiModelTier === "PREMIUM" && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOpenMenuId(null);
+                          setMenuPos(null);
+                          setAllowanceTarget({ member, mode: "edit" });
+                        }}
+                        className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
+                      >
+                        <LuCoins className="h-4 w-4 text-gray-400" />
+                        Edit token limit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOpenMenuId(null);
+                          setMenuPos(null);
+                          setAllowanceTarget({ member, mode: "reset" });
+                        }}
+                        className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
+                      >
+                        <LuRotateCcw className="h-4 w-4 text-gray-400" />
+                        Reset tokens now
+                      </button>
+                    </>
+                  )}
+                  <div className="mx-3 border-t border-gray-100 dark:border-gray-800" />
                 </>
               )}
-              <div className="mx-3 border-t border-gray-100 dark:border-gray-800" />
               <button
                 type="button"
                 onClick={() => { setOpenMenuId(null); setMenuPos(null); setConfirmRemove(member); }}
-                className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-b-xl"
+                /* For a manager this is the only item, so it needs both corners. */
+                className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-b-xl ${
+                  isRealOwner ? "" : "rounded-t-xl"
+                }`}
               >
                 <LuTrash2 className="h-4 w-4" />
                 Remove from workspace

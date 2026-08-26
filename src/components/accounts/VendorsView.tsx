@@ -88,8 +88,14 @@ export default function VendorsView() {
     [debouncedSearch, page, pageSize]
   );
 
-  const { vendors, meta, isLoading, error, deleteVendor } =
-    useAccountingVendors(params);
+  const {
+    vendors,
+    meta,
+    isLoading,
+    error,
+    deleteVendor,
+    totalPendingPayment,
+  } = useAccountingVendors(params);
 
   useEffect(() => {
     if (error) toast.error(error);
@@ -118,6 +124,21 @@ export default function VendorsView() {
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-[#fafaff] px-4 py-3 dark:bg-gray-907 sm:px-6">
       <div className="mb-3 flex shrink-0 flex-wrap items-center justify-end gap-2">
+        {/* Server-summed over every row matching the current filter, so it
+            narrows with the search rather than always showing the workspace
+            total — the caption says which of the two is on screen. Hidden
+            entirely when the API doesn't send it, since a 0 would read as a
+            real figure. */}
+        {totalPendingPayment !== undefined && (
+          <div className="mr-auto rounded-xl bg-[#000000] px-4 py-2 text-white">
+            <p className="text-xs text-gray-300">
+              {debouncedSearch ? "Pending (filtered)" : "Total Pending Payment"}
+            </p>
+            <p className="text-lg font-semibold leading-tight">
+              {formatMoney("PKR", totalPendingPayment)}
+            </p>
+          </div>
+        )}
         <div className="relative w-full sm:w-[262px]">
           <LuStore
             aria-hidden="true"

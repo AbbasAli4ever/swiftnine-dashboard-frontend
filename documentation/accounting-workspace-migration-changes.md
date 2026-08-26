@@ -531,3 +531,278 @@ DTOs updated to match: `BankAccountRevenueItemDto` and `BankAccountItemDto` (`da
 ### Verification
 - `tsc --noEmit`, `eslint` — clean (the pre-existing compile error from the in-progress edit is gone).
 - Live: `GET /overview` — `logoUrl` present (as `null`, since no demo account has one uploaded) on every entry in `revenueByBankAccount`, `bankAccounts.local`, and `bankAccounts.international`.
+
+## Follow-up: [2026-08-21] Only a platform admin can grant accounting access
+
+**Problem.** Any workspace OWNER could grant or revoke accounting access, and the live SwiftNine LLC workspace has two owners (Zain and Ali) — so the workspace creator had the same power as the company admin. `role === 'OWNER'` therefore cannot be the discriminator; it needed a per-user flag.
+
+There were also **two** paths that set `accountingRole`, so restricting the obvious endpoint alone would not have closed it:
+
+1. `PUT /organizations/members/:id/accounting-role` — owner-gated
+2. The invite flow — an owner could attach `accountingRole` to an invite (single *or* batch), which was copied onto the `WorkspaceMember` on accept. The batch route made this worse: one request could have granted accounting access to up to 50 people.
+
+**`User.isPlatformAdmin`** (`prisma/schema.prisma`, migration `20260821180000_add_user_is_platform_admin`): company-wide flag, default `false`. Deliberately has **no API surface** — it is set by SQL only, so there is no privilege-escalation path through the app. Added to `AUTH_USER_SELECT`, and since `JwtStrategy` re-reads the user from the database on every request rather than trusting the token payload, granting or revoking it takes effect immediately with no token to invalidate.
+
+**New `PlatformAdminGuard`** (`auth/guards/platform-admin.guard.ts`): reads `req.user.isPlatformAdmin`. Needs no workspace context and no membership lookup, so it runs straight after `JwtAuthGuard`. This is now the third and most global of the three role guards — `roles.guard` (workspace role), `accounting-role.guard` (accounting access), and this one (company-wide).
+
+**Single write path.** `changeMemberAccountingRole()` is now the only place `accountingRole` is ever written:
+- Route: `@UseGuards(JwtAuthGuard, PlatformAdminGuard)` replaces `RolesGuard` + `@Roles('OWNER')`. `RolesGuard` was dropped rather than stacked — no workspace context is needed, and keeping an OWNER check alongside would have let ordinary owners through.
+- Service: `assertActorIsOwner()` replaced with a new `assertActorIsPlatformAdmin()`, which reads the flag fresh from the database. Checking at both layers means a future caller that forgets the guard still cannot reach around it.
+- `accountingRole` removed **entirely** from `InviteMemberDto` and `BatchInviteMembersDto` — unconditionally, for everyone including platform admins, rather than adding a conditional sender check. `sendInvite`/`sendBatchInvites`/`sendInviteToEmail` no longer take or write the field, and `claimInvite`/`acceptInvite` no longer copy it onto the new member. A new member always starts with zero accounting access.
+- `getInviteDetails` dropped its `accountingRole` response field, which would now always be `null`. **Frontend note:** this field is gone from `GET /workspaces/invite/:token`, and the invite form should no longer send an accounting field (it is silently ignored).
+
+**Default bank accounts moved to workspace creation.** They were previously created on invite-accept, but only when that invite carried an `accountingRole` — with the field gone that trigger would never have fired, and new workspaces would silently have had no bank accounts. `provisionDefaultBankAccountsIfNeeded(tx, workspaceId, accountingRole)` became `provisionDefaultBankAccounts(tx, workspaceId)` (the `accountingRole` early-return dropped, the idempotent existing-count check kept) and is now called from `create()`. This also decouples the two concerns properly: the accounts exist from day one and simply stay invisible until a platform admin grants someone accounting access, since every accounting endpoint sits behind `AccountingRoleGuard`.
+
+**`WorkspaceInvite.accountingRole` is now dead** — no longer read or written. Left as a nullable column rather than dropped, to avoid a data-dropping migration; documented as deprecated in the schema and safe to remove once live rows are all null.
+
+**`scripts/lockdown-accounting-access.ts`** — one-off cleanup for legacy grants and any pending invite still carrying the field. Dry-run by default (prints counts, writes nothing); `--apply` performs the writes. Deliberately **not** part of the migration, since it revokes real people's access and should be run knowingly after reviewing the counts. Idempotent. Also warns when no platform admin exists yet.
+
+Access levels themselves were already correct and are unchanged: `CEO` = read-only, `ACCOUNTANT` = read + write, `null` = none, enforced consistently across all four accounting controllers.
+
+### Verification
+- `tsc --noEmit`, `nest build api` — clean.
+- **Lint:** no new errors. `workspace.service.ts` back to its pre-change baseline of 17 (pre-existing `no-unsafe-*` debt in code this change didn't touch); `organizations.controller.ts` and `workspace.controller.ts` each went **down** by one. Only the two formatting errors this change introduced were fixed, rather than running `--fix` across files and churning unrelated code.
+- **Unit tests:** full suite identical to baseline — 345 passed, same 26 pre-existing failures, verified by diffing the failure sets before and after (the `AuthService` failures were already red, so the `AUTH_USER_SELECT` change did not cause them). Updated `workspace.service.spec.ts` for the two intentional behaviour changes: added a `bankAccount` mock plus an assertion that `create()` provisions the accounts, and added `isPlatformAdmin` to the two `AUTH_USER_SELECT` shape assertions. The one pre-existing `listMembers` failure was left alone as unrelated.
+- **Live end-to-end, 14/14 checks passed** against a purpose-built scenario: a fresh workspace created by a non-admin owner, with a platform admin added as a *second* OWNER — so both actors held `role: 'OWNER'` and only the flag separated them.
+  - Default bank accounts present immediately on workspace creation, with no accounting grant anywhere.
+  - Owner can still invite (single and batch). `accountingRole: 'ACCOUNTANT'` sent in both payloads was **not persisted** on either invite row.
+  - New member joins with `accountingRole: null`.
+  - Non-admin OWNER granting → `403`, and nothing written to the database.
+  - Platform admin: grant `CEO` → `200` and persisted; upgrade to `ACCOUNTANT` → persisted; revoke to `null` → `200` and cleared.
+  - Every grant recorded in `ActivityLog` as `member_accounting_role_changed`.
+  - Test users/workspaces removed afterwards.
+- **Cleanup script** dry-run verified: correctly reported 4 legacy member grants, 0 pending invites, wrote nothing, and warned that no platform admin exists in the local database.
+
+### Deployment notes
+1. Apply the migration. It includes `UPDATE users SET is_platform_admin = true WHERE email = 'ali@swiftnine.com'` — **check the row count.** `0 rows` means that user does not exist yet on that environment (on live he currently shows as never having logged in), in which case re-run the `UPDATE` once he has signed in for the first time. Until then nobody can grant accounting access.
+2. Run `scripts/lockdown-accounting-access.ts` (dry run first) to review and then clear legacy grants.
+
+## Follow-up: [2026-08-24] Employees + manual commission per sale
+
+Added a new `employees` entity so a transaction can optionally credit a sales employee and record what commission they're owed on it — entered by hand, never computed as a percentage of the sale.
+
+### Schema changes
+
+- New `Employee` model: `id`, `workspaceId`, `name`, timestamps — workspace-scoped, same shape as `Clients` today (no email/status field; kept to just a name for now).
+- `Transaction` gained three nullable columns: `employeeId` (FK to `Employee`, `onDelete: Restrict` — same protection `bankAccountId` already has, so an employee with sales history can't be silently deleted out from under it), `commissionAmount` (`Decimal(12,2)`), `commissionCurrency` (`Currency`, but only ever validated as `USD`/`PKR` — commission is always paid in one of those two regardless of what currency the sale itself settled in).
+- Fully additive: nothing existing was touched. Migration: `prisma/migrations/20260824140000_add_employee_commission/migration.sql`.
+- **Not generated via `prisma migrate dev`** — the local dev database's `_prisma_migrations` history table was already out of sync with its actual schema (every prior migration showed as "not applied" despite the schema matching), so `migrate dev` insisted on a full reset. Generated instead via `prisma migrate diff --from-config-datasource prisma.config.ts --to-schema prisma/schema.prisma --script` against the live dev DB and applied by hand with `psql` — same approach the `accounting_per_workspace` migration used or a schema-to-schema diff, minus that one's `TRUNCATE` (nothing here is destructive). The pre-existing migration-history drift is unrelated to this change and was left alone.
+
+### Backend
+
+- New `employees` module (`apps/api/src/employees/`), a straight clone of the `clients` module's shape: `EmployeesController`/`EmployeesService`/DTOs/constants, same guard stack (`AccountingRoleGuard`, CEO+ACCOUNTANT read, ACCOUNTANT-only write), same list/search/get/update/delete behavior including the delete-blocked-while-linked-transactions-exist rule (409, mirroring `CLIENT_HAS_TRANSACTIONS`).
+- `CreateTransactionDto`/`UpdateTransactionDto` gained `employeeId`, `commissionAmount`, `commissionCurrency` (all optional). Two rules enforced via Zod `.refine()` on create, and re-checked in `TransactionService.update` against the *effective* (existing-or-incoming) state since a PATCH can touch just one of the three fields:
+  1. `commissionAmount` and `commissionCurrency` must be provided together — one without the other is rejected (`TRANSACTION_COMMISSION_FIELDS_MISMATCH`).
+  2. A commission requires an employee to be assigned — `TRANSACTION_COMMISSION_REQUIRES_EMPLOYEE`.
+- `TRANSACTION_SELECT` now embeds `employee: { id, name }` alongside the existing `client`/`bankAccount` embeds.
+- `COMMISSION_CURRENCY_VALUES = ['USD', 'PKR']` added to `transaction.constants.ts`, deliberately narrower than the full `CURRENCY_VALUES` transactions use.
+
+### Frontend
+
+- `accounting.service.ts`: `AccountingEmployee`/`EmployeeSearchResult`/`EmployeeTransaction` types, `employeeService` (mirrors `clientService`), `COMMISSION_CURRENCIES` constant; `AccountingTransaction` and the create/update transaction payloads gained `employeeId`/`employee`/`commissionAmount`/`commissionCurrency`.
+- `useAccounting.ts`: `useEmployeeMutations`, `useAccountingEmployees`, `useEmployeeSearch` — same shape as the client hooks. No new invalidation logic needed; the existing `[ACCOUNTING_ROOT_KEY]` prefix invalidation already covers the new query keys.
+- New components: `EmployeePicker` (clone of `ClientPicker`), `EmployeeFormModal` (one modal handles both create and rename — unlike Clients, an Employee has only a `name` field so there's no create-only-field asymmetry to justify splitting it), `EmployeeTransactionsModal` (clone of `ClientTransactionsModal`, showing commission per sale instead of sale amount), `EmployeesView` (clone of `ClientsView`).
+- New route `/accounts/employees` (reuses the existing `AccountingRouteGuard` layout) and a new "Employees" entry in the accounting sidebar nav, between Clients and Accounts & Balances.
+- `AddSaleModal` and `TransactionsView`'s `EditTransactionModal` both gained an employee picker plus commission amount/currency inputs (the currency/amount fields only render once an employee is picked — clearing the employee clears them too, client-side, matching the backend's "commission needs an employee" rule). `TransactionsView`'s table gained Employee and Commission columns.
+
+### Verification
+
+- `tsc --noEmit` and `nest build` clean on the backend; `tsc --noEmit` and `eslint` clean on the frontend (only pre-existing, unrelated warnings remain on both sides).
+- Migration SQL applied directly to the local dev database via `psql`; `\d "Employee"` / `\d "Transaction"` confirmed the new table, columns, indexes and FK constraint, with existing data (workspaces, members, transactions) untouched.
+- No automated tests existed for `clients`/`transactions` before this change, so none were added here either — consistent with, not a regression from, the existing state of this codebase.
+
+## Follow-up: [2026-08-21] `GET /clients/search` now returns every client, alphabetically
+
+The client picker previously required a `q` and returned only clients whose name contained all of its words. It now returns the **whole client list, sorted A-Z**, and the frontend narrows it as the user types — no request per keystroke, and the user can open the dropdown and browse rather than having to guess at a name.
+
+**`clients.service.ts`**: `search(workspaceId, q)` → `listAllForPicker(workspaceId)`. Renamed because a method called `search` that ignores its query is misleading; the route is unchanged (see below).
+
+Sorting is done in JS with `localeCompare(..., { sensitivity: 'base' })`, not `orderBy: { clientName: 'asc' }`. The Prisma ordering defers to the database collation, which on a C/POSIX-collated column groups every capitalised name ahead of every lowercase one — so `Zenith Holdings` would sort before `acme industries`. Prisma can't express an expression-based `orderBy` (`LOWER(...)`), and doing it in JS avoids the raw-SQL alternative's coupling to physical table/column names (which would break silently if `Clients` ever gained an `@@map`). The list is a small bounded set, so sorting in memory costs nothing.
+
+Deliberately **uncapped** — a picker that silently truncated would be worse than a slightly larger payload. Worth revisiting only if a workspace ever accumulates thousands of clients.
+
+**Route kept as `/clients/search`** rather than renamed, so existing frontend calls keep working. `search-clients-query.dto.ts` was deleted (nothing referenced it any more), which means a `q` sent by an un-updated caller is now silently ignored rather than rejected — verified below.
+
+**`scripts/seed-demo-clients.ts`** — seeds 30 clients into the demo workspace for testing. Names are chosen to be awkward for sorting rather than merely varied: all-lowercase and ALL-CAPS entries (to prove case-insensitivity), a leading-digit and a leading-symbol name, an accented name, and pairs differing only after several characters. Idempotent — skips names already present, so it can be re-run.
+
+### Verification
+- `tsc --noEmit`, `eslint` — clean.
+- Live, demo workspace (33 clients after seeding): `GET /clients/search` returned all 33 in correct A-Z order. The cases that would have failed under database collation all sorted correctly:
+  - `acme industries` (lowercase) sits between `Åberg Consulting` and `Anton Enne` — not grouped after the capitalised names.
+  - `harbourside traders` (lowercase) lands in the H position, not at the end.
+  - `Brightside Marketing` before `BRIGHTSIDE MEDIA` — case does not override the letter comparison (`Mar` < `Med`).
+  - `Åberg Consulting` sorts beside `Aberdeen Logistics`, so the accent is folded rather than pushed to the end.
+  - `3Point Analytics` leads and `Cedar & Sons` sits in C, so digits/symbols land predictably.
+- **Backwards compatibility:** an old caller sending `?q=acme` gets `200` with all 33 clients (the param is ignored, not rejected), and omitting the previously-required `q` returns `200` rather than `422`.
+- Still workspace-scoped: requesting with a different `x-workspace-id` returns `403 "You are not a member of this workspace"`.
+
+**Frontend note:** this endpoint no longer filters. Move the substring matching client-side, and drop `q` from the request — it does nothing.
+
+## Follow-up: [2026-08-25] `/overview`'s Client Revenue Summary now derived from real transactions
+
+Reported off a screenshot: the "Client Revenue Summary" panel showed nonsense — a client with 6 real transactions showed `USD 0`, a client with zero transactions showed `USD 25,000`, and several brand-new test clients with no activity at all crowded into the top-5 slots. This was the gap flagged (but not yet fixed) in earlier session notes: `/overview`'s `topClients` read `Clients.totalRevenue`, a hand-maintained column nothing keeps in sync with actual sales, while `/reports/breakdown`'s `topClients` had already been computed correctly from transactions since the reporting work earlier this month.
+
+**`accounting-dashboard.service.ts`**: `getOverview()` now calls `getTopClientsByRevenue(workspaceId)` (no range/filters → all-time) instead of the old `getTopClients(workspaceId)`. The old method and its `TopClientItem` type are deleted — nothing else referenced them. `getTopClientsByRevenue()`'s comment updated: it's no longer "the Reports-only ranking, distinct from Overview's" — it's now the only top-clients calculation, used by both endpoints.
+
+**DTO**: `DashboardOverviewResponseDto.topClients` switched from the deleted `TopClientItemDto` to the existing `TopClientRevenueItemDto` (already used by `/reports/breakdown`). Descriptions on that shared DTO updated to describe both scopes it now serves (all-time for `/overview`, a date range for `/reports/breakdown`) rather than only the latter.
+
+**Behavioral differences frontend should expect:**
+- `totalRevenue` (native currency) is now often `null` — it's only populated when every one of a client's sales shares one currency; otherwise use `totalRevenueUsd`. This was already true for `/reports/breakdown` and is not new, just newly visible on `/overview`.
+- A new `salesCount` field is now present.
+- Clients with zero transactions are **absent**, not zero-filled — a padded top-5 of empty clients isn't meaningful the way a fixed bank-account list is.
+- Sorted by `totalRevenueUsd` descending, computed from real `Transaction` rows — not whatever number was typed into `Clients.totalRevenue` at creation.
+
+**Not touched, flagged instead:** the screenshot's duplicate "Acme Corp" is real duplicate data in the `847e1f05-...` ("Test") workspace, not a display bug — two separate `Clients` rows share that name (one from 2026-08-11 with 6 real transactions and `totalRevenue: 0`; one from 2026-08-25 with 0 transactions and `totalRevenue: 25000`, likely created manually while testing). This fix makes the panel correctly show only the one with real activity, but the duplicate record itself is left alone — deleting a client is a real, potentially destructive action, and one of the two has genuine transaction history attached.
+
+### Verification
+- `tsc --noEmit`, `eslint`, `nest build api` — clean.
+- Live, demo workspace (`GET /overview`): `topClients` now returns Victoria Partners ($13,784.98, 13 sales), Anton Enne ($10,643.64, 6 sales), Phase Shop ($2,080.74, 5 sales) — real, transaction-derived figures, `totalRevenue: null` for all three since each has multi-currency sales, sorted descending by `totalRevenueUsd`.
+- Simulated the identical query against the `847e1f05-...` ("Test") workspace directly (no login available for that account): confirms `/overview` will return exactly one entry there — `Acme Corp`, `$175,410`, `salesCount: 6` — the duplicate-named zero-transaction client and every zero-activity seeded test client correctly drop out entirely.
+
+## Follow-up: [2026-08-25] `GET /clients` now shows a real, converted USD total — and the live-rate logic moved to a shared service
+
+Reported off a screenshot of the Clients list: "Total Revenue" showed `USD 0` for a client with real sales (`PKR 175,000 · USD 410` in the "Sales Recorded" column) — the same root cause as the `/overview` topClients fix two entries above, just on a different endpoint. Also asked for the fix to actually sum multiple currencies into one converted USD figure, not just reflect a single currency.
+
+**New shared `ExchangeRateService`** (`apps/api/src/exchange-rate/`): the live-fetch/cache/fallback logic that used to live entirely inside `AccountingDashboardService` is extracted here, since `ClientsService` needed the exact same conversion and duplicating a second independent fetch/cache would mean two services silently disagreeing on the current rate. `AccountingDashboardService` now injects it — `toUsd()` is a one-line pass-through so its ~10 existing call sites didn't need touching, and `getBalances()`'s `exchangeRatesToUsd` field now reads `exchangeRateService.getRates()`. `EXCHANGE_RATES_TO_USD` / `CURRENCY_API_URL` / `EXCHANGE_RATE_CACHE_TTL_MS` moved from `accounting-dashboard.constants.ts` to `exchange-rate.constants.ts` accordingly. New `ExchangeRateModule`, imported by both `AccountingDashboardModule` and `ClientsModule`.
+
+**`clients.service.ts`**: new `totalRevenueUsd` field on both `ClientData` and `ClientListItemData` — every entry in the already-correct `totalSaleAmount` (native, per-currency, summed straight from `Transaction` rows) converted to USD and added together. `totalRevenue`/`currencyType` are **left exactly as they were** — a hand-typed figure set at client creation (`CreateClientDto.totalRevenue`), not touched by this change, since it's a real, independently-writable field with its own input contract, not merely a broken stand-in the way `/overview`'s old `topClients` was. `totalRevenueUsd` is the new, correct field for a "Total Revenue" display; `totalRevenue` still means whatever was typed in at creation and won't move as sales come in. `exchangeRateService.refresh()` is called once per public method that returns client data (`create`, `findAll`, `findClientOrThrow` — covering `findOne`/`update`/`remove`), each a cheap TTL-gated no-op once a rate has been fetched recently.
+
+**`CurrencySaleTotal.currency` tightened from `string` to `Currency`** (the real Prisma enum type `Transaction.currency` already has) — needed so `toUsd(item.total, item.currency)` type-checks without a cast, and catches any future currency value that isn't one of the six supported ones at compile time instead of silently mis-converting it.
+
+**DTOs**: `ClientResponseDto` and `ClientListItemResponseDto` both gained `totalRevenueUsd`, documented as the field that changes with real sales, distinct from the static `totalRevenue`.
+
+### Verification
+- `tsc --noEmit`, `eslint`, `nest build api` — clean.
+- Full test suite unaffected: identical to the established baseline (345 passed, same 26 pre-existing failures — no spec files exist yet for `clients` or `accounting-dashboard`, matching earlier session notes).
+- Live, demo workspace: `GET /clients` — Anton Enne (`AED 4200`, `USD 9500`) now returns `totalRevenueUsd: 10643.64` (4,200 AED ÷ live rate + 9,500 USD), matching `/overview`'s independently-verified figure for the same client from the previous follow-up.
+- Simulated the identical logic directly against the `847e1f05-...` ("Test") workspace (no login available for `umair@swiftnine.com`): the exact client from the screenshot — `Acme Corp`, `PKR 175,000 + USD 410` — now computes `totalRevenueUsd: 1040.90`, replacing the `USD 0` shown before. Every other client with real sales (Zenith Holdings, Aberdeen Logistics, Cedar & Sons, Delta Freight Co, Ember Studios — seeded in the prior follow-up) got correct converted totals too.
+
+**Frontend note:** bind the "Total Revenue" column to the new `totalRevenueUsd` field, not `totalRevenue` — the latter is unchanged (a static, hand-typed figure) and was never the source of the bug being fixed here.
+
+## Follow-up: [2026-08-25] Commission decoupled from transactions — now a manual, PKR-only figure on Employee
+
+Reverses the previous day's commission-on-transaction link (`20260824140000_add_employee_commission`): a transaction no longer optionally carries `employeeId`/`commissionAmount`/`commissionCurrency`. Instead, `Employee` gets two independent, manually-entered PKR figures — `paidCommission` and `pendingCommission` — with their sum, `totalCommission`, computed at read time. No relation to `Transaction` at all.
+
+**Schema** (migration `20260825120000_remove_transaction_commission_link`): dropped `Transaction.employeeId` (+ its FK and index), `commissionAmount`, `commissionCurrency`. Added `Employee.paidCommission`/`pendingCommission` (`Decimal(12,2)`, default `0`). `Employee.transactions` relation and `Transaction.employee` relation both removed — the two models no longer reference each other.
+
+**Data note**: 3 transactions (`DEMO-EMP-001/002/003`, in the `847e1f05-...` "Test" workspace) had `employeeId`/`commissionAmount` set — verified before writing the migration that these were test rows created while building the feature the day before, not real data. `prisma db push --accept-data-loss` used locally, consistent with this environment's established pattern (no working migration history — see earlier follow-ups).
+
+**`employees.service.ts`** rewritten — no more transaction embedding, currency-grouped totals, or the `EMPLOYEE_HAS_TRANSACTIONS` delete-guard (nothing to guard against once there's no relation). `EmployeeData` is now `{ id, name, paidCommission, pendingCommission, totalCommission, createdAt, updatedAt }`; `totalCommission` is computed in `toEmployeeData()`, never stored, so it can't drift from its own inputs. `update()` now supports partial updates (`name`/`paidCommission`/`pendingCommission` independently), matching the pattern already used by `TransactionService.update()`.
+
+**`transaction.service.ts`**: removed `findEmployeeOrThrow()`, the commission-fields-mismatch/requires-employee validation block in `update()`, and the employee/commission writes in `create()`. `TransactionData` no longer carries `commissionAmount`.
+
+**DTOs**: `CreateEmployeeDto`/`UpdateEmployeeDto` gained `paidCommission`/`pendingCommission` (both optional, nonnegative, default `0` on create). `EmployeeResponseDto` dropped the currency-grouped `totalCommission` array, the embedded `transactions` list, and `_count` — replaced with three plain numbers. `CreateTransactionDto`/`UpdateTransactionDto`/`TransactionResponseDto` all dropped `employeeId`/`commissionAmount`/`commissionCurrency` and the now-meaningless `COMMISSION_CURRENCY_VALUES` constant.
+
+### Verification
+- `tsc --noEmit`, `eslint`, `nest build api` — clean.
+- Full test suite unaffected: identical to the established baseline (345 passed, same 26 pre-existing failures).
+- Live: `POST /employees` with `paidCommission: 15000, pendingCommission: 5000` → `201`, `totalCommission: 20000` in the response.
+- Live: `POST /transactions` sending `employeeId`/`commissionAmount`/`commissionCurrency` in the payload anyway → `201`, but none of those three fields appear anywhere in the response — there's no schema column left to hold them, so they're silently dropped rather than erroring.
+- Live: `PATCH /employees/:id` with only `pendingCommission` → updates just that field (`paidCommission` unchanged at `15000`, `pendingCommission` `5000 → 8000`) and correctly recomputes `totalCommission: 23000`.
+- Test employee and transaction removed after verification.
+
+## Follow-up: [2026-08-25] New `MANAGER` invite role — first step of the multi-OWNER cleanup
+
+First step of a larger workspace-role redesign discussed but not yet built: today any workspace OWNER can invite someone else as OWNER too (`role: z.enum(['OWNER', 'MEMBER'])`), which is exactly how the live SwiftNine LLC workspace ended up with two OWNERs (Zain and Ali). The end goal is exactly one OWNER per workspace, set once at creation, never granted by invite — with a new MANAGER role for day-to-day delegation. This step is scoped to just the invite options; no permission/access logic changes yet, and existing multi-OWNER workspaces are untouched (that data cleanup is a separate, later step).
+
+**Schema**: added `MANAGER` to the `Role` enum (migration `20260825140000_add_manager_role`, additive, `ALTER TYPE "Role" ADD VALUE 'MANAGER'`). Deliberately **not** a rename of the existing `ADMIN` value — `ADMIN` already has real, active meaning elsewhere (channel/chat moderation, project access, attachment-deletion parity with OWNER — `role === 'ADMIN'` checks in `channels.service.ts`, `chat.service.ts`, `project.service.ts`, `attachments.service.ts`). Reusing it for the new invite role would have silently handed all of that to anyone invited as a manager, which contradicts "no access/permission changes right now." `MANAGER` is a brand-new value nothing currently checks for, so granting it is a no-op for permissions today — exactly the intended scope.
+
+**`invite-member.dto.ts` / `batch-invite-members.dto.ts`**: `role` narrowed from `z.enum(['OWNER', 'MEMBER'])` to `z.enum(['MANAGER', 'MEMBER'])`. `OWNER` is no longer an invite-able role at all, in either the single or batch route.
+
+**Exhaustive `Role` mappings elsewhere that needed a `MANAGER` entry to keep compiling**, found via `tsc`, not by searching:
+- `doc-permissions.constants.ts`'s `WORKSPACE_ROLE_TO_DOC_ROLE: Record<Role, DocRole>` — mapped `MANAGER` to `'EDITOR'`, same as `MEMBER`/`ADMIN`, consistent with "grants nothing extra yet."
+- `member-response.dto.ts` and `member-detail-response.dto.ts` — their `role` field's literal union type gained `'MANAGER'`.
+
+**Left alone, flagged not fixed**: `channel-response.dto.ts` and `message-response.dto.ts` have the same `'OWNER' | 'ADMIN' | 'MEMBER'` literal for `ChannelMember.role` (the *same* `Role` enum), now technically missing `MANAGER` too — didn't surface as a compile error because `channels.service.ts` builds those literals through its own normalization logic rather than passing a raw `Role` through, so nothing is actually broken. A documentation-completeness gap in an unrelated module, outside this step's scope.
+
+**Not done, by design — the rest of the discussed redesign**: MANAGER still grants no permissions (no `assertActorIsOwner`-equivalent for managers yet, so only a real OWNER can send invites, remove members, or change roles); existing multi-OWNER workspaces are unchanged; `ChannelMember`/chat/project role checks are untouched. These are explicit follow-ups, not gaps introduced here.
+
+### Verification
+- `tsc --noEmit`, `nest build api` — clean.
+- `eslint` — zero new errors on any touched file; the two touched response DTOs each dropped from 15 combined pre-existing errors down to 13 by fixing only the two lines this change added, leaving unrelated pre-existing formatting debt untouched.
+- Full test suite unaffected: identical to the established baseline (345 passed, same 26 pre-existing failures).
+- Live, demo workspace: `POST /workspaces/:id/invite` with `role: "MANAGER"` → `200`, persisted as `WorkspaceInvite.role = 'MANAGER'`. Same with `role: "MEMBER"` (and the default, omitted) → `200`, persisted as `MEMBER`. `role: "OWNER"` → `422` with `"expected one of \"MANAGER\"|\"MEMBER\""`, and correctly never persisted (no invite row created). Test invites removed after verification.
+
+## Follow-up: [2026-08-26] Commission re-linked to transactions (create-only, PKR) + new `todayVsYesterday` overview metric
+
+Two independent, user-requested changes, planned together and confirmed before building (see "Confirm before I execute" decisions below):
+
+1. Re-adds a link between `Transaction` and `Employee` — narrower than the design removed the previous day (`20260825120000_remove_transaction_commission_link`): PKR-only (no `commissionCurrency`), fully optional, and **one-way** — creating a commission-bearing transaction increments `Employee.pendingCommission` once; later edits or deletes of that transaction never touch it again.
+2. Adds `revenueSummary.todayVsYesterday` to the accounting overview, alongside the existing (unchanged) `today` field.
+
+### Commission re-link
+
+**Schema** (migration `20260826120000_add_transaction_commission_link`): `Transaction` gains `employeeId` (nullable) + `commissionAmount` (`Decimal(12,2)`, default `0`), with `employee Employee? @relation(..., onDelete: SetNull)` — **SetNull, not Restrict**, so `EmployeesService.remove()` stays unconditional exactly as documented in the previous follow-up; deleting an employee just clears the link on their past transactions instead of being blocked. `Employee` gets the required back-reference `transactions Transaction[]`, not exposed on any Employee API response (`EMPLOYEES_SELECT` untouched — no employee→transactions list was requested or added).
+
+**Both-or-neither pairing, confirmed with the user rather than assumed**: `employeeId` and `commissionAmount` must be provided together or not at all — never one without the other. Enforced with a `.refine()` on both `CreateTransactionDto` and `UpdateTransactionDto` (`(employeeId === undefined) === (commissionAmount === undefined)`), so this is a per-request DTO-level check, not a merge against the transaction's existing state. `UpdateTransactionDto.employeeId` is nullable (unlike create) so a transaction can have its employee/commission cleared by sending both `employeeId: null` and `commissionAmount: 0`.
+
+**One-way, create-only pendingCommission increment — a deliberate scope decision, not an oversight**: `TransactionService.create()` wraps the transaction insert and `employee.update({ pendingCommission: { increment } })` in one `prisma.$transaction([...])`, only when `employeeId` is set and `commissionAmount > 0`. `update()` and `remove()` never adjust `pendingCommission`, even when `employeeId`/`commissionAmount` change or the transaction is deleted — correcting a wrong commission after the fact goes through the existing manual `PATCH /employees/:id`, the same path every other commission edit already uses. This was flagged as an explicit architectural choice before building: auto-adjusting on update/delete too would reintroduce the same kind of implicit balance-linkage this codebase deliberately removed for `BankAccount.amount`. The user chose one-way over full reversibility.
+
+**`TRANSACTION_SELECT`**: added `employeeId`, `commissionAmount`, `employee: { select: { id, name } }` — so commission now shows on both the transaction list and detail view for free, via the same `toTransactionData()` path both already go through.
+
+**New error messages** (`transaction.constants.ts`): `EMPLOYEE_NOT_FOUND` (employee must exist in the workspace, checked the same way `findClientOrThrow`/`findBankAccountOrThrow` already do), `TRANSACTION_EMPLOYEE_COMMISSION_PAIR` (the both-or-neither validation message).
+
+### Overview — `todayVsYesterday`
+
+No "this week" comparison metric was found anywhere in the codebase, git history, or the frontend integration doc — the only two comparisons that existed were `today` (already yesterday-vs-day-before, per the `[2026-08-25]` relabel) and `thisMonth`. Confirmed with the user rather than guessed: added a **new** `todayVsYesterday` field to `RevenueSummary` rather than mutating `today`'s meaning again, since `today` was deliberately changed away from a literal today-vs-yesterday comparison to avoid a partial current day always reading as a misleading collapse against a complete previous one. `todayVsYesterday` reintroduces exactly that live, partial-day comparison on purpose (today so far vs. all of yesterday) — it reuses the `startOfToday`/`startOfYesterday` boundaries `getRevenueSummary()` already computes, adding one more `sumRevenueUsd()` call for today-so-far and comparing it against the already-fetched `yesterdayTotal`. Documented on both the internal `RevenueSummary` type and `dashboard-overview-response.dto.ts` as carrying the same "misleading negative in the early morning" caveat `today` was fixed to avoid — frontend should label it as a partial/so-far figure.
+
+### DTOs
+
+`CreateTransactionDto`/`UpdateTransactionDto` gained `employeeId`/`commissionAmount` (paired, as above). `TransactionResponseDto` gained `employeeId`, `employee` (new `TransactionEmployeeBriefDto`, `{ id, name }`), `commissionAmount`. `dashboard-overview-response.dto.ts`'s `RevenueSummaryDto` gained `todayVsYesterday`.
+
+### Verification
+- `tsc --noEmit`, `eslint` (zero new errors — only prettier formatting on newly-added lines, `--fix`-ed), `nest build api` — all clean.
+- Full test suite unaffected: identical to the established baseline (345 passed, 26 pre-existing failures, 9 failed suites, 371 total).
+- `prisma db push` + `prisma migrate resolve --applied` for the new migration (this DB's established pattern — see earlier follow-ups on migration-history drift).
+- Live, demo workspace (`811785b9-...`): `POST /transactions` with `employeeId` but no `commissionAmount` → `422 employeeId and commissionAmount must be provided together, or not at all`. `POST /transactions` with both → `201`, employee's `pendingCommission` correctly incremented (`2000 → 2750` for a `750` commission). `GET /transactions/:id` shows `employee`/`commissionAmount` on the detail response. `PATCH /transactions/:id` changing `commissionAmount` (`750 → 100`, both fields resent) → transaction updated, employee's `pendingCommission` **unchanged** at `2750`, confirming the one-way behavior. Deleting an employee still linked to a transaction → `200`, transaction's `employeeId`/`employee` become `null`, `commissionAmount` untouched, confirming `SetNull`. `GET /accounting-dashboard/overview` → `revenueSummary.todayVsYesterday` present alongside the unchanged `today`, correctly reflecting a same-day test transaction. All test employees/transactions removed after verification.
+
+## Follow-up: [2026-08-26] Employee responses now embed their sales
+
+Immediate follow-up to the commission re-link above: transactions already showed their employee, but employees showed no way to see which sales their commission came from — just the two totals. User asked for it embedded directly on the employee response, same as one call rather than a separate lookup.
+
+**`employees.constants.ts`**: new `EMPLOYEE_TRANSACTION_SELECT` — same embed-on-every-response pattern `clients.constants.ts` already uses for `CLIENT_TRANSACTION_SELECT` (id, clientName, saleAmount, currency, saleDate, refId, description, createdAt, updatedAt, bank account brief), plus `commissionAmount`, which is the actual reason this list exists on an employee — the PKR figure earned on that specific sale. `EMPLOYEES_SELECT` gained `_count: { select: { transactions: true } }` and `transactions: { select: EMPLOYEE_TRANSACTION_SELECT, orderBy: { createdAt: 'desc' } }`, matching `CLIENTS_SELECT`/`CLIENTS_LIST_SELECT` exactly — embedded on **every** employee response (create, list, get-one, update), not just detail.
+
+**`employees.service.ts`**: `toEmployeeData()` now also maps each embedded transaction's `saleAmount`/`commissionAmount` from `Decimal` to `number` (`mapEmployeeTransactions()`, mirroring `clients.service.ts`'s `mapTransactions()`). `remove()`'s comment updated — it's unconditional because `Transaction.employeeId` is `onDelete: SetNull`, not because there's no relation (there now is one).
+
+**`employee-response.dto.ts`**: added `_count` (`{ transactions: number }`) and `transactions: EmployeeTransactionBriefDto[]` (id, clientName, saleAmount, currency, saleDate, refId, description, commissionAmount, bankAccount, createdAt, updatedAt).
+
+**Deliberately not built**: no new endpoint — this is a bigger response, not a second call. A workspace with a very high-volume employee (many sales) will return a proportionally larger `GET /employees` payload, same tradeoff `CLIENTS_LIST_SELECT` already accepted for clients; revisit the same way if it ever becomes an issue for either.
+
+### Verification
+- `tsc --noEmit`, `eslint` (zero new errors — only prettier formatting on newly-added lines, `--fix`-ed), `nest build api` — all clean.
+- Full test suite unaffected: identical to the established baseline (345 passed, 26 pre-existing failures, 9 failed suites, 371 total).
+- Live, demo workspace: created an employee (empty `transactions: []`, `_count.transactions: 0`), then a transaction with that employee + `commissionAmount: 123.45`. `GET /employees/:id` → `_count.transactions: 1`, `transactions[0]` carries the sale's `clientName`, `saleAmount`, `commissionAmount: 123.45`, and `bankAccount`; `pendingCommission` correctly `123.45`. `GET /employees?q=...` (list) → same embed present, confirming it's not detail-only. Test employee and transaction removed after verification.
+
+## Follow-up: [2026-08-26] `GET /employees/search` now supports a full-list picker, matching `/clients/search`
+
+Asked while wiring up the transaction-creation employee dropdown: `q` was required (min 1 char) on `/employees/search`, so a picker couldn't open and show every employee the way `/clients/search` already does — it would 422 with nothing typed yet.
+
+**`search-employees-query.dto.ts`**: `q` changed from required to `.optional()` (no `.min(1)`).
+
+**`employees.service.ts`**: `search(workspaceId, q?)` — when `q` is falsy (omitted or empty string), returns every employee in the workspace via a plain `findMany`, sorted in JS with `localeCompare`. Same reasoning as `ClientsService.listAllForPicker`: this DB's collation puts every capitalised name before every lowercase one, so a Prisma `orderBy: { name: 'asc' }` would produce a wrong-looking order — confirmed by seeding `"zzz..."` and `"Aaa..."` test names and checking the returned order directly, not just trusting the code. When `q` is provided, the existing multi-token AND-matched `contains` filter (Prisma `orderBy: { name: 'asc' }`) is unchanged — only the full-list branch is new.
+
+**Deliberately not a full mirror of `/clients/search`**: clients dropped `q` from the route entirely (always full list, filtering always client-side). Employees keeps `q` as a real, working filter — the full-list behavior only kicks in when `q` is absent, so the existing name-search use case (if any caller relies on it) keeps working exactly as before.
+
+**Controller/Swagger**: `@ApiQuery({ name: 'q', required: false, ... })`, operation summary/description updated to describe both modes.
+
+### Verification
+- `tsc --noEmit`, `eslint`, `nest build api` — clean.
+- Full test suite unaffected: identical to the established baseline (345 passed, 26 pre-existing failures, 9 failed suites, 371 total).
+- Live, demo workspace: seeded `"zzz Search Test Zeta"` and `"Aaa Search Test Alpha"`. `GET /employees/search` (no `q`) and `GET /employees/search?q=` (empty) both → `200`, full alphabetical list, `Aaa...` before `zzz...` — confirming the collation fix actually took effect, not just that no error was thrown. `GET /employees/search?q=Alpha` → `200`, only the matching employee, confirming the filtered path is untouched. Test employees removed after verification. Verified against the demo accountant's own already-running dev server rather than starting a new one, since it was already up when this session began.
+
+## Follow-up: [2026-08-26] `totalPendingCommission` / `totalPendingPayment` on the employees/vendors list
+
+Asked for a sum of all pending commission/payments on the employees and vendors sections. Added as a new top-level field on each list response, alongside the existing `data`/`meta`, computed with a `prisma.aggregate({ _sum })` run in parallel with the existing `count`/`findMany` — not derived by summing `data` client-side, since that would only cover the current page.
+
+**Scoped to the active filter, not the whole workspace** — same `where` as the list query, so it reflects the same set `meta.total` counts (all matching rows, not just the current page). Searching narrows the sum along with the results; an unfiltered call still returns the true workspace-wide total. Confirmed this distinction matters and works correctly by testing the filtered case explicitly, not just the unfiltered one.
+
+**Did not touch the shared `paginated()` helper** (`libs/common/src/utils/api-response.ts`) — it's used by every paginated list in the app (transactions, clients, tasks, ...), so changing its shape would ripple everywhere for a field only these two resources need. Instead, `EmployeesController.findAll()`/`VendorsController.findAll()` spread an extra key onto `paginated(...)`'s return value, with the method's return type widened to `PaginatedApiResponse<T> & { totalPendingX: number }` locally — no other paginated endpoint is affected.
+
+**`employees.service.ts`**/**`vendors.service.ts`**: `EmployeeListResult`/`VendorListResult` gained `totalPendingCommission`/`totalPendingPayment`. `vendors.service.ts` gained its own `round2()` (mirroring the one already in `employees.service.ts`/`clients.service.ts` — Prisma's `_sum` returns a `Decimal`, converted to a rounded `number` the same way every other money field in these services already is).
+
+**DTOs**: `PaginatedEmployeesResponseDto`/`PaginatedVendorsResponseDto` gained the new field for Swagger.
+
+### Verification
+- `tsc --noEmit`, `eslint` (zero new errors — only prettier line-wrapping on the newly-added return type, `--fix`-ed), `nest build api` — all clean.
+- Full test suite unaffected: identical to the established baseline (345 passed, 26 pre-existing failures, 9 failed suites, 371 total).
+- Live, demo workspace: seeded two employees (`pendingCommission: 1000.50` / `2500.25`) and two vendors (`pendingPayment: 5000` / `1234.75`). `GET /employees` → `totalPendingCommission: 3500.75`; `GET /vendors` → `totalPendingPayment: 6234.75` — correct even with `?limit=1`, confirming the sum isn't accidentally scoped to the current page. `GET /employees?q=Sum Test A` → `totalPendingCommission: 1000.5`, confirming the sum narrows with an active search filter rather than always being the workspace-wide total. Test employees/vendors removed after verification.

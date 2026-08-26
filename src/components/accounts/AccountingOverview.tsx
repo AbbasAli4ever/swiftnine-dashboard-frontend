@@ -169,6 +169,23 @@ export default function AccountingOverview() {
   const { revenueSummary, balances } = overview;
 
   const kpiCards = [
+    // Today leads, then yesterday — the cards read newest-first, left to right.
+    // Only rendered when the API actually sends it, so an older backend build
+    // shows the original four cards rather than an empty tile.
+    ...(revenueSummary.todayVsYesterday
+      ? [
+          {
+            // Deliberately partial: today so far against all of yesterday. The
+            // label has to say "so far" or an early-morning reading looks like
+            // a collapse rather than an incomplete day.
+            label: "Today so far",
+            value: revenueSummary.todayVsYesterday.totalUsd,
+            valuePrefix: "USD ",
+            changePercent: revenueSummary.todayVsYesterday.changePercent,
+            comparison: "vs all of yesterday",
+          },
+        ]
+      : []),
     {
       // The `today` key is a misnomer the backend kept deliberately: renaming
       // it would have made the field vanish from un-updated clients rather
@@ -281,7 +298,7 @@ export default function AccountingOverview() {
       </div>
 
       {/* KPI row */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
         {kpiCards.map((kpi) => (
           <div key={kpi.label} className={CARD_CLASS}>
             <p className="text-sm text-gray-400">{kpi.label}</p>

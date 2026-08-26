@@ -497,6 +497,23 @@ input:-webkit-autofill:active {
     display: none;
     -webkit-appearance: none;
   }
+
+  /* Number fields here are money amounts typed in full, never nudged one unit
+     at a time, so the spinners are noise — and on a trackpad they are worse
+     than noise: a stray two-finger scroll over a focused field silently
+     rewrites the value. The wheel half of that is handled in JS (see
+     `useNoWheelNumberInputs`); this removes the arrows themselves. */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    appearance: none;
+    margin: 0;
+  }
+
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
 }
 
 /* third-party libraries CSS */

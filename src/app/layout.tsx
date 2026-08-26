@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/context/ThemeContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { WorkspaceProvider } from "@/context/WorkspaceContext";
 import { QueryProvider } from "@/app/providers/QueryProvider";
+import { NumberInputGuards } from "@/app/providers/NumberInputGuards";
 import "./globals.css";
 import "flatpickr/dist/flatpickr.css";
 
@@ -33,6 +34,8 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body className="bg-white dark:bg-gray-900" suppressHydrationWarning>
+        {/* Stops trackpad scrolling from silently editing number fields. */}
+        <NumberInputGuards />
         <QueryProvider>
           <ThemeProvider>
             <AuthProvider>

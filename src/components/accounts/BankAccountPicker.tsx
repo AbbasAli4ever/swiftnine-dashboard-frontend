@@ -1,14 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
-import { LuChevronDown, LuLandmark } from "react-icons/lu";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { LuChevronDown, LuLandmark, LuSearch } from "react-icons/lu";
 import { useBankAccounts } from "@/hooks/useAccounting";
 import BankAvatar from "@/components/accounts/BankAvatar";
+import { useAnchoredDropdown } from "@/components/accounts/useAnchoredDropdown";
 import type { BankAccount } from "@/services/accounting.service";
 
 /**
  * Picks the bank account a transaction is recorded against. Required on create.
+ *
+ * Typing filters the list in place: the whole page is already in memory (see
+ * the fetch below), so this is a local substring match rather than another
+ * request — unlike `ClientPicker`, which debounce-searches the API.
  *
  * The account no longer dictates the transaction's currency — an INTERNATIONAL
  * account takes any currency (Whop can record an HKD or AED sale). The one
@@ -30,7 +36,13 @@ export default function BankAccountPicker({
   disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [term, setTerm] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  // Rendered through a portal, so it can't grow the modal's scroll area.
+  const panelStyle = useAnchoredDropdown(triggerRef, open);
 
   // Bank accounts are few; fetch one page and pick from it rather than
   // debounce-searching like the client picker does.
@@ -43,11 +55,32 @@ export default function BankAccountPicker({
 
   useEffect(() => {
     const close = (event: MouseEvent) => {
-      if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      // The panel lives outside `containerRef` now, so test it separately.
+      if (
+        !containerRef.current?.contains(target) &&
+        !panelRef.current?.contains(target)
+      ) {
+        setOpen(false);
+        setTerm("");
+      }
     };
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
   }, []);
+
+  // Focus the search box as the list opens so typing works immediately.
+  useEffect(() => {
+    if (open) searchRef.current?.focus();
+  }, [open]);
+
+  const filtered = useMemo(() => {
+    const needle = term.trim().toLowerCase();
+    if (!needle) return bankAccounts;
+    return bankAccounts.filter((account) =>
+      account.bankName.toLowerCase().includes(needle)
+    );
+  }, [bankAccounts, term]);
 
   // Every transaction needs an account, so with none the form can't be
   // completed — say so instead of showing an empty dropdown.
@@ -76,11 +109,17 @@ export default function BankAccountPicker({
       {label}
       <div ref={containerRef} className="relative mt-1.5">
         <button
+          ref={triggerRef}
           type="button"
           aria-haspopup="listbox"
           aria-expanded={open}
           disabled={disabled || isLoading}
-          onClick={() => setOpen((current) => !current)}
+          onClick={() =>
+            setOpen((current) => {
+              if (current) setTerm("");
+              return !current;
+            })
+          }
           className={`flex h-10 w-full items-center gap-2 rounded-lg border bg-white px-3 text-left text-sm outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:bg-gray-800 ${
             error
               ? "border-red-400"
@@ -108,13 +147,47 @@ export default function BankAccountPicker({
           />
         </button>
 
-        {open && (
+        {open && panelStyle && createPortal(
           <div
+            ref={panelRef}
             role="listbox"
             aria-label={label}
-            className="absolute left-0 right-0 z-40 mt-1 max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+            style={panelStyle}
+            className="z-[10050] flex flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800"
           >
-            {bankAccounts.map((account) => (
+            {/* Sticky so the field stays reachable while the list scrolls. */}
+            <div className="relative border-b border-gray-100 p-1 dark:border-gray-700">
+              <LuSearch className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+              <input
+                ref={searchRef}
+                value={term}
+                onChange={(event) => setTerm(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    event.stopPropagation();
+                    setOpen(false);
+                    setTerm("");
+                  }
+                  // Enter picks the only remaining match — the common case
+                  // after typing a few characters.
+                  if (event.key === "Enter" && filtered.length === 1) {
+                    event.preventDefault();
+                    onChange(filtered[0]);
+                    setOpen(false);
+                    setTerm("");
+                  }
+                }}
+                placeholder="Search bank accounts..."
+                className="h-9 w-full rounded-md bg-transparent pl-8 pr-2 text-sm text-gray-800 outline-none placeholder:text-gray-400 dark:text-gray-100"
+              />
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-1">
+            {filtered.length === 0 && (
+              <p className="px-2 py-3 text-center text-xs font-normal text-gray-400">
+                No bank accounts match &ldquo;{term.trim()}&rdquo;.
+              </p>
+            )}
+            {filtered.map((account) => (
               <button
                 key={account.id}
                 type="button"
@@ -123,6 +196,7 @@ export default function BankAccountPicker({
                 onClick={() => {
                   onChange(account);
                   setOpen(false);
+                  setTerm("");
                 }}
                 className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm ${
                   account.id === value?.id
@@ -138,7 +212,9 @@ export default function BankAccountPicker({
                 </span>
               </button>
             ))}
-          </div>
+            </div>
+          </div>,
+          document.body
         )}
       </div>
       {error && (

@@ -451,6 +451,8 @@ export function useAccountingEmployees(params: EmployeeListParams) {
   return {
     employees: query.data?.items ?? [],
     meta: query.data?.meta ?? null,
+    /** Pending commission summed over the whole filtered set, not this page. */
+    totalPendingCommission: query.data?.totalPendingCommission,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
     error: toAccountingError(query.error),
@@ -483,6 +485,8 @@ export function useAccountingVendors(params: VendorListParams) {
   return {
     vendors: query.data?.items ?? [],
     meta: query.data?.meta ?? null,
+    /** Pending payment summed over the whole filtered set, not this page. */
+    totalPendingPayment: query.data?.totalPendingPayment,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
     error: toAccountingError(query.error),
@@ -494,10 +498,20 @@ export function useAccountingVendors(params: VendorListParams) {
 }
 
 /**
- * Debounced employee lookup for the transaction employee picker, same shape
- * as `useClientSearch`.
+ * Employee options for a picker, served by `GET /employees/search` in both
+ * modes: with no term it returns the whole workspace (so the dropdown has
+ * something to show before any typing), and with a term the server does the
+ * matching.
+ *
+ * Server-side filtering rather than a local substring match, because the
+ * backend splits the term on whitespace and AND-matches each token — "john
+ * smith" finds "Smith, John", which `includes()` never would.
+ *
+ * The term is debounced so a keystroke isn't a request. Both modes share one
+ * query key space keyed by the trimmed term, so the full list is cached under
+ * `""` and returned to instantly when the field is cleared.
  */
-export function useEmployeeSearch(term: string, debounceMs = 300) {
+export function useEmployeeOptions(term: string, debounceMs = 300) {
   const { workspaceId, isReady } = useAccountingQueryGate();
   const [debounced, setDebounced] = useState(term);
 
@@ -509,16 +523,19 @@ export function useEmployeeSearch(term: string, debounceMs = 300) {
   const trimmed = debounced.trim();
 
   const query = useQuery({
-    queryKey: queryKeys.accountingEmployeeSearch(workspaceId, trimmed),
-    queryFn: () => employeeService.search(trimmed),
-    enabled: isReady && trimmed.length > 0,
+    queryKey: queryKeys.accountingEmployeeSearch(workspaceId, trimmed || "all"),
+    queryFn: () =>
+      trimmed ? employeeService.search(trimmed) : employeeService.searchAll(),
+    enabled: isReady,
     staleTime: 30_000,
     retry: ACCOUNTING_RETRY,
   });
 
   return {
-    results: query.data ?? [],
-    isLoading: query.isFetching || (trimmed.length > 0 && debounced !== term),
+    employees: query.data ?? [],
+    // Also "loading" while the debounce is still settling, so the list isn't
+    // shown as a stale result for a term the user has already moved past.
+    isLoading: query.isFetching || debounced !== term,
     error: toAccountingError(query.error),
   };
 }

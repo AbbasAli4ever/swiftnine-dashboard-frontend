@@ -23,6 +23,7 @@ import type {
 import { avatarColors, initials } from "@/components/accounts/avatar";
 import { formatMoney } from "@/components/accounts/platformMeta";
 import EmployeeFormModal from "@/components/accounts/EmployeeFormModal";
+import EmployeeTransactionsModal from "@/components/accounts/EmployeeTransactionsModal";
 
 // Same layout constants as ClientsView — must stay in sync with the markup
 // below for the same reason: row height, sticky header, card chrome and the
@@ -43,6 +44,8 @@ export default function EmployeesView() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<AccountingEmployee | null>(null);
   const [deleting, setDeleting] = useState<AccountingEmployee | null>(null);
+  /** Employee whose sales are open in the read-only drill-in. */
+  const [viewing, setViewing] = useState<AccountingEmployee | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const tableSizerRef = useRef<HTMLDivElement>(null);
 
@@ -86,8 +89,14 @@ export default function EmployeesView() {
     [debouncedSearch, page, pageSize]
   );
 
-  const { employees, meta, isLoading, error, deleteEmployee } =
-    useAccountingEmployees(params);
+  const {
+    employees,
+    meta,
+    isLoading,
+    error,
+    deleteEmployee,
+    totalPendingCommission,
+  } = useAccountingEmployees(params);
 
   useEffect(() => {
     if (error) toast.error(error);
@@ -116,6 +125,21 @@ export default function EmployeesView() {
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-[#fafaff] px-4 py-3 dark:bg-gray-907 sm:px-6">
       <div className="mb-3 flex shrink-0 flex-wrap items-center justify-end gap-2">
+        {/* Server-summed over every row matching the current filter, so it
+            narrows with the search rather than always showing the workspace
+            total — the caption says which of the two is on screen. Hidden
+            entirely when the API doesn't send it, since a 0 would read as a
+            real figure. */}
+        {totalPendingCommission !== undefined && (
+          <div className="mr-auto rounded-xl bg-[#000000] px-4 py-2 text-white">
+            <p className="text-xs text-gray-300">
+              {debouncedSearch ? "Pending (filtered)" : "Total Pending Commission"}
+            </p>
+            <p className="text-lg font-semibold leading-tight">
+              {formatMoney("PKR", totalPendingCommission)}
+            </p>
+          </div>
+        )}
         <div className="relative w-full sm:w-[262px]">
           <LuBriefcaseBusiness
             aria-hidden="true"
@@ -160,17 +184,18 @@ export default function EmployeesView() {
         </div>
 
         <div className="min-h-0 overflow-auto">
-          <table className="w-full min-w-[720px] table-fixed text-left">
+          <table className="w-full min-w-[840px] table-fixed text-left">
             <thead className="sticky top-0 z-10 bg-white shadow-[0_1px_0_0_var(--color-gray-200)] dark:bg-gray-901 dark:shadow-[0_1px_0_0_var(--color-gray-800)]">
               <tr className="h-10 text-xs text-gray-400">
                 {/* Every amount is PKR — the API has no currency column and
                     never converts, so the unit is stated once per header
                     rather than repeated on each row. */}
-                <th className="w-[30%] px-5 font-normal">Employee</th>
-                <th className="w-[20%] px-5 text-right font-normal">Paid (PKR)</th>
-                <th className="w-[20%] px-5 text-right font-normal">Pending (PKR)</th>
-                <th className="w-[18%] px-5 text-right font-normal">Total (PKR)</th>
-                <th className="w-[12%] px-5 text-right font-normal">Actions</th>
+                <th className="w-[26%] px-5 font-normal">Employee</th>
+                <th className="w-[12%] px-5 text-right font-normal">Sales</th>
+                <th className="w-[18%] px-5 text-right font-normal">Paid (PKR)</th>
+                <th className="w-[18%] px-5 text-right font-normal">Pending (PKR)</th>
+                <th className="w-[16%] px-5 text-right font-normal">Total (PKR)</th>
+                <th className="w-[10%] px-5 text-right font-normal">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -195,6 +220,22 @@ export default function EmployeesView() {
                         </span>
                       </div>
                     </td>
+                    {/* Opens the sales behind these figures. The list is
+                        embedded on every employee response, so this costs no
+                        extra request. */}
+                    <td className="px-5 text-right whitespace-nowrap">
+                      {(employee._count?.transactions ?? 0) > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => setViewing(employee)}
+                          className="rounded px-1 text-sm font-medium text-brand-500 hover:text-brand-600 hover:underline"
+                        >
+                          {employee._count?.transactions}
+                        </button>
+                      ) : (
+                        <span className="text-gray-400">0</span>
+                      )}
+                    </td>
                     <td className="px-5 text-right whitespace-nowrap">
                       {formatMoney("PKR", employee.paidCommission)}
                     </td>
@@ -209,9 +250,10 @@ export default function EmployeesView() {
                       <div className="flex justify-end gap-1">
                         {canWrite && (
                           <>
-                            {/* Deletion is unconditional now that the
-                                transaction relation is gone — the confirm
-                                dialog is the only safeguard left. */}
+                            {/* Deletion is unconditional: `Transaction.employeeId`
+                                is `onDelete: SetNull`, so past sales keep their
+                                commission figure and simply lose the link. The
+                                confirm dialog is the only safeguard. */}
                             <button
                               type="button"
                               title={`Delete ${employee.name}`}
@@ -318,6 +360,12 @@ export default function EmployeesView() {
           }}
         />
       )}
+      {/* Read-only, so it is not gated on canWrite — a CEO can see where the
+          commission came from without being able to change it. */}
+      <EmployeeTransactionsModal
+        employee={viewing}
+        onClose={() => setViewing(null)}
+      />
       <ConfirmActionModal
         isOpen={canWrite && Boolean(deleting)}
         title="Delete employee?"

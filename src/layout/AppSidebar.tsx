@@ -11,6 +11,7 @@ import { taskService } from "@/services/task.service";
 import { useUiStore } from "@/stores/ui.store";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useAccountingAccess } from "@/hooks/useAccountingAccess";
+import { useWorkspaceManageAccess } from "@/hooks/useWorkspaceManageAccess";
 import { TaskList } from "@/services/task-list.service";
 import { parseApiError } from "@/lib/api";
 import InvitePeopleModal from "@/components/workspace/InvitePeopleModal";
@@ -72,7 +73,7 @@ type RailItem = {
 const railItems: RailItem[] = [
   { id: "accounts", label: "Dashboard", icon: <LuLandmark className="w-5 h-5" />, panel: "accounts" },
   { id: "home", label: "Projects", icon: <LuKanban className="w-5 h-5" />, panel: "home" },
-  { id: "lms",  label: "UNI",  icon: <LuBookOpen className="w-5 h-5" />,      panel: "lms" },
+  { id: "lms",  label: "University",  icon: <LuBookOpen className="w-5 h-5" />,      panel: "lms" },
   { id: "chatbot", label: "SwiftBot", icon: <LuBotMessageSquare className="w-5 h-5" />, panel: "chatbot" },
 ];
 
@@ -1198,6 +1199,8 @@ const AppSidebar: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => 
   // Accountants are scoped to accounting, so the other rails are hidden from
   // them entirely. Users with no role get no accounting rail at all.
   const { isAccountant, canAccessAccounting } = useAccountingAccess();
+  // Inviting is OWNER/MANAGER-only; a plain MEMBER gets no Invite action.
+  const { canManageWorkspace } = useWorkspaceManageAccess();
   const visibleRailItems = React.useMemo(
     () =>
       railItems.filter((item) =>
@@ -1303,14 +1306,18 @@ const AppSidebar: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => 
 
         {/* Bottom rail actions */}
         <div className="flex flex-col items-stretch gap-1 pb-3 px-1.5 border-t border-white/10 pt-2">
-          <button
-            title="Invite"
-            onClick={() => setInviteOpen(true)}
-            className="flex flex-col items-center justify-center w-full h-12 px-1 rounded-xl text-gray-400 hover:bg-white/10 hover:text-white transition-all"
-          >
-            <GoPersonAdd className="w-5 h-5" />
-            <span className="text-[9px] mt-1 leading-none w-full text-center truncate">Invite</span>
-          </button>
+          {/* Inviting is OWNER/MANAGER-only server-side (`@Roles('OWNER',
+              'MANAGER')`), so a plain MEMBER never sees the entry point. */}
+          {canManageWorkspace && (
+            <button
+              title="Invite"
+              onClick={() => setInviteOpen(true)}
+              className="flex flex-col items-center justify-center w-full h-12 px-1 rounded-xl text-gray-400 hover:bg-white/10 hover:text-white transition-all"
+            >
+              <GoPersonAdd className="w-5 h-5" />
+              <span className="text-[9px] mt-1 leading-none w-full text-center truncate">Invite</span>
+            </button>
+          )}
           <button
             title="Settings"
             onClick={handleSettingsClick}

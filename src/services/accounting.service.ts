@@ -62,14 +62,6 @@ export type AccountType = (typeof ACCOUNT_TYPES)[number];
 export const LOCAL_CURRENCY = "PKR" satisfies Currency;
 
 /**
- * Commission is always paid in USD or PKR, independent of whatever currency
- * the sale itself settled in — a narrower list than `CURRENCIES`. Source of
- * truth is `COMMISSION_CURRENCY_VALUES` in `transaction.constants.ts`.
- */
-export const COMMISSION_CURRENCIES = ["USD", "PKR"] as const;
-export type CommissionCurrency = (typeof COMMISSION_CURRENCIES)[number];
-
-/**
  * Currencies a **bank account itself** can be denominated in. INTERNATIONAL
  * excludes PKR, since a PKR-denominated account is by definition a local one.
  * Frontend convention only — the API accepts any pairing.
@@ -163,9 +155,36 @@ export interface ClientSearchResult {
 }
 
 /**
- * Commission no longer has any relation to `Transaction`. It is two manually
- * entered PKR figures on the employee itself, plus a server-computed sum — so
- * there is no nested transaction list, no `_count`, and no currency anywhere.
+ * One sale an employee earned commission on. Mirrors {@link ClientTransaction}
+ * plus `commissionAmount`, which is the reason the list exists on an employee
+ * at all: *which* sale a given PKR figure came from.
+ */
+export interface EmployeeTransaction {
+  id: string;
+  clientName: string;
+  saleAmount: number;
+  currency: Currency;
+  refId: string;
+  description: string | null;
+  saleDate: string;
+  /** PKR earned on this specific sale. */
+  commissionAmount: number;
+  createdAt: string;
+  updatedAt: string;
+  bankAccount: { id: string; bankName: string; logoUrl: string | null };
+}
+
+/**
+ * `paidCommission`/`pendingCommission` are two manually entered PKR figures on
+ * the employee itself, plus a server-computed sum. Commission is PKR only —
+ * there is no currency field anywhere on this model.
+ *
+ * `transactions` is the employee's sales, embedded on **every** response
+ * (create, list, get-one, update) — not detail-only — so a list view can show
+ * a sale count without a second call. Creating a transaction with a commission
+ * increments `pendingCommission` once; editing or deleting that transaction
+ * afterwards never adjusts it again, so the two figures are only ever
+ * corrected by hand via `PATCH /employees/:id`.
  *
  * The same shape comes back from create, list, get-one and update.
  */
@@ -181,6 +200,10 @@ export interface AccountingEmployee {
    * it cannot drift. Sending it is ignored — never put it in a payload.
    */
   totalCommission: number;
+  /** How many sales are credited to this employee. */
+  _count?: { transactions: number };
+  /** The sales themselves, newest first. */
+  transactions?: EmployeeTransaction[];
   createdAt: string;
   updatedAt: string;
 }
@@ -236,10 +259,9 @@ export interface AccountingTransaction {
    *  not every sale has an employee attached. */
   employeeId?: string | null;
   employee?: { id: string; name: string } | null;
-  /** Manually entered — never computed from saleAmount. Both null together,
-   *  or both set together; never just one. */
+  /** PKR, manually entered — never computed from saleAmount. Paired with
+   *  `employeeId`: both set together, or neither. */
   commissionAmount?: number | null;
-  commissionCurrency?: CommissionCurrency | null;
 }
 
 export interface BankAccount {
@@ -284,12 +306,13 @@ export interface CreateTransactionPayload {
   /** ISO datetime. Omit to default to now; set it to backdate a late entry. */
   saleDate?: string;
   description?: string;
-  /** Who gets credited for this sale. Optional — not every sale has one. */
+  /** Who gets credited for this sale. Optional — not every sale has one, but
+   *  it must be sent together with `commissionAmount` or not at all (422). */
   employeeId?: string;
-  /** Manually entered — never computed from saleAmount. Must be sent together
-   *  with `commissionCurrency`, and only alongside `employeeId`. */
+  /** PKR, manually entered — never computed from saleAmount. Paired with
+   *  `employeeId`. Adds to the employee's `pendingCommission` once, here at
+   *  creation; later edits to this transaction never adjust it again. */
   commissionAmount?: number;
-  commissionCurrency?: CommissionCurrency;
 }
 
 export interface UpdateTransactionPayload {
@@ -304,11 +327,13 @@ export interface UpdateTransactionPayload {
   currency?: Currency;
   saleDate?: string;
   description?: string;
-  /** Send `null` to clear the assignment — this also clears any commission,
-   *  since a commission can't exist without an employee. */
+  /** Send `null` to clear the assignment. Must be sent together with
+   *  `commissionAmount` or not at all — to clear, send `employeeId: null` and
+   *  `commissionAmount: 0` in the same request. */
   employeeId?: string | null;
+  /** PKR. Never adjusts the employee's `pendingCommission` — that happens once,
+   *  at creation. Correcting it after the fact is a manual employee edit. */
   commissionAmount?: number | null;
-  commissionCurrency?: CommissionCurrency | null;
 }
 
 /** Commission fields are optional and default to `0` — never `null`. */
@@ -506,6 +531,15 @@ export interface OverviewResponse {
   balances: BalanceSummary;
   revenueSummary: {
     today: RevenueStat;
+    /**
+     * Today *so far*, compared against all of yesterday — a deliberately
+     * partial figure, unlike `today` (which is yesterday-vs-the-day-before).
+     * Reads as a large negative early in the morning by design, so label it
+     * as a running total, never as a completed day.
+     *
+     * Optional so an older API build degrades to hiding the card.
+     */
+    todayVsYesterday?: RevenueStat;
     thisMonth: RevenueStat;
     thisYear: RevenueStat;
     totalSales: { count: number; changePercent: number };
@@ -638,10 +672,22 @@ export const clientService = {
 export const employeeService = {
   list: (params?: EmployeeListParams) =>
     api
-      .get<PaginatedApiWrapper<AccountingEmployee[]>>("/employees", {
+      .get<
+        PaginatedApiWrapper<AccountingEmployee[]> & {
+          totalPendingCommission?: number;
+        }
+      >("/employees", {
         params: serializeParams(params),
       })
-      .then((r) => ({ items: r.data.data, meta: r.data.meta })),
+      .then((r) => ({
+        items: r.data.data,
+        meta: r.data.meta,
+        /* Summed server-side over every row matching the current filter — not
+           just this page — so it tracks the same set `meta.total` counts and
+           narrows when a search is active. Optional: an older API build leaves
+           it undefined, which the view hides rather than showing a wrong 0. */
+        totalPendingCommission: r.data.totalPendingCommission,
+      })),
 
   /** Word-order-independent name search. Returns a plain array, not paginated. */
   search: (q: string) =>
@@ -649,6 +695,19 @@ export const employeeService = {
       .get<ApiWrapper<EmployeeSearchResult[]>>("/employees/search", {
         params: { q },
       })
+      .then((r) => r.data.data),
+
+  /**
+   * Every employee in the workspace, alphabetically — `q` is optional on this
+   * route, and omitting it returns the full list (sorted server-side with
+   * `localeCompare`, so case doesn't split the ordering).
+   *
+   * Mirrors {@link clientService.searchAll}: a picker fetches once and filters
+   * locally rather than round-tripping per keystroke.
+   */
+  searchAll: () =>
+    api
+      .get<ApiWrapper<EmployeeSearchResult[]>>("/employees/search")
       .then((r) => r.data.data),
 
   get: (employeeId: string) =>
@@ -666,8 +725,9 @@ export const employeeService = {
       .patch<ApiWrapper<AccountingEmployee>>(`/employees/${employeeId}`, payload)
       .then((r) => r.data.data),
 
-  /** Unconditional — the old "still has transactions" guard went away with the
-   *  relation, so a confirm dialog is the only safeguard left. */
+  /** Unconditional. `Transaction.employeeId` is `onDelete: SetNull`, so past
+   *  sales keep their `commissionAmount` and simply lose the employee link —
+   *  deletion is never blocked, and a confirm dialog is the only safeguard. */
   delete: (employeeId: string) => api.delete(`/employees/${employeeId}`),
 };
 
@@ -675,10 +735,20 @@ export const employeeService = {
 export const vendorService = {
   list: (params?: VendorListParams) =>
     api
-      .get<PaginatedApiWrapper<AccountingVendor[]>>("/vendors", {
+      .get<
+        PaginatedApiWrapper<AccountingVendor[]> & {
+          totalPendingPayment?: number;
+        }
+      >("/vendors", {
         params: serializeParams(params),
       })
-      .then((r) => ({ items: r.data.data, meta: r.data.meta })),
+      .then((r) => ({
+        items: r.data.data,
+        meta: r.data.meta,
+        /* Summed server-side over every row matching the current filter — see
+           the employees list above for the full semantics. */
+        totalPendingPayment: r.data.totalPendingPayment,
+      })),
 
   /** Word-order-independent name search. Returns a plain array, not paginated. */
   search: (q: string) =>

@@ -13,11 +13,14 @@ import {
   type BankAccount,
   type ClientSearchResult,
   type Currency,
+  type EmployeeSearchResult,
 } from "@/services/accounting.service";
 import AccountingSelect from "@/components/accounts/AccountingSelect";
 import ClientPicker from "@/components/accounts/ClientPicker";
 import BankAccountPicker from "@/components/accounts/BankAccountPicker";
+import EmployeePicker from "@/components/accounts/EmployeePicker";
 import CreateClientModal from "@/components/accounts/CreateClientModal";
+import EmployeeFormModal from "@/components/accounts/EmployeeFormModal";
 import { SingleDateField } from "@/components/accounts/accountingFilters";
 import {
   fromDateInputValue,
@@ -40,6 +43,12 @@ export default function AddSaleModal({
   const [refId, setRefId] = useState("");
   const [description, setDescription] = useState("");
   const [bankAccount, setBankAccount] = useState<BankAccount | null>(null);
+  /* Commission is optional, but `employeeId` and `commissionAmount` are a
+     both-or-neither pair server-side (422 otherwise), so the amount field only
+     appears once an employee is picked, and clearing the employee clears it. */
+  const [employee, setEmployee] = useState<EmployeeSearchResult | null>(null);
+  const [commission, setCommission] = useState("0");
+  const [commissionError, setCommissionError] = useState("");
   // LOCAL accounts are PKR-only; INTERNATIONAL ones take any currency.
   const isLocalAccount = bankAccount?.accountType === "LOCAL";
   const currencyOptions = isLocalAccount
@@ -53,6 +62,9 @@ export default function AddSaleModal({
 
   // Opened from the picker's "Create <term>" row.
   const [createClientName, setCreateClientName] = useState<string | null>(null);
+  // Same flow for a first-time employee: typing a name offers "Create <term>"
+  // rather than forcing a trip to the Employees page mid-sale.
+  const [createEmployeeName, setCreateEmployeeName] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -63,23 +75,31 @@ export default function AddSaleModal({
     setRefId("");
     setDescription("");
     setBankAccount(null);
+    setEmployee(null);
+    setCommission("0");
+    setCreateEmployeeName(null);
     setError("");
     setRefIdError("");
     setClientError("");
     setBankError("");
+    setCommissionError("");
   }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
       // Let a nested create-client modal handle Escape first.
-      if (event.key === "Escape" && createClientName === null) {
+      if (
+        event.key === "Escape" &&
+        createClientName === null &&
+        createEmployeeName === null
+      ) {
         onClose();
       }
     };
     document.addEventListener("keydown", closeOnEscape);
     return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [isOpen, onClose, createClientName]);
+  }, [isOpen, onClose, createClientName, createEmployeeName]);
 
   if (!isOpen) return null;
 
@@ -89,6 +109,7 @@ export default function AddSaleModal({
     setRefIdError("");
     setClientError("");
     setBankError("");
+    setCommissionError("");
 
     if (!client) {
       setClientError("Select a client.");
@@ -111,6 +132,11 @@ export default function AddSaleModal({
       setRefIdError("Reference ID is required.");
       return;
     }
+    const numericCommission = Number(commission);
+    if (employee && (!Number.isFinite(numericCommission) || numericCommission < 0)) {
+      setCommissionError("Enter a commission of zero or more.");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -125,6 +151,10 @@ export default function AddSaleModal({
         currency,
         saleDate: fromDateInputValue(saleDate),
         description: description.trim() || undefined,
+        // Both or neither — sending just one is a 422.
+        ...(employee
+          ? { employeeId: employee.id, commissionAmount: numericCommission }
+          : {}),
       });
       toast.success("Sale recorded");
       onClose();
@@ -279,6 +309,61 @@ export default function AddSaleModal({
           </div>
 
           <p className="mt-5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+            Commission <span className="normal-case text-gray-400">(optional)</span>
+          </p>
+          <div className="mt-3">
+            <EmployeePicker
+              onCreateRequest={setCreateEmployeeName}
+              value={employee}
+              onChange={(next) => {
+                setEmployee(next);
+                // The pair is enforced server-side; dropping the employee has
+                // to drop the amount with it.
+                if (!next) {
+                  setCommission("0");
+                  setCommissionError("");
+                }
+              }}
+            />
+          </div>
+          {employee && (
+            <label className="mt-3 block text-xs font-medium text-gray-600 dark:text-gray-300">
+              Commission (PKR)
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={commission}
+                onChange={(event) => {
+                  setCommission(event.target.value);
+                  setCommissionError("");
+                }}
+                // Same as the sale amount above: a literal "0" sitting in the
+                // field would have to be deleted first, or become "0500".
+                onFocus={() => {
+                  if (Number(commission) === 0) setCommission("");
+                }}
+                onBlur={() => {
+                  if (commission.trim() === "") setCommission("0");
+                }}
+                placeholder="0"
+                className={`mt-1.5 h-10 w-full rounded-lg border bg-white px-3 text-sm text-gray-800 outline-none placeholder:text-gray-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 dark:bg-gray-800 dark:text-gray-100 ${
+                  commissionError ? "border-red-400" : "border-gray-200 dark:border-gray-700"
+                }`}
+              />
+              {commissionError && (
+                <span role="alert" className="mt-1 block text-xs font-normal text-red-500">
+                  {commissionError}
+                </span>
+              )}
+              <span className="mt-1 block text-[11px] font-normal text-gray-400">
+                Added to this employee&apos;s pending commission once. Editing the
+                sale later won&apos;t change it — correct it on the employee record.
+              </span>
+            </label>
+          )}
+
+          <p className="mt-5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
             Reference Information
           </p>
           <label className="mt-3 block text-xs font-medium text-gray-600 dark:text-gray-300">
@@ -346,6 +431,16 @@ export default function AddSaleModal({
           setClient({ id: created.id, clientName: created.clientName });
           setClientError("");
           setCreateClientName(null);
+        }}
+      />
+      <EmployeeFormModal
+        isOpen={createEmployeeName !== null}
+        initialName={createEmployeeName ?? ""}
+        onClose={() => setCreateEmployeeName(null)}
+        onSaved={(created) => {
+          // Auto-select so the sale can carry straight on.
+          setEmployee({ id: created.id, name: created.name });
+          setCreateEmployeeName(null);
         }}
       />
     </>,

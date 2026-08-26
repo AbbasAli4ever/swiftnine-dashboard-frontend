@@ -14,7 +14,22 @@ export type WorkspaceManagementType =
   | "FINANCE_ACCOUNTING" | "OPERATIONS" | "SOFTWARE_DEVELOPMENT"
   | "IT" | "SALES_CRM" | "PERSONAL_USE" | "SUPPORT"
   | "STARTUP" | "PMO" | "MARKETING" | "OTHER";
-export type WorkspaceInviteRole = "OWNER" | "MEMBER";
+/**
+ * The only roles an invite / add-member / change-role call may carry. OWNER is
+ * absent deliberately: it is written in exactly one place server-side
+ * (`WorkspaceService.create()`), and every DTO plus a service-level check in
+ * `changeMemberRole()` rejects it. See `docs/workspace-roles.md`.
+ */
+export type WorkspaceInviteRole = "MANAGER" | "MEMBER";
+
+/**
+ * Every role a member row can *report*. Wider than `WorkspaceInviteRole`
+ * because OWNER still exists on the creator's row (and on legacy workspaces
+ * that predate the single-owner rule) — it just can't be granted any more.
+ * ADMIN is an unrelated tier used by chat/channels/projects moderation; it
+ * carries no workspace-management rights and is never offered here.
+ */
+export type WorkspaceMemberRole = "OWNER" | "ADMIN" | "MANAGER" | "MEMBER";
 export type WorkspaceInviteNextStep = "claim_account" | "login";
 
 export interface WorkspaceInvitePreview {
@@ -61,7 +76,7 @@ export interface WorkspaceMember {
   id: string;
   fullName: string;
   email: string;
-  role: "OWNER" | "MEMBER";
+  role: WorkspaceMemberRole;
   /** AI model entitlement in this workspace. Separate from role. */
   aiModelTier: AiModelTier;
   /** Independent of `role` — an OWNER isn't automatically CEO, and a plain
@@ -82,7 +97,7 @@ export interface WorkspaceMember {
 export interface WorkspaceDetail extends Workspace {
   memberCount: number;
   /** The caller's workspace role in this workspace. */
-  role: "OWNER" | "ADMIN" | "MEMBER";
+  role: WorkspaceMemberRole;
   /** The caller's accounting role in this workspace. */
   accountingRole: AccountingRole | null;
 }

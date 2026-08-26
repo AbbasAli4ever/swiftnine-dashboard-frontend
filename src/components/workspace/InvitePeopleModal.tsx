@@ -17,17 +17,20 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
  * Only the roles `POST /workspaces/:id/invite` actually accepts — its DTO is
- * `z.enum(['OWNER', 'MEMBER'])`.
+ * `z.enum(['MANAGER', 'MEMBER'])`.
  *
- * `ADMIN` exists in the Prisma `Role` enum and is honoured by the authorization
- * layer (project archive/restore, deleting others' attachments), but no code
- * path can grant it: workspace creation hardcodes OWNER, and this endpoint
- * rejects `ADMIN` with 422. It's omitted here rather than faked — the previous
- * list offered Admin/Limited Member/Guest and quietly mapped Admin to `OWNER`,
- * so inviting an "admin" handed over full workspace ownership. Add it back once
- * the invite DTO accepts it.
+ * `OWNER` is deliberately absent: it is written in exactly one place
+ * server-side (when the workspace is created) and no invite, add-member or
+ * role-change path can produce a second one. MANAGER is the role that carries
+ * the rights people used to reach for "Owner" to grant — it has full parity
+ * with OWNER on every workspace-management action.
+ *
+ * `ADMIN` also exists in the Prisma `Role` enum and is honoured by the
+ * authorization layer (project archive/restore, deleting others' attachments),
+ * but no code path can grant it and this endpoint rejects it with 422, so it
+ * stays off the list rather than being faked.
  */
-type UiRoleKey = "MEMBER" | "OWNER";
+type UiRoleKey = "MEMBER" | "MANAGER";
 
 const ROLE_OPTIONS: Array<{
   key: UiRoleKey;
@@ -41,9 +44,9 @@ const ROLE_OPTIONS: Array<{
     description: "Can access all public items in your Workspace.",
   },
   {
-    key: "OWNER",
-    label: "Owner",
-    description: "Full control: manages People, billing and workspace settings.",
+    key: "MANAGER",
+    label: "Manager",
+    description: "Full control: manages People and workspace settings.",
   },
 ];
 
