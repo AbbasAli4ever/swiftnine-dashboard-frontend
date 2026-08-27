@@ -237,13 +237,15 @@ export default function ProjectMembersModal({
                 aria-label="Make this space private"
                 disabled={!isCreator || savingVisibility}
                 onClick={handleToggleVisibility}
-                className={`relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                  isPrivate ? "bg-brand-500" : "bg-gray-300 dark:bg-gray-700"
+                /* Matches the app-standard switch (ProfileSettingsForm,
+                   university settings): h-6/w-11 track, h-5/w-5 knob. */
+                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                  isPrivate ? "bg-brand-500" : "bg-gray-200 dark:bg-gray-700"
                 }`}
               >
                 <span
-                  className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
-                    isPrivate ? "translate-x-4" : "translate-x-0.5"
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                    isPrivate ? "translate-x-5.5" : "translate-x-0.5"
                   }`}
                 />
               </button>

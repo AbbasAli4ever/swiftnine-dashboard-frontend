@@ -514,13 +514,13 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
                   aria-checked={isPrivate}
                   aria-label="Make this space private"
                   onClick={() => setIsPrivate((v) => !v)}
-                  className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                  className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
                     isPrivate ? "bg-brand-500" : "bg-gray-200 dark:bg-gray-700"
                   }`}
                 >
                   <span
-                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
-                      isPrivate ? "translate-x-4" : "translate-x-0.5"
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                      isPrivate ? "translate-x-5.5" : "translate-x-0.5"
                     }`}
                   />
                 </button>
