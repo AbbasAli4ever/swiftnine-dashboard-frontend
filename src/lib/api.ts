@@ -98,7 +98,8 @@ api.interceptors.response.use(
       url.includes("/auth/forgot-password") ||
       url.includes("/auth/reset-password") ||
       url.includes("/auth/google") ||
-      url.includes("/unlock") ||
+      // Kept for /user/change-password, which legitimately 401s on a wrong
+      // current password and must not trigger a refresh-and-retry loop.
       url.includes("/password");
 
     // Pass non-401 errors and auth-endpoint 401s straight through
@@ -186,9 +187,26 @@ export function parseApiError(error: unknown): {
 
     // Shape 2
     if (data?.message) {
-      const msg = Array.isArray(data.message)
-        ? data.message.join(". ")
-        : data.message;
+      const raw = data.message;
+
+      /* `message` is not always a string. Nest's own errors send a string (or
+         an array of them), but some endpoints throw a structured
+         `{ code, message }` — e.g. PROJECT_NOT_FOUND, USER_NOT_PROJECT_MEMBER.
+         Returning that object raw made every `toast.error(message)` render
+         "[object Object]", so unwrap it to its inner string here.
+
+         Only the *message* is unwrapped, deliberately: `code` stays derived
+         from the HTTP status, because callers across the app compare it
+         against status names ("CONFLICT", "FORBIDDEN", "NOT_FOUND", ...) and
+         letting a nested code win would silently break those. Use
+         `getApiErrorCode()` when you need the structured code. */
+      const msg: string = Array.isArray(raw)
+        ? raw.join(". ")
+        : typeof raw === "string"
+          ? raw
+          : typeof raw?.message === "string"
+            ? raw.message
+            : "Something went wrong";
 
       const details: { field: string; message: string }[] | null =
         Array.isArray(data.errors) && data.errors.length > 0
@@ -214,4 +232,20 @@ export function parseApiError(error: unknown): {
     code: "UNKNOWN",
     details: null,
   };
+}
+
+/**
+ * The *structured* error code some endpoints send as `message: { code, message }`
+ * — distinct from `parseApiError().code`, which is derived from the HTTP status.
+ *
+ * Use this to branch on a specific server condition (`PROJECT_NOT_FOUND`,
+ * `USER_NOT_PROJECT_MEMBER`, ...); use `parseApiError` for the human-readable
+ * text and the status-shaped code.
+ */
+export function getApiErrorCode(error: unknown): string | null {
+  const err = error as { response?: { status?: number; data?: unknown } } | null;
+  if (err?.response?.status === 429) return "RESET_REQUEST_RATE_LIMITED";
+  const payload = err?.response?.data ?? error;
+  const p = payload as { message?: { code?: string }; code?: string } | null;
+  return p?.message?.code ?? p?.code ?? null;
 }

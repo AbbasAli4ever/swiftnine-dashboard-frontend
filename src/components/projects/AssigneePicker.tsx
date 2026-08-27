@@ -25,9 +25,19 @@ function avatarBg(id: string): string {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 
+/**
+ * The subset of a member this picker actually renders.
+ *
+ * Deliberately narrower than `WorkspaceMember`: on a PRIVATE project the
+ * options come from `GET /projects/:id/members`, whose user objects carry only
+ * these fields — no role, tier, or invite status. `WorkspaceMember`
+ * structurally satisfies this, so PUBLIC call sites pass through unchanged.
+ */
+export type MemberOption = Pick<WorkspaceMember, "id" | "fullName" | "email">;
+
 interface AssigneePickerProps {
   assignees: TaskAssignee[];
-  members: WorkspaceMember[];
+  members: MemberOption[];
   onAdd: (userId: string) => void;
   onRemove: (userId: string) => void;
   onOpen?: () => void;

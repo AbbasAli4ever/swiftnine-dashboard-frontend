@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { MemberOption } from "@/components/projects/AssigneePicker";
 import { createPortal } from "react-dom";
 import { GrFlagFill } from "react-icons/gr";
 import {
@@ -346,7 +347,7 @@ function PriorityValueSelector({ row, onChange }: { row: FilterRow; onChange: (p
   );
 }
 
-function AssigneeValueSelector({ row, members, onChange }: { row: FilterRow; members: WorkspaceMember[]; onChange: (patch: Partial<FilterRow>) => void }) {
+function AssigneeValueSelector({ row, members, onChange }: { row: FilterRow; members: MemberOption[]; onChange: (patch: Partial<FilterRow>) => void }) {
   const [search, setSearch] = useState("");
   const selected = row.assigneeIds.length;
   const label = selected === 0 ? "Select assignee" : selected === 1 ? (members.find((m) => m.id === row.assigneeIds[0])?.fullName ?? "1 selected") : `${selected} selected`;
@@ -422,7 +423,7 @@ function FilterRowUI({
   index: number;
   total: number;
   statuses: StatusItem[];
-  members: WorkspaceMember[];
+  members: MemberOption[];
   tags: WorkspaceTag[];
   onChange: (patch: Partial<FilterRow>) => void;
   onRemove: () => void;
@@ -544,7 +545,7 @@ interface TaskFiltersModalProps {
   onClose: () => void;
   value: TaskSearchParams;
   statuses?: StatusItem[];
-  members: WorkspaceMember[];
+  members: MemberOption[];
   tags: WorkspaceTag[];
   allowStatusIds?: boolean;
   anchorRect?: DOMRect | null;

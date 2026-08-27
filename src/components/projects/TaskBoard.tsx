@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { MemberOption } from "@/components/projects/AssigneePicker";
 import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { LuPlus, LuEllipsis } from "react-icons/lu";
@@ -118,7 +119,7 @@ function CardContent({
 }: {
   task: TaskListItem;
   statuses: StatusItem[];
-  members: WorkspaceMember[];
+  members: MemberOption[];
   listId: string;
   ghost?: boolean;
   onRefetchMembers?: () => void;
@@ -200,7 +201,7 @@ function BoardCard({
 }: {
   task: TaskListItem;
   statuses: StatusItem[];
-  members: WorkspaceMember[];
+  members: MemberOption[];
   listId: string;
   isDragging: boolean;
   suppressClickRef: React.RefObject<boolean>;
@@ -254,7 +255,7 @@ function BoardColumn({
   statuses: StatusItem[];
   list: TaskList;
   projectId: string;
-  members: WorkspaceMember[];
+  members: MemberOption[];
   dragState: DragState | null;
   dragOverStatusId: string | null;
   dropIdx: number | null;
@@ -443,7 +444,7 @@ interface TaskBoardProps {
   projectId: string;
   lists: TaskList[];
   statuses: StatusItem[];
-  members: WorkspaceMember[];
+  members: MemberOption[];
   onOpenTaskDetail: (taskId: string) => void;
   onRefetchMembers?: () => void;
   disableAutoFetch?: boolean;

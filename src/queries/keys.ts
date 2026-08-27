@@ -29,6 +29,14 @@ export const queryKeys = {
     ["projects", workspaceId, "archived"] as const,
   projectDashboard: (projectId: string) =>
     ["project-dashboard", projectId] as const,
+  /** Members of a PRIVATE project. Readable by any member. */
+  projectMembers: (projectId: string) =>
+    ["project-members", projectId] as const,
+  /** Invite-picker rows. Kept under a separate key from `projectMembers`
+   *  because this endpoint is creator-only — sharing a key would let a
+   *  non-creator's 403 poison the member list. */
+  projectMemberCandidates: (projectId: string) =>
+    ["project-member-candidates", projectId] as const,
   profile: () => ["profile"] as const,
   myTasks: (workspaceId: string | null) =>
     ["my-tasks", workspaceId] as const,

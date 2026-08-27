@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from "react";
+import type { MemberOption } from "@/components/projects/AssigneePicker";
 import { LuArrowLeft, LuX, LuSend, LuUsers, LuSmilePlus, LuEllipsis, LuPencil, LuTrash2 } from "react-icons/lu";
 import { commentService, Comment, CommentReaction } from "@/services/comment.service";
 import { AuthUser } from "@/stores/auth.store";
@@ -117,7 +118,7 @@ function InlineEditor({
   onCancel,
 }: {
   initialText: string;
-  members: WorkspaceMember[];
+  members: MemberOption[];
   onSave: (text: string, mentionedUserIds: string[]) => Promise<void>;
   onCancel: () => void;
 }) {
@@ -145,7 +146,7 @@ function InlineEditor({
     }
   };
 
-  const insertMention = (member: WorkspaceMember) => {
+  const insertMention = (member: MemberOption) => {
     const before = text.slice(0, mentionStart);
     const after = text.slice(mentionStart + 1 + (mentionQuery?.length ?? 0));
     const inserted = `@${member.fullName} `;
@@ -330,7 +331,7 @@ function ThreadCard({
   comment: Comment;
   allComments: Comment[];
   currentUserId: string;
-  members: WorkspaceMember[];
+  members: MemberOption[];
   onOpenThread: (c: Comment) => void;
   onReact: (commentId: string, emoji: string) => Promise<void>;
   onEdit: (commentId: string, text: string, mentionedUserIds: string[]) => Promise<void>;
@@ -431,7 +432,7 @@ function ReplyMessage({
   comment: Comment;
   allComments: Comment[];
   currentUserId: string;
-  members: WorkspaceMember[];
+  members: MemberOption[];
   onReplyTo: (c: Comment) => void;
   onReact: (commentId: string, emoji: string) => Promise<void>;
   onEdit: (commentId: string, text: string, mentionedUserIds: string[]) => Promise<void>;
@@ -519,7 +520,7 @@ function Composer({
   placeholder: string;
   replyTo: Comment | null;
   onClearReplyTo: () => void;
-  members: WorkspaceMember[];
+  members: MemberOption[];
   onSubmit: (text: string, mentionedUserIds: string[]) => Promise<void>;
   onMentionOpen?: () => void;
   disabled?: boolean;
@@ -557,7 +558,7 @@ function Composer({
     }
   };
 
-  const insertMention = (member: WorkspaceMember) => {
+  const insertMention = (member: MemberOption) => {
     const before = text.slice(0, mentionStart);
     const after = text.slice(mentionStart + 1 + (mentionQuery?.length ?? 0));
     const inserted = `@${member.fullName} `;
@@ -662,7 +663,7 @@ function Composer({
 interface TaskCommentsProps {
   taskId: string;
   currentUser: AuthUser | null;
-  members: WorkspaceMember[];
+  members: MemberOption[];
   onRefetchMembers?: () => void;
 }
 

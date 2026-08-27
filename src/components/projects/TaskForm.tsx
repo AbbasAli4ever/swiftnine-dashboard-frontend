@@ -6,7 +6,7 @@ import { LuX, LuMaximize2, LuPaperclip, LuSparkles, LuFileText } from "react-ico
 import { StatusItem } from "@/services/status.service";
 import { TaskList } from "@/services/task-list.service";
 import { useTaskStore } from "@/stores/task.store";
-import { useWorkspaceMembers } from "@/hooks/useWorkspaceMembers";
+import { useProjectMembers } from "@/hooks/useProjectMembers";
 import { useWorkspaceTags } from "@/hooks/useWorkspaceTags";
 import TagPicker from "./TagPicker";
 import { TaskPriority } from "@/services/task.service";
@@ -38,7 +38,7 @@ export default function TaskForm({
   defaultListId,
 }: TaskFormProps) {
   const { createTask } = useTaskStore();
-  const { members, refetch: refetchMembers } = useWorkspaceMembers();
+  const { members, refetch: refetchMembers } = useProjectMembers(projectId);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");

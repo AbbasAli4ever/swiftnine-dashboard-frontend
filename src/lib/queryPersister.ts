@@ -4,7 +4,12 @@ import { get, set, del, createStore, type UseStore } from "idb-keyval";
 // Bump this when the persisted query shapes change in a way that makes old
 // cached data unsafe to restore. It is passed to React Query as the persist
 // `buster`, so a change discards any previously persisted cache on load.
-export const QUERY_CACHE_BUSTER = "v2";
+// v3: project visibility replaced password locking. Cached project lists from
+// before the change carry the old shape (`locked`/`passwordUpdatedAt`, no
+// `visibility`) and — worse — reflect the *old* access rules, so a user who
+// couldn't see a project when it was private kept seeing it missing for up to
+// 24h after it went public.
+export const QUERY_CACHE_BUSTER = "v3";
 
 // Single IDB entry holding the dehydrated React Query cache.
 const CACHE_ENTRY_KEY = "swiftnine-query-cache";

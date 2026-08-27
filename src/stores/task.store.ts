@@ -10,6 +10,8 @@ import {
   CreateSubtaskPayload,
 } from "@/services/task.service";
 import { useTaskSearchStore } from "@/stores/task-search.store";
+import { toast } from "sonner";
+import { getApiErrorCode, parseApiError } from "@/lib/api";
 
 export interface MinimizedTaskDraft {
   taskId: string;
@@ -57,6 +59,25 @@ interface TaskState {
   removeTag: (taskId: string, listId: string, tagId: string) => Promise<void>;
   purgeTag: (tagId: string) => void;
   updateTagInStore: (tag: { id: string; name: string; color: string }) => void;
+}
+
+/**
+ * A task can disappear between being listed and being opened — most often when
+ * its project turns PRIVATE, which strips access to every task under it while
+ * a cross-project list (My Tasks, search) still holds the row.
+ *
+ * Previously this was swallowed, leaving the detail panel blank with no
+ * explanation. Say what happened instead, so "I clicked and nothing opened"
+ * becomes a readable message.
+ */
+function handleOpenTaskError(err: unknown) {
+  const code = getApiErrorCode(err);
+  const status = (err as { response?: { status?: number } })?.response?.status;
+  if (code === "PROJECT_NOT_FOUND" || status === 404) {
+    toast.error("This task is no longer available to you.");
+    return;
+  }
+  toast.error(parseApiError(err).message || "Couldn't open this task.");
 }
 
 export const useTaskStore = create<TaskState>()(
@@ -150,8 +171,9 @@ export const useTaskStore = create<TaskState>()(
     try {
       const task = await taskService.get(taskId);
       set({ openTask: task, openTaskLoading: false });
-    } catch {
-      set({ openTaskLoading: false });
+    } catch (err) {
+      handleOpenTaskError(err);
+      set({ openTaskId: null, openTaskLoading: false });
     }
   },
 
@@ -160,8 +182,9 @@ export const useTaskStore = create<TaskState>()(
     try {
       const task = await taskService.get(taskId);
       set({ openTask: task, openTaskLoading: false });
-    } catch {
-      set({ openTaskLoading: false });
+    } catch (err) {
+      handleOpenTaskError(err);
+      set({ openTaskId: null, openTaskLoading: false });
     }
   },
 

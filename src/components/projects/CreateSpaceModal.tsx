@@ -6,6 +6,10 @@ import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { useOptionalProjects } from "@/context/ProjectContext";
 import { parseApiError } from "@/lib/api";
 import { statusService } from "@/services/status.service";
+import { projectService } from "@/services/project.service";
+import { useWorkspaceMembers } from "@/hooks/useWorkspaceMembers";
+import { useAuthStore } from "@/stores/auth.store";
+import { getInitials } from "@/lib/getInitials";
 import { taskListService } from "@/services/task-list.service";
 import { syncProjectStatuses } from "@/components/projects/project-status-sync";
 import {
@@ -52,6 +56,35 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
   const [prefix, setPrefix] = useState("");
   const [prefixTouched, setPrefixTouched] = useState(false);
   const [isPrivate, setIsPrivate] = useState(false);
+  /* Who to invite once the project exists. Collected here rather than after
+     creation so a private space is set up in one pass; the invite itself has
+     to wait for a project id. */
+  const [inviteIds, setInviteIds] = useState<Set<string>>(new Set());
+  const [memberSearch, setMemberSearch] = useState("");
+
+  const { members: workspaceMembers } = useWorkspaceMembers();
+  const currentUserId = useAuthStore((state) => state.user?.id);
+  /* The creator is always a member of their own project, so they are never an
+     option here — showing them would imply they could be left out. */
+  const invitableMembers = workspaceMembers.filter((m) => m.id !== currentUserId);
+  const filteredMembers = memberSearch.trim()
+    ? invitableMembers.filter((m) => {
+        const needle = memberSearch.trim().toLowerCase();
+        return (
+          m.fullName.toLowerCase().includes(needle) ||
+          m.email.toLowerCase().includes(needle)
+        );
+      })
+    : invitableMembers;
+
+  const toggleInvite = (userId: string) => {
+    setInviteIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  };
   const [prefixError, setPrefixError] = useState("");
   const [nameError, setNameError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -98,6 +131,8 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
       setPrefix("");
       setPrefixTouched(false);
       setIsPrivate(false);
+      setInviteIds(new Set());
+      setMemberSearch("");
       setPrefixError("");
       setNameError("");
       setLoading(false);
@@ -296,8 +331,32 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
         description: description.trim() || undefined,
         color,
         icon: icon ?? undefined,
+        visibility: isPrivate ? "PRIVATE" : "PUBLIC",
       });
       createdProjectId = project.id;
+
+      /* Invites can only happen once the project exists. Failures here are
+         reported but never fail the creation — the space is already made, and
+         people can still be added from Sharing & Permissions. */
+      if (isPrivate && inviteIds.size > 0) {
+        try {
+          const { summary } = await projectService.addMembersBatch(
+            project.id,
+            Array.from(inviteIds)
+          );
+          if (summary.failed > 0) {
+            toast.warning(
+              `Space created, but ${summary.failed} of ${summary.total} ${
+                summary.failed === 1 ? "invite" : "invites"
+              } failed.`
+            );
+          }
+        } catch (err) {
+          toast.warning(
+            `Space created, but members couldn't be added: ${parseApiError(err).message}`
+          );
+        }
+      }
 
       const initialGroupedStatuses = await statusService.list(project.id);
       await syncProjectStatuses(project.id, initialGroupedStatuses, groups);
@@ -428,23 +487,116 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
                 />
               </div>
 
-              {/* Make Private */}
-              {/* <div className="flex items-center justify-between py-1">
+              {/* Set at creation, so a private space is never briefly visible
+                  workspace-wide the way a create-then-toggle flow would leave
+                  it. Invite people afterwards from Sharing & Permissions. */}
+              <div className="flex items-center justify-between gap-4 py-1">
                 <div className="flex items-center gap-2.5">
-                  {isPrivate ? <LuLock className="w-4 h-4 text-gray-400" /> : <LuLockOpen className="w-4 h-4 text-gray-400" />}
+                  {isPrivate ? (
+                    <LuLock className="w-4 h-4 text-gray-400" />
+                  ) : (
+                    <LuLockOpen className="w-4 h-4 text-gray-400" />
+                  )}
                   <div>
-                    <p className="text-sm font-normal text-gray-800 dark:text-gray-200">Make Private</p>
-                    <p className="text-xs text-gray-500">Only you and invited members have access</p>
+                    <p className="text-sm font-normal text-gray-800 dark:text-gray-200">
+                      Make Private
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {isPrivate
+                        ? "Only you and invited members have access"
+                        : "Everyone in the workspace will have access"}
+                    </p>
                   </div>
                 </div>
                 <button
                   type="button"
+                  role="switch"
+                  aria-checked={isPrivate}
+                  aria-label="Make this space private"
                   onClick={() => setIsPrivate((v) => !v)}
-                  className={`relative w-10 h-5 rounded-full transition-colors ${isPrivate ? "bg-brand-500" : "bg-gray-300 dark:bg-gray-700"}`}
+                  className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                    isPrivate ? "bg-brand-500" : "bg-gray-200 dark:bg-gray-700"
+                  }`}
                 >
-                  <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${isPrivate ? "translate-x-0.5" : "-translate-x-4.5"}`} />
+                  <span
+                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+                      isPrivate ? "translate-x-4" : "translate-x-0.5"
+                    }`}
+                  />
                 </button>
-              </div> */}
+              </div>
+
+              {/* Only meaningful while private — a public space already grants
+                  everyone access, so there would be nothing to choose. */}
+              {isPrivate && (
+                <div className="pt-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                      Who has access
+                    </p>
+                    <span className="text-[11px] text-gray-400">
+                      {inviteIds.size > 0
+                        ? `${inviteIds.size} selected`
+                        : "Just you"}
+                    </span>
+                  </div>
+
+                  {invitableMembers.length > 6 && (
+                    <input
+                      type="text"
+                      value={memberSearch}
+                      onChange={(e) => setMemberSearch(e.target.value)}
+                      placeholder="Search people..."
+                      className="mt-2 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                    />
+                  )}
+
+                  <div className="mt-2 max-h-40 space-y-0.5 overflow-y-auto">
+                    {filteredMembers.length === 0 && (
+                      <p className="py-3 text-center text-xs text-gray-400">
+                        {invitableMembers.length === 0
+                          ? "You're the only member of this workspace."
+                          : "No one matches that search."}
+                      </p>
+                    )}
+                    {filteredMembers.map((m) => {
+                      const picked = inviteIds.has(m.id);
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => toggleInvite(m.id)}
+                          className={`flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm transition-colors ${
+                            picked
+                              ? "bg-brand-50 dark:bg-brand-900/20"
+                              : "hover:bg-gray-50 dark:hover:bg-gray-800"
+                          }`}
+                        >
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500 text-[10px] text-white">
+                            {getInitials(m.fullName)}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-[13px] text-gray-800 dark:text-gray-200">
+                              {m.fullName}
+                            </span>
+                            <span className="block truncate text-[11px] text-gray-400">
+                              {m.email}
+                            </span>
+                          </span>
+                          {picked && (
+                            <span className="shrink-0 text-[11px] font-medium text-brand-500">
+                              Added
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-1.5 text-[11px] text-gray-400">
+                    You can change this later in Sharing &amp; Permissions.
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center justify-end px-6 py-4 mt-4 border-t border-gray-100 dark:border-gray-800">

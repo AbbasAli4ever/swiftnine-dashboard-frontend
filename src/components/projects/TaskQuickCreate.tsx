@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { MemberOption } from "@/components/projects/AssigneePicker";
 import { StatusItem } from "@/services/status.service";
 import { WorkspaceMember } from "@/services/workspace.service";
 import { TaskAssignee, TaskPriority } from "@/services/task.service";
@@ -11,7 +12,7 @@ import PriorityPicker from "./PriorityPicker";
 
 interface TaskQuickCreateProps {
   status: StatusItem;
-  members: WorkspaceMember[];
+  members: MemberOption[];
   onSave: (payload: {
     title: string;
     assigneeIds: string[];

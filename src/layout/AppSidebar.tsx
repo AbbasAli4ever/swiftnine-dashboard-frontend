@@ -20,8 +20,7 @@ import EditSpaceModal from "@/components/projects/EditSpaceModal";
 import SpaceContextMenu from "@/components/projects/SpaceContextMenu";
 import ConfirmActionModal from "@/components/common/ConfirmActionModal";
 import CreateListModal from "@/components/projects/CreateListModal";
-import ProjectUnlockModal from "@/components/projects/ProjectUnlockModal";
-import ProjectPasswordModal from "@/components/projects/ProjectPasswordModal";
+import ProjectMembersModal from "@/components/projects/ProjectMembersModal";
 import ListContextMenu from "@/components/projects/ListContextMenu";
 import DocsListSidebarSection from "@/components/docs/DocsListSidebarSection";
 import DmSidebarSection from "@/components/dm/DmSidebarSection";
@@ -322,7 +321,7 @@ function SpaceRow({
   showArchivedLists?: boolean;
 }) {
   const router = useRouter();
-  const { deleteProject, updateProject, patchLocalProject, refetch: refetchProjects } = useOptionalProjects();
+  const { deleteProject, updateProject, patchLocalProject } = useOptionalProjects();
   const { getProjectLists, reorderLists } = useOptionalTaskLists();
   const [menuOpen, setMenuOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -333,14 +332,13 @@ function SpaceRow({
   const [draggedListId, setDraggedListId] = useState<string | null>(null);
   const [renamingProject, setRenamingProject] = useState(false);
   const [renameValue, setRenameValue] = useState("");
-  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
-  const [unlockModalOpen, setUnlockModalOpen] = useState(false);
+  const [sharingOpen, setSharingOpen] = useState(false);
   const renameInputRef = useRef<HTMLInputElement>(null);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const lists = getProjectLists(project.id, { includeArchived: showArchivedLists });
   const isProjectActive = activeProjectId === project.id && !activeListId;
   const isWithinProject = activeProjectId === project.id;
-  const isLocked = project.locked === true;
+  const isPrivate = project.visibility === "PRIVATE";
 
   useEffect(() => {
     if (isWithinProject) setExpanded(true);
@@ -353,15 +351,10 @@ function SpaceRow({
   }, [renamingProject]);
 
   const openProject = () => {
-    if (isLocked) {
-      setUnlockModalOpen(true);
-      return;
-    }
     router.push(`/projects?projectId=${project.id}`);
   };
 
   const startRename = () => {
-    if (isLocked) return;
     setRenameValue(project.name);
     setRenamingProject(true);
   };
@@ -465,24 +458,20 @@ function SpaceRow({
                 : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-905"
           }`}
         >
-          {isLocked ? (
-            <span className="flex h-5 w-5 items-center justify-center" />
-          ) : (
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                setExpanded((value) => !value);
-              }}
-              className="flex h-5 w-5 items-center justify-center rounded text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
-            >
-              {expanded ? (
-                <LuChevronDown className="h-3.5 w-3.5" />
-              ) : (
-                <LuChevronRight className="h-3.5 w-3.5" />
-              )}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              setExpanded((value) => !value);
+            }}
+            className="flex h-5 w-5 items-center justify-center rounded text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+          >
+            {expanded ? (
+              <LuChevronDown className="h-3.5 w-3.5" />
+            ) : (
+              <LuChevronRight className="h-3.5 w-3.5" />
+            )}
+          </button>
 
           {renamingProject ? (
             <input
@@ -504,40 +493,40 @@ function SpaceRow({
               onClick={openProject}
               className="flex min-w-0 flex-1 items-center gap-2 text-left"
             >
-              {isLocked ? (
-                <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-sm bg-gray-300 dark:bg-gray-600">
-                  <LuLock className="h-2.5 w-2.5 text-gray-500 dark:text-gray-400" />
-                </span>
-              ) : (
-                <span
-                  className="flex h-4 w-4 shrink-0 items-center justify-center rounded-sm text-white"
-                  style={{ backgroundColor: project.color }}
-                >
-                  {project.icon && ICON_MAP.has(project.icon)
-                    ? (() => { const I = ICON_MAP.get(project.icon!)!; return <I className="h-2.5 w-2.5" />; })()
-                    : <span className="text-[10px] font-normal">{project.name?.charAt(0).toUpperCase() ?? ""}</span>
-                  }
-                </span>
-              )}
-              <span className={`truncate font-normal text-[13px] ${isLocked ? "text-gray-400 dark:text-gray-500 italic" : ""}`}>
-                {isLocked ? "Locked Project" : (project.name ?? "")}
+              <span
+                className="flex h-4 w-4 shrink-0 items-center justify-center rounded-sm text-white"
+                style={{ backgroundColor: project.color }}
+              >
+                {project.icon && ICON_MAP.has(project.icon)
+                  ? (() => { const I = ICON_MAP.get(project.icon!)!; return <I className="h-2.5 w-2.5" />; })()
+                  : <span className="text-[10px] font-normal">{project.name?.charAt(0).toUpperCase() ?? ""}</span>
+                }
               </span>
-              {!isLocked && project.isArchived && <LuArchive className="h-3 w-3 shrink-0 text-gray-400" />}
+              <span className="truncate font-normal text-[13px]">
+                {project.name ?? ""}
+              </span>
+              {/* A glyph rather than the text pill the channels list uses —
+                  this row is tight and already truncates. */}
+              {isPrivate && (
+                <LuLock
+                  className="h-3 w-3 shrink-0 text-gray-400"
+                  title="Private"
+                />
+              )}
+              {project.isArchived && <LuArchive className="h-3 w-3 shrink-0 text-gray-400" />}
             </button>
           )}
 
-          {!isLocked && (
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                setCreateListOpen(true);
-              }}
-              className="flex h-5 w-5 items-center justify-center rounded text-gray-400 opacity-0 transition-all hover:bg-gray-200 hover:text-brand-500 dark:hover:text-gray-000 group-hover:opacity-100 dark:hover:bg-gray-600/50"
-            >
-              <LuPlus className="h-3.5 w-3.5" />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              setCreateListOpen(true);
+            }}
+            className="flex h-5 w-5 items-center justify-center rounded text-gray-400 opacity-0 transition-all hover:bg-gray-200 hover:text-brand-500 dark:hover:text-gray-000 group-hover:opacity-100 dark:hover:bg-gray-600/50"
+          >
+            <LuPlus className="h-3.5 w-3.5" />
+          </button>
 
           <button
             ref={menuTriggerRef}
@@ -552,7 +541,7 @@ function SpaceRow({
           </button>
         </div>
 
-        {expanded && !isLocked ? (
+        {expanded ? (
           <div className="space-y-0.5">
             {lists.map((list) => (
               <SidebarListRow
@@ -591,7 +580,7 @@ function SpaceRow({
         onFavorite={handleFavorite}
         onArchive={handleArchive}
         onRestore={handleRestore}
-        onPasswordProtection={() => setPasswordModalOpen(true)}
+        onSharing={() => setSharingOpen(true)}
       />
 
       {/* Edit modal — lives here so it survives after the context menu unmounts */}
@@ -599,6 +588,7 @@ function SpaceRow({
         isOpen={editOpen}
         onClose={() => setEditOpen(false)}
         project={project}
+        onManageSharing={() => setSharingOpen(true)}
       />
 
       {deleteOpen && (
@@ -622,35 +612,13 @@ function SpaceRow({
         lockProject
       />
 
-      <ProjectUnlockModal
-        isOpen={unlockModalOpen}
-        projectId={project.id}
-        projectName={isLocked ? undefined : project.name}
-        onClose={() => setUnlockModalOpen(false)}
-        onUnlocked={() => {
-          setUnlockModalOpen(false);
-          void refetchProjects();
-          router.push(`/projects?projectId=${project.id}`);
-        }}
+      {/* Rendered here rather than inside the context menu so it survives that
+          menu unmounting on select — same reason EditSpaceModal lives here. */}
+      <ProjectMembersModal
+        isOpen={sharingOpen}
+        onClose={() => setSharingOpen(false)}
+        project={project}
       />
-
-      {!isLocked && (
-        <ProjectPasswordModal
-          isOpen={passwordModalOpen}
-          projectId={project.id}
-          projectName={project.name}
-          hasPassword={!!project.passwordUpdatedAt}
-          onClose={() => setPasswordModalOpen(false)}
-          onPasswordChanged={(removed) => {
-            setPasswordModalOpen(false);
-            if (removed) {
-              patchLocalProject(project.id, { passwordUpdatedAt: null });
-            } else {
-              void refetchProjects();
-            }
-          }}
-        />
-      )}
     </>
   );
 }

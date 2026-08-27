@@ -22,7 +22,6 @@ import {
   LuTrash2,
   LuUsers,
   LuChevronRight,
-  LuShield,
 } from "react-icons/lu";
 
 interface MenuItemProps {
@@ -70,7 +69,8 @@ interface Props {
   onFavorite?: () => void;
   onArchive?: () => void;
   onRestore?: () => void;
-  onPasswordProtection?: () => void;
+  /** Opens the Sharing & Permissions modal (visibility + project members). */
+  onSharing?: () => void;
 }
 
 export default function SpaceContextMenu({
@@ -85,7 +85,7 @@ export default function SpaceContextMenu({
   onFavorite,
   onArchive,
   onRestore,
-  onPasswordProtection,
+  onSharing,
 }: Props) {
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
@@ -178,12 +178,13 @@ export default function SpaceContextMenu({
 
         <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
 
-        <MenuItem icon={<LuUsers className="w-4 h-4" />} label="Sharing & Permissions" onClick={onClose} />
         <MenuItem
-          icon={<LuShield className="w-4 h-4" />}
-          label="Password Protection"
-          description={project.passwordUpdatedAt ? "Password set" : undefined}
-          onClick={() => { onPasswordProtection?.(); onClose(); }}
+          icon={<LuUsers className="w-4 h-4" />}
+          label="Sharing & Permissions"
+          description={
+            project.visibility === "PRIVATE" ? "Private" : "Everyone in workspace"
+          }
+          onClick={() => { onClose(); onSharing?.(); }}
         />
 
         <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
@@ -215,7 +216,7 @@ export default function SpaceContextMenu({
 
         <div className="px-3 pt-2 pb-1">
           <button
-            onClick={onClose}
+            onClick={() => { onClose(); onSharing?.(); }}
             className="w-full py-2 rounded-xl bg-brand-500 text-white text-sm font-normal dark:bg-gray-000 dark:hover:bg-gray-200 dark:text-black hover:bg-brand-600 transition-colors"
           >
             Sharing &amp; Permissions

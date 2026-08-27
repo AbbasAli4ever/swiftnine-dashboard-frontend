@@ -7,12 +7,12 @@ import { useModal } from "@/hooks/useModal";
 import { useProjects } from "@/context/ProjectContext";
 import { projectService } from "@/services/project.service";
 import { useTaskLists } from "@/context/TaskListContext";
-import { parseApiError } from "@/lib/api";
+import { parseApiError, getApiErrorCode } from "@/lib/api";
 import { useStatuses } from "@/hooks/useStatuses";
 import { TaskList } from "@/services/task-list.service";
 import { useWorkspaceTags } from "@/hooks/useWorkspaceTags";
 import { TaskListItem } from "@/services/task.service";
-import { useWorkspaceMembers } from "@/hooks/useWorkspaceMembers";
+import { useProjectMembers } from "@/hooks/useProjectMembers";
 import { getTaskSearchCacheKey, useTaskSearchStore } from "@/stores/task-search.store";
 import { useTaskStore } from "@/stores/task.store";
 import { useInfiniteTaskSearch } from "@/hooks/useInfiniteTaskSearch";
@@ -34,7 +34,6 @@ const CreateListModal = dynamic(() => import("./CreateListModal"), { ssr: false 
 const RenameListModal = dynamic(() => import("./RenameListModal"), { ssr: false });
 const ConfirmActionModal = dynamic(() => import("@/components/common/ConfirmActionModal"), { ssr: false });
 const TaskFiltersModal = dynamic(() => import("./TaskFiltersModal"), { ssr: false });
-const ProjectUnlockModal = dynamic(() => import("./ProjectUnlockModal"), { ssr: false });
 import {
   clearTaskSearchPatch,
   countActiveTaskSearchFilters,
@@ -72,7 +71,6 @@ export default function TasksPage() {
   const searchParams = useSearchParams();
   const { projects, isLoading: projectsLoading, patchLocalProject, refetch: refetchProjects } = useProjects();
   const { getLists, getProjectLists, isProjectLoading, renameList, archiveList, restoreList, deleteList } = useTaskLists();
-  const { members, refetch: refetchMembers } = useWorkspaceMembers();
   const {
     openTaskDetail,
     closeTaskDetail,
@@ -94,6 +92,8 @@ export default function TasksPage() {
   const formModal = useModal();
 
   const projectId = searchParams.get("projectId");
+  // Scoped to the project: on a PRIVATE space only its members may be assigned.
+  const { members, refetch: refetchMembers } = useProjectMembers(projectId);
   const listId = searchParams.get("listId");
   const taskIdParam = searchParams.get("taskId");
   const requestedView = (searchParams.get("view") as ProjectView | null) ?? null;
@@ -125,7 +125,6 @@ export default function TasksPage() {
     return requestedView ?? "overview";
   }, [listId, requestedView]);
 
-  const [unlockModalOpen, setUnlockModalOpen] = useState(false);
   const allLists = projectId ? getProjectLists(projectId, { includeArchived: true }) : [];
   const activeLists = allLists.filter((list) => !list.isArchived);
   const selectedList = allLists.find((list) => list.id === listId) ?? null;
@@ -133,18 +132,28 @@ export default function TasksPage() {
     ? VIEW_TABS.filter((tab) => !tab.projectOnly)
     : VIEW_TABS;
 
-  const isProjectLocked = projects.find((p) => p.id === projectId)?.locked ?? false;
-
   useEffect(() => {
-    if (!projectId || isProjectLocked) return;
+    if (!projectId) return;
     // Always request the archived-inclusive set: `allLists` (and therefore
     // `selectedList`) reads the { includeArchived: true } cache regardless of
     // the current view, so fetching a narrower set here would leave the read
     // cache empty on a restored board/calendar URL.
-    void getLists(projectId, { includeArchived: true }).catch(() => {});
-  }, [getLists, listId, projectId, isProjectLocked]);
+    void getLists(projectId, { includeArchived: true }).catch((err) => {
+      /* Usually harmless (an aborted or duplicate fetch), but a PROJECT_NOT_FOUND
+         here means access was revoked while the project was open — a private
+         project you were removed from. The project list is cached for five
+         minutes, so without this the user would sit on a dead page watching
+         every request fail. This is the first request fired for a project, so
+         it is the earliest place to catch it. */
+      if (getApiErrorCode(err) === "PROJECT_NOT_FOUND") {
+        toast.error("You no longer have access to this space.");
+        void refetchProjects();
+        router.replace("/projects");
+      }
+    });
+  }, [getLists, listId, projectId, refetchProjects, router]);
 
-  const { statuses } = useStatuses(projectId, !isProjectLocked);
+  const { statuses } = useStatuses(projectId);
 
   useEffect(() => {
     // Wait until lists have finished loading before treating a listId as stale;
@@ -156,12 +165,12 @@ export default function TasksPage() {
   }, [activeLists.length, isProjectLoading, listId, projectId, router, selectedList]);
 
   const taskScope = useMemo(() => {
-    if (!projectId || isProjectLocked) return null;
+    if (!projectId) return null;
     if (selectedList) {
       return { type: "list" as const, projectId, listId: selectedList.id };
     }
     return { type: "project" as const, projectId };
-  }, [projectId, selectedList, isProjectLocked]);
+  }, [projectId, selectedList]);
 
   // Mirrors TaskBoard's own isProjectBoard check — a project with exactly one
   // active list and no list selected still takes the single-list board path.
@@ -387,40 +396,6 @@ export default function TasksPage() {
     );
   }
 
-  if (project.locked) {
-    return (
-      <>
-        <div className="flex h-full flex-col items-center justify-center gap-6">
-          <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-linear-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700">
-            <LuLock className="h-9 w-9 text-gray-400 dark:text-gray-500" />
-          </div>
-          <div className="text-center">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Project is locked</h2>
-            <p className="mt-2 text-sm text-gray-400 max-w-xs">
-              This project is password protected. Enter the password to access its content.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setUnlockModalOpen(true)}
-            className="flex items-center gap-2 rounded-xl bg-brand-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-600 transition-colors"
-          >
-            <LuLock className="h-4 w-4" />
-            Unlock Project
-          </button>
-        </div>
-        <ProjectUnlockModal
-          isOpen={unlockModalOpen}
-          projectId={project.id}
-          onClose={() => setUnlockModalOpen(false)}
-          onUnlocked={() => {
-            setUnlockModalOpen(false);
-            void refetchProjects();
-          }}
-        />
-      </>
-    );
-  }
 
   const projectInitial = (project.name ?? "").charAt(0).toUpperCase();
   const heading = selectedList ? selectedList.name : (project.name ?? "");
@@ -600,24 +575,11 @@ export default function TasksPage() {
             {selectedList ? (
               <ListAttachments listId={selectedList.id} />
             ) : (
-              <ProjectAttachments
-                projectId={project.id}
-                onLockedError={() => setUnlockModalOpen(true)}
-              />
+              <ProjectAttachments projectId={project.id} />
             )}
           </div>
         ) : null}
       </div>
-
-      <ProjectUnlockModal
-        isOpen={unlockModalOpen}
-        projectId={project.id}
-        onClose={() => setUnlockModalOpen(false)}
-        onUnlocked={() => {
-          setUnlockModalOpen(false);
-          patchLocalProject(project.id, { locked: false });
-        }}
-      />
 
       <TaskForm
         key={`${project.id}-${pendingDefaults.listId ?? "none"}-${pendingDefaults.statusId ?? "none"}-${formModal.isOpen ? "open" : "closed"}`}

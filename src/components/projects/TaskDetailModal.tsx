@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { MemberOption } from "@/components/projects/AssigneePicker";
 import { createPortal } from "react-dom";
 import { GrFlagFill } from "react-icons/gr";
 import {
@@ -32,7 +33,7 @@ import { taskService, TaskDetail, TaskPriority, TaskAssignee, UpdateTaskPayload 
 import { StatusItem } from "@/services/status.service";
 import { WorkspaceMember } from "@/services/workspace.service";
 import { useTaskStore } from "@/stores/task.store";
-import { useWorkspaceMembers } from "@/hooks/useWorkspaceMembers";
+import { useProjectMembers } from "@/hooks/useProjectMembers";
 import StatusIcon from "./StatusIcon";
 import StatusPicker from "./StatusPicker";
 import PriorityPicker from "./PriorityPicker";
@@ -90,7 +91,7 @@ function SubtaskRow({
   parentId: string;
   listId: string;
   statuses: StatusItem[];
-  members: WorkspaceMember[];
+  members: MemberOption[];
   onOpen: (id: string) => void;
   fetchMembers?: () => void;
 }) {
@@ -332,7 +333,7 @@ function SubtaskQuickAdd({
   parentId: string;
   listId: string;
   statuses: StatusItem[];
-  members: WorkspaceMember[];
+  members: MemberOption[];
   onClose: () => void;
 }) {
   const { createSubtask } = useTaskStore();
@@ -495,7 +496,8 @@ function ActivityRow({ item }: { item: ActivityItem }) {
 }
 
 export default function TaskDetailModal({ task, statuses, listId, onClose, onMinimize }: TaskDetailModalProps) {
-  const { members, refetch: fetchMembers } = useWorkspaceMembers();
+  /* Also feeds TaskComments' @-mentions, so scoping here scopes both. */
+  const { members, refetch: fetchMembers } = useProjectMembers(task.list.project.id);
   const { updateTask, addAssignee, removeAssignee, addTag, removeTag, openTaskDetail, refreshOpenTask, deleteTask } = useTaskStore();
   const liveChildren = useTaskStore(s => s.openTask?.id === task.id ? s.openTask.children : task.children);
   const currentUser = useAuthStore(s => s.user);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { MemberOption } from "@/components/projects/AssigneePicker";
 import { createPortal } from "react-dom";
 import {
   LuChevronRight,
@@ -31,7 +32,7 @@ const COL = "minmax(0,1fr) 72px 110px 110px 80px 100px 32px";
 interface TaskRowProps {
   task: TaskListItem;
   statuses: StatusItem[];
-  members: WorkspaceMember[];
+  members: MemberOption[];
   listId: string;
   onView: (taskId: string) => void;
   onUpdateStatus: (statusId: string) => void;
@@ -56,7 +57,7 @@ function SubtaskQuickCreate({
   parentId: string;
   listId: string;
   statuses: StatusItem[];
-  members: WorkspaceMember[];
+  members: MemberOption[];
   onClose: () => void;
 }) {
   const [title, setTitle] = useState("");

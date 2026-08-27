@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { MemberOption } from "@/components/projects/AssigneePicker";
 import { createPortal } from "react-dom";
 import { TaskList } from "@/services/task-list.service";
 import { StatusItem } from "@/services/status.service";
 import { WorkspaceMember } from "@/services/workspace.service";
-import { useWorkspaceMembers } from "@/hooks/useWorkspaceMembers";
+import { useProjectMembers } from "@/hooks/useProjectMembers";
 import { useTaskStore } from "@/stores/task.store";
 import { TaskListItem, TaskPriority } from "@/services/task.service";
 import { parseApiError } from "@/lib/api";
@@ -83,7 +84,7 @@ function StatusGroup({
   projectId: string;
   status: StatusItem;
   statuses: StatusItem[];
-  members: WorkspaceMember[];
+  members: MemberOption[];
   onOpenTaskDetail: (taskId: string) => void;
   onRefetchMembers?: () => void;
   dragState: ListDragState | null;
@@ -313,7 +314,7 @@ function ListSection({
   list: TaskList;
   projectId: string;
   statuses: StatusItem[];
-  members: WorkspaceMember[];
+  members: MemberOption[];
   onOpenTaskDetail: (taskId: string) => void;
   onRefetchMembers?: () => void;
   showListHeader: boolean;
@@ -549,7 +550,7 @@ export default function TaskListView({
   disableAutoFetch = false,
   disableSameStatusReorder = false,
 }: TaskListViewProps) {
-  const { members, refetch: refetchMembers } = useWorkspaceMembers();
+  const { members, refetch: refetchMembers } = useProjectMembers(projectId);
   const resolvedStatuses = statuses.length > 0 ? statuses : FALLBACK_STATUSES;
 
   return (

@@ -33,9 +33,12 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   project: Project;
+  /** Closes this modal and opens Sharing & Permissions, where visibility and
+   *  project members are actually managed. */
+  onManageSharing?: () => void;
 }
 
-export default function EditSpaceModal({ isOpen, onClose, project }: Props) {
+export default function EditSpaceModal({ isOpen, onClose, project, onManageSharing }: Props) {
   const { updateProject, refetch } = useOptionalProjects();
   const queryClient = useQueryClient();
 
@@ -43,7 +46,6 @@ export default function EditSpaceModal({ isOpen, onClose, project }: Props) {
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description ?? "");
   const [color, setColor] = useState(project.color);
-  const [isPrivate, setIsPrivate] = useState(false);
   const [nameError, setNameError] = useState("");
   const [loading, setLoading] = useState(false);
   const [statusLoading, setStatusLoading] = useState(false);
@@ -94,7 +96,6 @@ export default function EditSpaceModal({ isOpen, onClose, project }: Props) {
     setName(project.name);
     setDescription(project.description ?? "");
     setColor(project.color);
-    setIsPrivate(false);
     setNameError("");
     setLoading(false);
     setStatusLoading(true);
@@ -499,36 +500,43 @@ export default function EditSpaceModal({ isOpen, onClose, project }: Props) {
                 />
               </div>
 
-              {/* <div className="flex items-center justify-between py-1">
+              {/* Read-only here on purpose. This form's submit builds a
+                  diff-only payload for PATCH /projects/:id, which has no
+                  `visibility` field — that lives on its own creator-only route.
+                  A live toggle here would either need a second request with its
+                  own 403 path, or would 403 an ordinary rename by a non-creator.
+                  Sharing & Permissions is the one place it changes. */}
+              <div className="flex items-center justify-between gap-4 py-1">
                 <div className="flex items-center gap-2.5">
-                  {isPrivate ? (
+                  {project.visibility === "PRIVATE" ? (
                     <LuLock className="w-4 h-4 text-gray-400" />
                   ) : (
                     <LuLockOpen className="w-4 h-4 text-gray-400" />
                   )}
                   <div>
                     <p className="text-sm font-normal text-gray-800 dark:text-gray-200">
-                      Make Private
+                      {project.visibility === "PRIVATE" ? "Private" : "Open to workspace"}
                     </p>
                     <p className="text-xs text-gray-500">
-                      Only you and invited members have access
+                      {project.visibility === "PRIVATE"
+                        ? "Only you and invited members have access"
+                        : "Everyone in the workspace has access"}
                     </p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setIsPrivate((value) => !value)}
-                  className={`relative w-10 h-5 rounded-full transition-colors ${
-                    isPrivate ? "bg-brand-500" : "bg-gray-300 dark:bg-gray-700"
-                  }`}
-                >
-                  <span
-                    className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                      isPrivate ? "translate-x-0.5" : "-translate-x-4.5"
-                    }`}
-                  />
-                </button>
-              </div> */}
+                {onManageSharing && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onManageSharing();
+                    }}
+                    className="shrink-0 text-xs font-medium text-brand-500 hover:text-brand-600"
+                  >
+                    Manage sharing
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="flex items-center justify-end px-6 py-4 mt-4 border-t border-gray-100 dark:border-gray-800">

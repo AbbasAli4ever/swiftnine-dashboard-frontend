@@ -248,6 +248,11 @@ export default function MyTasksPage() {
     queryKey,
     queryFn: fetchMyTasks,
     enabled: !!activeWorkspaceId,
+    /* This list spans every project, so a project turning PRIVATE can strip
+       tasks out of it from outside this page. Always refetch on mount rather
+       than serving the 60s-stale cache, or the user sees rows that render but
+       404 when opened. */
+    refetchOnMount: "always",
   });
 
   const tasks = useMemo(() => query.data?.items ?? [], [query.data]);

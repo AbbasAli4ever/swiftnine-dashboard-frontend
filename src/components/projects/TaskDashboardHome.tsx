@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import type { MemberOption } from "@/components/projects/AssigneePicker";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { GrFlagFill } from "react-icons/gr";
@@ -30,7 +31,7 @@ const ReactApexChart = dynamic(() => import("react-apexcharts"), { ssr: false })
 interface TaskDashboardHomeProps {
   projectId: string;
   projectName: string;
-  members: WorkspaceMember[];
+  members: MemberOption[];
   onCreateList?: () => void;
 }
 
@@ -172,7 +173,7 @@ function OwnerPicker({
   onChange,
 }: {
   owner: { id: string; fullName: string; avatarUrl: string | null; avatarColor: string } | null;
-  members: WorkspaceMember[];
+  members: MemberOption[];
   onChange: (memberId: string | null) => void;
 }) {
   const [open, setOpen] = useState(false);

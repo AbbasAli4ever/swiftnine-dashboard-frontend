@@ -27,7 +27,6 @@ import {
   ProjectFileAttachment,
   AttachmentKindFilter,
 } from "@/services/project-attachment.service";
-import { getApiErrorCode } from "@/services/project-password.service";
 import { toast } from "sonner";
 import { parseApiError } from "@/lib/api";
 import AddLinkModal from "./AddLinkModal";
@@ -48,7 +47,6 @@ interface UploadingFile {
 interface ProjectAttachmentsProps {
   projectId: string;
   currentUserId?: string;
-  onLockedError?: () => void;
 }
 
 function formatBytes(bytes: number): string {
@@ -134,7 +132,7 @@ function ImageLightbox({ url, fileName, onClose }: { url: string; fileName: stri
   );
 }
 
-export default function ProjectAttachments({ projectId, currentUserId, onLockedError }: ProjectAttachmentsProps) {
+export default function ProjectAttachments({ projectId, currentUserId }: ProjectAttachmentsProps) {
   const [attachments, setAttachments] = useState<ProjectAttachment[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -171,16 +169,12 @@ export default function ProjectAttachments({ projectId, currentUserId, onLockedE
       }
       setNextCursor(result.nextCursor);
     } catch (err) {
-      if (getApiErrorCode(err) === "PROJECT_LOCKED") {
-        onLockedError?.();
-      } else {
-        toast.error(parseApiError(err).message);
-      }
+      toast.error(parseApiError(err).message);
     } finally {
       if (isLoadMore) setLoadingMore(false);
       else setLoading(false);
     }
-  }, [projectId, kindFilter, activeSearch, onLockedError]);
+  }, [projectId, kindFilter, activeSearch]);
 
   useEffect(() => {
     void fetchAttachments({ reset: true });
@@ -243,12 +237,6 @@ export default function ProjectAttachments({ projectId, currentUserId, onLockedE
       toast.success(`"${file.name}" uploaded`);
       void fetchAttachments({ reset: true });
     } catch (err) {
-      const code = getApiErrorCode(err);
-      if (code === "PROJECT_LOCKED") {
-        setUploading((prev) => prev.filter((u) => u.id !== uploadId));
-        onLockedError?.();
-        return;
-      }
       // If confirm failed after S3 success, mark for retry
       setUploading((prev) =>
         prev.map((u) =>
@@ -308,7 +296,6 @@ export default function ProjectAttachments({ projectId, currentUserId, onLockedE
       setAddLinkOpen(false);
       void fetchAttachments({ reset: true });
     } catch (err) {
-      if (getApiErrorCode(err) === "PROJECT_LOCKED") { onLockedError?.(); return; }
       toast.error(parseApiError(err).message);
       throw err;
     }
@@ -323,7 +310,6 @@ export default function ProjectAttachments({ projectId, currentUserId, onLockedE
       toast.success("Attachment updated");
       setEditingAttachment(null);
     } catch (err) {
-      if (getApiErrorCode(err) === "PROJECT_LOCKED") { onLockedError?.(); setEditingAttachment(null); return; }
       toast.error(parseApiError(err).message);
       throw err;
     }
@@ -337,7 +323,6 @@ export default function ProjectAttachments({ projectId, currentUserId, onLockedE
       setAttachments((prev) => prev.filter((a) => a.id !== att.id));
       toast.success("Attachment deleted");
     } catch (err) {
-      if (getApiErrorCode(err) === "PROJECT_LOCKED") { onLockedError?.(); return; }
       toast.error(parseApiError(err).message);
     } finally {
       setDeletingId(null);
