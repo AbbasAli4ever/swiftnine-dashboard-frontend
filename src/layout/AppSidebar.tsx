@@ -73,7 +73,7 @@ const railItems: RailItem[] = [
   { id: "accounts", label: "Dashboard", icon: <LuLandmark className="w-5 h-5" />, panel: "accounts" },
   { id: "home", label: "Projects", icon: <LuKanban className="w-5 h-5" />, panel: "home" },
   { id: "lms",  label: "University",  icon: <LuBookOpen className="w-5 h-5" />,      panel: "lms" },
-  { id: "chatbot", label: "SwiftBot", icon: <LuBotMessageSquare className="w-5 h-5" />, panel: "chatbot" },
+  { id: "chatbot", label: "SwiftGPT", icon: <LuBotMessageSquare className="w-5 h-5" />, panel: "chatbot" },
 ];
 
 type AccountingNavItem = {
