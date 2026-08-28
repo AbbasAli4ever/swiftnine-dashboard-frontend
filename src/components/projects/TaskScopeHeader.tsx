@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { LuChevronDown, LuFilter, LuSearch, LuSettings, LuX } from "react-icons/lu";
+import { LuChevronDown, LuFilter, LuSearch, LuX } from "react-icons/lu";
 
 interface TaskScopeHeaderProps {
   title: string;
@@ -109,15 +109,6 @@ export default function TaskScopeHeader({
           ) : (
             "Filter"
           )}
-        </button>
-
-        {/* Customize */}
-        <button
-          type="button"
-          className="inline-flex h-7 items-center gap-1 rounded-lg border border-transparent px-2 text-xs text-gray-400 transition-colors hover:border-gray-200 hover:bg-gray-50 hover:text-gray-600 dark:hover:border-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-300"
-        >
-          <LuSettings className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Customize</span>
         </button>
 
         {/* Add Task */}
