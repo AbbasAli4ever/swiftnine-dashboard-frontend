@@ -57,7 +57,7 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
   const [prefixTouched, setPrefixTouched] = useState(false);
   const [isPrivate, setIsPrivate] = useState(false);
   /* Who to invite once the project exists. Collected here rather than after
-     creation so a private space is set up in one pass; the invite itself has
+     creation so a private project is set up in one pass; the invite itself has
      to wait for a project id. */
   const [inviteIds, setInviteIds] = useState<Set<string>>(new Set());
   const [memberSearch, setMemberSearch] = useState("");
@@ -336,7 +336,7 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
       createdProjectId = project.id;
 
       /* Invites can only happen once the project exists. Failures here are
-         reported but never fail the creation — the space is already made, and
+         reported but never fail the creation — the project is already made, and
          people can still be added from Sharing & Permissions. */
       if (isPrivate && inviteIds.size > 0) {
         try {
@@ -346,14 +346,14 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
           );
           if (summary.failed > 0) {
             toast.warning(
-              `Space created, but ${summary.failed} of ${summary.total} ${
+              `Project created, but ${summary.failed} of ${summary.total} ${
                 summary.failed === 1 ? "invite" : "invites"
               } failed.`
             );
           }
         } catch (err) {
           toast.warning(
-            `Space created, but members couldn't be added: ${parseApiError(err).message}`
+            `Project created, but members couldn't be added: ${parseApiError(err).message}`
           );
         }
       }
@@ -362,7 +362,7 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
       await syncProjectStatuses(project.id, initialGroupedStatuses, groups);
       await taskListService.create(project.id, { name: "List" });
       await refetch();
-      toast.success(`Space "${name.trim()}" created`);
+      toast.success(`Project "${name.trim()}" created`);
       onClose();
     } catch (err) {
       const { message, code } = parseApiError(err);
@@ -372,7 +372,7 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
       } else if (createdProjectId) {
         await refetch();
         toast.error(
-          `Space "${name.trim()}" was created, but some status changes could not be applied: ${message}`
+          `Project "${name.trim()}" was created, but some status changes could not be applied: ${message}`
         );
         onClose();
       } else {
@@ -386,7 +386,7 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
   if (!isOpen) return null;
 
   const initial = name.trim().charAt(0).toUpperCase() || "S";
-  const titleName = name.trim() || "Space";
+  const titleName = name.trim() || "Project";
   const isNameValid = name.trim().length >= 2;
 
   const modal = (
@@ -402,9 +402,9 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
         <div className="relative z-10 w-full max-w-[760px] mx-4 bg-white dark:bg-gray-901 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden">
           <div className="flex items-start justify-between px-6 pt-6 pb-4">
             <div>
-              <h2 className="text-[16px] font-semibold text-gray-900 dark:text-white">Create a Space</h2>
+              <h2 className="text-[16px] font-semibold text-gray-900 dark:text-white">Create a Project</h2>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                A Space represents teams, departments, or groups, each with its own Lists, workflows, and settings.
+                A Project represents teams, departments, or groups, each with its own Lists, workflows, and settings.
               </p>
             </div>
             <button
@@ -487,7 +487,7 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
                 />
               </div>
 
-              {/* Set at creation, so a private space is never briefly visible
+              {/* Set at creation, so a private project is never briefly visible
                   workspace-wide the way a create-then-toggle flow would leave
                   it. Invite people afterwards from Sharing & Permissions. */}
               <div className="flex items-center justify-between gap-4 py-1">
@@ -512,7 +512,7 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
                   type="button"
                   role="switch"
                   aria-checked={isPrivate}
-                  aria-label="Make this space private"
+                  aria-label="Make this project private"
                   onClick={() => setIsPrivate((v) => !v)}
                   className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
                     isPrivate ? "bg-brand-500" : "bg-gray-200 dark:bg-gray-700"
@@ -526,7 +526,7 @@ export default function CreateSpaceModal({ isOpen, onClose }: Props) {
                 </button>
               </div>
 
-              {/* Only meaningful while private — a public space already grants
+              {/* Only meaningful while private — a public project already grants
                   everyone access, so there would be nothing to choose. */}
               {isPrivate && (
                 <div className="pt-1">

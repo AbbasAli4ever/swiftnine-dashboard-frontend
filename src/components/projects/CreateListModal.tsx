@@ -100,14 +100,14 @@ export default function CreateListModal({
 
           <div>
             <label className="mb-2 block text-sm font-normal text-gray-700 dark:text-gray-300">
-              Space (location)
+              Project (location)
             </label>
             <Select
               options={projects.map((p) => ({ value: p.id, label: p.name }))}
               value={resolvedProjectId}
               onChange={setProjectId}
               disabled={lockProject}
-              placeholder="Select a space"
+              placeholder="Select a project"
               size="md"
               hint={
                 selectedProject

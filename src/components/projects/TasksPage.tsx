@@ -92,7 +92,7 @@ export default function TasksPage() {
   const formModal = useModal();
 
   const projectId = searchParams.get("projectId");
-  // Scoped to the project: on a PRIVATE space only its members may be assigned.
+  // Scoped to the project: on a PRIVATE project only its members may be assigned.
   const { members, refetch: refetchMembers } = useProjectMembers(projectId);
   const listId = searchParams.get("listId");
   const taskIdParam = searchParams.get("taskId");
@@ -146,7 +146,7 @@ export default function TasksPage() {
          every request fail. This is the first request fired for a project, so
          it is the earliest place to catch it. */
       if (getApiErrorCode(err) === "PROJECT_NOT_FOUND") {
-        toast.error("You no longer have access to this space.");
+        toast.error("You no longer have access to this project.");
         void refetchProjects();
         router.replace("/projects");
       }
@@ -299,7 +299,7 @@ export default function TasksPage() {
     try {
       await projectService.restore(projectId);
       patchLocalProject(projectId, { isArchived: false });
-      toast.success("Space restored");
+      toast.success("Project restored");
     } catch (error) {
       toast.error(parseApiError(error).message);
     }
@@ -366,7 +366,7 @@ export default function TasksPage() {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="text-center">
-          <h2 className="text-lg font-normal text-gray-900 dark:text-white">Select a Space</h2>
+          <h2 className="text-lg font-normal text-gray-900 dark:text-white">Select a Project</h2>
           <p className="mt-2 text-sm text-gray-400">
             Choose a project from the sidebar to open its lists and boards.
           </p>
@@ -490,7 +490,7 @@ export default function TasksPage() {
       {project?.isArchived && (
         <div className="mx-4 mb-3 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
           <LuArchive className="h-4 w-4 shrink-0" />
-          <span className="flex-1">This Space is archived.</span>
+          <span className="flex-1">This Project is archived.</span>
           <button
             type="button"
             onClick={() => void handleUnarchiveProject()}

@@ -13,7 +13,7 @@ import {
 /**
  * Shared statuses query for a project. Caches the raw grouped response under
  * `["statuses", projectId]` and exposes a flattened selector, so the board,
- * task views, and the space editors all share one cached fetch.
+ * task views, and the project editors all share one cached fetch.
  */
 export function useStatuses(projectId: string | null | undefined, enabled = true) {
   const query = useQuery<GroupedStatuses>({

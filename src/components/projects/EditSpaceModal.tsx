@@ -368,7 +368,7 @@ export default function EditSpaceModal({ isOpen, onClose, project, onManageShari
       }
 
       await refetch();
-      toast.success(`Space "${trimmedName}" updated`);
+      toast.success(`Project "${trimmedName}" updated`);
       onClose();
     } catch (error) {
       const { message } = parseApiError(error);
@@ -407,10 +407,10 @@ export default function EditSpaceModal({ isOpen, onClose, project, onManageShari
           <div className="flex items-start justify-between px-6 pt-6 pb-4">
             <div>
               <h2 className="text-lg font-normal text-gray-900 dark:text-white">
-                Edit Space
+                Edit Project
               </h2>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                A Space represents teams, departments, or groups, each with its
+                A Project represents teams, departments, or groups, each with its
                 own Lists, workflows, and settings.
               </p>
             </div>

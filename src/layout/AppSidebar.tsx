@@ -308,7 +308,7 @@ function SidebarListRow({
   );
 }
 
-// ── Space row with nested list items ────────────────────────────────────────
+// ── Project row with nested list items ────────────────────────────────────────
 function SpaceRow({
   project,
   activeProjectId,
@@ -365,7 +365,7 @@ function SpaceRow({
     if (!trimmed || trimmed === project.name) return;
     try {
       await updateProject(project.id, { name: trimmed });
-      toast.success(`Space renamed to "${trimmed}"`);
+      toast.success(`Project renamed to "${trimmed}"`);
     } catch (error) {
       const { message } = parseApiError(error);
       toast.error(message);
@@ -376,7 +376,7 @@ function SpaceRow({
     setDeleteLoading(true);
     try {
       await deleteProject(project.id);
-      toast.success(`Space "${project.name}" deleted`);
+      toast.success(`Project "${project.name}" deleted`);
       setDeleteOpen(false);
     } catch (error) {
       const { message } = parseApiError(error);
@@ -406,7 +406,7 @@ function SpaceRow({
     try {
       await projectService.archive(project.id);
       patchLocalProject(project.id, { isArchived: true });
-      toast.success(`Space "${project.name}" archived`);
+      toast.success(`Project "${project.name}" archived`);
     } catch (error) {
       const { message } = parseApiError(error);
       toast.error(message);
@@ -417,7 +417,7 @@ function SpaceRow({
     try {
       await projectService.restore(project.id);
       patchLocalProject(project.id, { isArchived: false });
-      toast.success(`Space "${project.name}" restored`);
+      toast.success(`Project "${project.name}" restored`);
     } catch (error) {
       const { message } = parseApiError(error);
       toast.error(message);
@@ -594,9 +594,9 @@ function SpaceRow({
       {deleteOpen && (
         <ConfirmActionModal
           isOpen={deleteOpen}
-          title="Delete Space"
-          description={`Delete space "${project.name}"? This action cannot be undone.`}
-          confirmLabel="Delete Space"
+          title="Delete Project"
+          description={`Delete project "${project.name}"? This action cannot be undone.`}
+          confirmLabel="Delete Project"
           onClose={() => {
             if (!deleteLoading) setDeleteOpen(false);
           }}
@@ -812,10 +812,10 @@ function HomePanelContent() {
         {/* Favorites */}
         <FavoritesSidebarSection />
 
-        {/* Spaces */}
+        {/* Projects */}
         <div className="mt-3 border-t border-gray-100 pt-5 dark:border-gray-800">
           <div className="relative flex items-center justify-between px-2 mb-1">
-            <p className="text-[12px] uppercase tracking-wide text-gray-600 dark:text-gray-400 font-semibold">Spaces</p>
+            <p className="text-[12px] uppercase tracking-wide text-gray-600 dark:text-gray-400 font-semibold">Projects</p>
             <div className="flex items-center gap-1">
               <button
                 ref={spacesMenuBtnRef}
@@ -845,7 +845,7 @@ function HomePanelContent() {
                   className="flex w-full items-center gap-2.5 px-3.5 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
                 >
                   <LuPlus className="h-4 w-4 text-gray-400" />
-                  Create Space
+                  Create Project
                 </button>
                 <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
                 <button
@@ -875,7 +875,7 @@ function HomePanelContent() {
               <div className="w-4 h-4 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : projects.length === 0 ? (
-            <p className="px-2.5 py-2 text-[14px] text-gray-400 italic">No spaces yet</p>
+            <p className="px-2.5 py-2 text-[14px] text-gray-400 italic">No projects yet</p>
           ) : (
             <div className="space-y-0.5 mt-0.5">
               {projects
@@ -892,13 +892,13 @@ function HomePanelContent() {
             </div>
           )}
 
-          {/* New Space button */}
+          {/* New Project button */}
           <button
             onClick={() => setCreateOpen(true)}
             className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 mt-1 w-full text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-905 dark:hover:text-gray-000 transition-colors"
           >
             <LuPlus className="w-4 h-4" />
-            <span>New Space</span>
+            <span>New Project</span>
           </button>
         </div>
 
@@ -920,7 +920,7 @@ function HomePanelContent() {
         </button>
       </div> */}
 
-      {/* Create Space Modal */}
+      {/* Create Project Modal */}
       <CreateSpaceModal isOpen={createOpen} onClose={() => setCreateOpen(false)} />
     </div>
   );

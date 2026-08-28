@@ -317,7 +317,7 @@ export default function MyTasksPage() {
           <div className="flex h-full flex-col items-center justify-center gap-3 text-center px-6">
             <StatusIcon group="DONE" color="#d1d5db" size={52} />
             <p className="text-[18px] font-bold text-brand-400">No tasks assigned to you</p>
-            <p className="text-xs text-gray-400">Tasks assigned to you across all spaces will appear here.</p>
+            <p className="text-xs text-gray-400">Tasks assigned to you across all projects will appear here.</p>
           </div>
         ) : (
           <div className="pb-8">

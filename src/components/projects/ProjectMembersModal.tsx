@@ -109,7 +109,7 @@ export default function ProjectMembersModal({
       invalidateMembership();
       toast.success(
         next === "PRIVATE"
-          ? "Space is now private."
+          ? "Project is now private."
           : "Space is now open to the workspace."
       );
     } catch (err) {
@@ -122,7 +122,7 @@ export default function ProjectMembersModal({
 
   const handleToggleVisibility = () => {
     if (isPrivate) {
-      // Going public exposes the space to everyone — worth a confirmation.
+      // Going public exposes the project to everyone — worth a confirmation.
       setConfirmPublic(true);
       return;
     }
@@ -234,7 +234,7 @@ export default function ProjectMembersModal({
                 type="button"
                 role="switch"
                 aria-checked={isPrivate}
-                aria-label="Make this space private"
+                aria-label="Make this project private"
                 disabled={!isCreator || savingVisibility}
                 onClick={handleToggleVisibility}
                 /* Matches the app-standard switch (ProfileSettingsForm,
@@ -410,7 +410,7 @@ export default function ProjectMembersModal({
 
       <ConfirmActionModal
         isOpen={confirmPublic}
-        title="Make this space public?"
+        title="Make this project public?"
         description="Everyone in the workspace will be able to see this space and its tasks."
         confirmLabel="Make public"
         isLoading={savingVisibility}
@@ -426,7 +426,7 @@ export default function ProjectMembersModal({
         title="Remove member?"
         description={
           removing
-            ? `${removing.user.fullName} will lose access to this space and be unassigned from all of its tasks.`
+            ? `${removing.user.fullName} will lose access to this project and be unassigned from all of its tasks.`
             : ""
         }
         confirmLabel="Remove"

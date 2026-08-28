@@ -104,7 +104,7 @@ export default function AllChannelsPage() {
             <thead>
               <tr className="border-b border-gray-100 dark:border-gray-800">
                 <th className="text-left text-xs font-medium text-gray-400 uppercase tracking-wider px-6 py-3">
-                  Channels and Spaces
+                  Channels and Projects
                 </th>
                 <th className="text-left text-xs font-medium text-gray-400 uppercase tracking-wider px-4 py-3">
                   Topic

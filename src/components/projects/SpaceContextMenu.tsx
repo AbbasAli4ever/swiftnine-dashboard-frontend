@@ -9,14 +9,7 @@ import {
   LuStar,
   LuPencil,
   LuLink,
-  LuPlus,
   LuPalette,
-  LuZap,
-  LuLayoutList,
-  LuCircleDot,
-  LuEllipsis as LuMoreHorizontal,
-  LuEyeOff,
-  LuCopy,
   LuArchive,
   LuArchiveRestore,
   LuTrash2,
@@ -164,17 +157,12 @@ export default function SpaceContextMenu({
 
         <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
 
-        <MenuItem icon={<LuPlus className="w-4 h-4" />} label="Create new" hasSubmenu onClick={onClose} />
         <MenuItem
           icon={<LuPalette className="w-4 h-4" />}
           label="Color & Icon"
           hasSubmenu
           onClick={() => setIconPickerOpen((v) => !v)}
         />
-        <MenuItem icon={<LuZap className="w-4 h-4" />} label="Automations" onClick={onClose} />
-        <MenuItem icon={<LuLayoutList className="w-4 h-4" />} label="Custom Fields" onClick={onClose} />
-        <MenuItem icon={<LuCircleDot className="w-4 h-4" />} label="Task statuses" onClick={onClose} />
-        <MenuItem icon={<LuMoreHorizontal className="w-4 h-4" />} label="More" hasSubmenu onClick={onClose} />
 
         <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
 
@@ -189,16 +177,6 @@ export default function SpaceContextMenu({
 
         <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
 
-        <MenuItem
-          icon={<LuEyeOff className="w-4 h-4" />}
-          label="Hide Space"
-          description="You'll retain access to this Space, but it won't show in your sidebar"
-          onClick={onClose}
-        />
-
-        <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
-
-        <MenuItem icon={<LuCopy className="w-4 h-4" />} label="Duplicate" onClick={onClose} />
         {project.isArchived ? (
           <MenuItem
             icon={<LuArchiveRestore className="w-4 h-4" />}
