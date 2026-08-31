@@ -110,7 +110,7 @@ export default function ProjectMembersModal({
       toast.success(
         next === "PRIVATE"
           ? "Project is now private."
-          : "Space is now open to the workspace."
+          : "Project is now open to the workspace."
       );
     } catch (err) {
       patchLocalProject(project.id, { visibility: previous });

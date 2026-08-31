@@ -453,6 +453,7 @@ export function useAccountingEmployees(params: EmployeeListParams) {
     meta: query.data?.meta ?? null,
     /** Pending commission summed over the whole filtered set, not this page. */
     totalPendingCommission: query.data?.totalPendingCommission,
+    totalPendingCommissionUsd: query.data?.totalPendingCommissionUsd,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
     error: toAccountingError(query.error),

@@ -69,10 +69,16 @@ export default function BankAccountPicker({
     return () => document.removeEventListener("mousedown", close);
   }, []);
 
-  // Focus the search box as the list opens so typing works immediately.
+  /* Focus the search box as the list opens, so the bank name can be typed
+     straight away without a second click.
+   *
+   * Depends on `panelStyle`, not just `open`: the panel is portaled and only
+   * renders once `useAnchoredDropdown` has measured the trigger, so on the
+   * first open the input does not exist yet when `open` flips. Waiting for the
+   * measurement is what makes the focus actually land. */
   useEffect(() => {
-    if (open) searchRef.current?.focus();
-  }, [open]);
+    if (open && panelStyle) searchRef.current?.focus();
+  }, [open, panelStyle]);
 
   const filtered = useMemo(() => {
     const needle = term.trim().toLowerCase();

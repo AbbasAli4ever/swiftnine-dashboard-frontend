@@ -806,3 +806,58 @@ Asked for a sum of all pending commission/payments on the employees and vendors 
 - `tsc --noEmit`, `eslint` (zero new errors — only prettier line-wrapping on the newly-added return type, `--fix`-ed), `nest build api` — all clean.
 - Full test suite unaffected: identical to the established baseline (345 passed, 26 pre-existing failures, 9 failed suites, 371 total).
 - Live, demo workspace: seeded two employees (`pendingCommission: 1000.50` / `2500.25`) and two vendors (`pendingPayment: 5000` / `1234.75`). `GET /employees` → `totalPendingCommission: 3500.75`; `GET /vendors` → `totalPendingPayment: 6234.75` — correct even with `?limit=1`, confirming the sum isn't accidentally scoped to the current page. `GET /employees?q=Sum Test A` → `totalPendingCommission: 1000.5`, confirming the sum narrows with an active search filter rather than always being the workspace-wide total. Test employees/vendors removed after verification.
+
+## Follow-up: [2026-08-27] Commission sync made fully reversible on transaction update/delete
+
+Reported as a bug: editing a transaction's `commissionAmount` didn't change the employee's `pendingCommission`. It wasn't a bug — this was the explicit "one-way, create-only" design chosen when the commission-employee link was rebuilt (`[2026-08-26]` follow-up above): `pendingCommission` was deliberately meant to increment only at creation, with corrections going through manual `PATCH /employees/:id`. Asked directly whether to change that now — confirmed: switch to fully reversible sync.
+
+**`transaction.service.ts`**: new private `commissionAdjustments(oldEmployeeId, oldCommissionAmount, newEmployeeId, newCommissionAmount)` — same employee with a changed amount nets to one delta (`new - old`); a changed or cleared employee reverses the old employee's amount and applies the new one independently (two separate adjustments). Returns `[]` when nothing about the commission actually changed, so an edit to unrelated fields (description, saleAmount, ...) never touches any employee.
+
+- **`update()`**: computes the effective new `employeeId`/`commissionAmount` (whichever the DTO sent, else the existing value — both-or-neither is still enforced by the DTO itself, unchanged), passes old vs. new into `commissionAdjustments()`, and runs the resulting employee update(s) in the same `prisma.$transaction([...])` array as the transaction update itself — one atomic write, mirroring `create()`'s existing pattern.
+- **`remove()`**: now actually uses the transaction it looks up (previously fetched only to scope the delete to the workspace) — if it had a commission, reverses it via the same helper, in the same atomic transaction as the delete.
+
+**Not added**: no floor/clamp preventing `pendingCommission` from going negative if a manual `PATCH /employees/:id` correction happened in between and the arithmetic no longer lines up — treated as a real data inconsistency worth surfacing, not something to silently hide.
+
+### Verification
+- `tsc --noEmit`, `eslint` (2 new formatting errors on the newly-added lines, hand-fixed), `nest build api` — all clean.
+- Full test suite: identical to the established baseline (337 passed, 26 pre-existing failures, 9 failed suites, 363 total).
+- Live, demo workspace: seeded two employees (`pendingCommission` 1000 and 500). Created a transaction with employee A / commission 200 → A's pending `1000 → 1200`. Edited commission `200 → 350` (same employee) → `1200 → 1350` (the exact case that was reported broken — confirmed fixed). Reassigned the transaction to employee B with commission `600` → A reversed `1350 → 1000`, B applied `500 → 1100`. Cleared the commission entirely (`employeeId: null, commissionAmount: 0`) → B reversed `1100 → 500`. Created a second commission-bearing transaction (employee A, `75`) → A `1000 → 1075`; deleted it → A back to `1000`. An edit touching only an unrelated field (`description`) left both employees untouched. Test transactions and employees removed after verification.
+
+## Follow-up: [2026-08-31] Employee commission shown in USD too, and transaction commission accepted in any currency
+
+Two related but independent asks: (1) employee commission figures (`paidCommission`/`pendingCommission`/`totalCommission`) are PKR-only per the `[2026-08-25]` decoupling above, with no USD equivalent shown anywhere on the employee list or detail response; (2) a transaction's `commissionAmount` (also PKR-only, `[2026-08-26]` re-link) had no way to be entered in a different currency — a caller meaning "$50 commission" on a USD sale would have `50` silently stored and read back as 50 PKR (≈$0.18), with nothing catching the mismatch.
+
+### Found and fixed before building: a broken in-progress edit
+
+`employees.service.ts` already had uncommitted work attempting this exact USD-conversion feature, left broken mid-edit: `toEmployeeData()` called `Number()` with no argument (evaluates to `NaN`, and the result was never even assigned to a field), and `findAll()` had a leftover debug `console.log` dumping every mapped employee on every list call. `employees.module.ts` already correctly imported `ExchangeRateModule`. Rewrote `toEmployeeData()` to take a `toUsd` function parameter and return computed fields, following `clients.service.ts`'s exact `ToUsd`/`toClientData()` pattern, rather than continuing the broken bound-method approach.
+
+### Employee commission — USD figures added
+
+**`employees.service.ts`**: `EmployeeData` gained `paidCommissionUsd`/`pendingCommissionUsd`/`totalCommissionUsd`; `EmployeeListResult` gained `totalPendingCommissionUsd`. All four are computed at read time via `ExchangeRateService.toUsd(amount, 'PKR')` — PKR is hardcoded as the source currency (not read off the row, since `Employee` has no currency column) because `paidCommission`/`pendingCommission` are always PKR by design, the same reasoning already documented on `Transaction.commissionAmount`. `exchangeRateService.refresh()` now runs in `create()`, `findAll()`, and `findEmployeeOrThrow()` (covering `findOne`/`update`), mirroring `ClientsService`'s exact call sites.
+
+**DTOs/controller**: `EmployeeResponseDto` and `PaginatedEmployeesResponseDto` (`employee-response.dto.ts`) gained the four new fields for Swagger. `EmployeesController.findAll()`'s return type widened to also carry `totalPendingCommissionUsd`, same pattern the existing `totalPendingCommission` spread already used.
+
+No schema change — all four are computed, not stored, same as `totalCommission` already was.
+
+### Transaction commission — accepted in any currency, still stored as PKR
+
+**New `ExchangeRateService.convert(amount, from, to)`** (`exchange-rate.service.ts`) — general cross-rate conversion routed through the existing USD-base rate table (`toUsd(amount, from) * rates[to]`), added alongside the existing `toUsd()`/`getRates()`.
+
+**`commissionCurrency` added to `CreateTransactionDto`/`UpdateTransactionDto`** — the currency `commissionAmount` is entered in, defaulting to `'PKR'` on create. **Not persisted anywhere** — deliberately different from the `[2026-08-24]` design (which added a real `commissionCurrency` column, dropped a day later in the `[2026-08-25]` decoupling): `TransactionService` converts the amount to PKR once, at create or update time, via the new `convert()` method, and only that PKR figure is written to `Transaction.commissionAmount` — the column's meaning is unchanged, still always PKR, no schema/migration needed.
+- On **update**, `commissionCurrency` deliberately has no Zod `.default()` (unlike create) — `UpdateTransactionSchema` has an existing `.refine((data) => Object.keys(data).length > 0, ...)` "at least one field required" check that runs on the *parsed output*; a Zod default is always present in that output even when the field is omitted from the request, which would silently defeat that check for every update, not just ones touching commission. Defaults to `'PKR'` in the service instead (`dto.commissionCurrency ?? 'PKR'`) when omitted.
+- `TransactionModule` gained `ExchangeRateModule` to its `imports`, same as `EmployeesModule`/`ClientsModule` already have.
+- The commission-delta sync added in the `[2026-08-27]` follow-up above (`commissionAdjustments()`) needed no changes — it already operates purely on PKR values; the currency conversion happens once at the entry point, before any of that logic runs.
+
+**Doc fix in passing**: `UpdateTransactionDto.commissionAmount`'s Swagger description said "Never adjusts pendingCommission — that only happens once, at creation," stale since the `[2026-08-27]` follow-up made update fully reversible. Corrected while editing the adjacent line.
+
+### Also seeded
+
+`scripts/seed-demo-employees.ts` — 8 employees with a spread of paid/pending commission amounts (including zero and six-figure PKR values) into the `847e1f05-...` ("Test") workspace, mirroring `seed-demo-clients.ts`'s idempotent-by-name pattern.
+
+### Verification
+- `tsc --noEmit`, `eslint` — clean on every touched file.
+- Live, "Test" workspace, via the actual service classes (`TransactionService`/`EmployeesService`/`ExchangeRateService`/`PrismaService`, not mocks or curl):
+  - A PKR sale (50,000 PKR) and a USD sale ($300), each carrying a 4,000/3,000 PKR commission on employee Sara Khan → `pendingCommission` correctly accumulated both regardless of the sale's own currency (`5,000 → 12,000` PKR) — confirming `commissionAmount` was already independent of sale `currency` before this change, just always misinterpreted as PKR.
+  - A USD sale with `commissionAmount: 50, commissionCurrency: 'USD'` → the stored `commissionAmount` on the transaction row was ≈13,896.76 PKR (the live $50→PKR rate), not `50` — the exact mispricing this change closes. Employee `pendingCommission` increased by that PKR amount; `pendingCommissionUsd` on the employee response increased by ~$50, confirmed within rounding.
+  - Updating an existing transaction's commission `2,000 PKR → 5,000 PKR` (same currency) → employee `pendingCommission` delta `+3,000`, exact. Updating it again to `$20 USD` → delta `+558.70` (5,558.70 PKR computed − the previous 5,000 PKR), exact — confirming the reversible-sync logic from the `[2026-08-27]` follow-up correctly incorporates the currency conversion on update too, not just create.
+- Test transactions/employees created during this verification were **left in place** in the "Test" workspace rather than cleaned up — unlike this doc's usual "test data cleaned up after" convention for the shared demo workspace, "Test" (`847e1f05-...`) is the user's own standing scratch workspace for exactly this kind of manual testing, per earlier session instruction.

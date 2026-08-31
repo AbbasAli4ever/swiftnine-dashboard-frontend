@@ -3,7 +3,6 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  LuCalendarDays,
   LuChevronLeft,
   LuChevronRight,
   LuCoins,
@@ -26,10 +25,13 @@ import {
   type BankAccount,
   type ClientSearchResult,
   type Currency,
+  COMMISSION_CURRENCIES,
+  type CommissionCurrency,
   type EmployeeSearchResult,
   type TransactionListParams,
 } from "@/services/accounting.service";
 import AccountingSelect from "@/components/accounts/AccountingSelect";
+import { SingleDateField } from "@/components/accounts/accountingFilters";
 import ClientPicker from "@/components/accounts/ClientPicker";
 import BankAccountPicker from "@/components/accounts/BankAccountPicker";
 import EmployeePicker from "@/components/accounts/EmployeePicker";
@@ -80,6 +82,7 @@ function EditTransactionModal({
       description?: string;
       employeeId?: string | null;
       commissionAmount?: number | null;
+      commissionCurrency?: CommissionCurrency;
     }
   ) => Promise<void>;
 }) {
@@ -112,6 +115,9 @@ function EditTransactionModal({
     String(transaction.commissionAmount ?? 0)
   );
   const [commissionError, setCommissionError] = useState("");
+  /* Denominates the amount above. Write-only — the server converts to PKR and
+     never returns it, so an edit always re-states the currency. */
+  const [commissionCurrency, setCommissionCurrency] = useState<CommissionCurrency>("PKR");
   /** "Create <term>" from the employee picker, same as the sale modal. */
   const [createEmployeeName, setCreateEmployeeName] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -158,7 +164,11 @@ function EditTransactionModal({
         // Always sent as a pair. Clearing the employee sends an explicit null
         // alongside a zero amount, which is how the API clears the link.
         ...(employee
-          ? { employeeId: employee.id, commissionAmount: nextCommission }
+          ? {
+              employeeId: employee.id,
+              commissionAmount: nextCommission,
+              commissionCurrency,
+            }
           : transaction.employeeId
             ? { employeeId: null, commissionAmount: 0 }
             : {}),
@@ -271,18 +281,12 @@ function EditTransactionModal({
           </div>
         </div>
 
-        <label className="mt-3 block text-xs font-medium text-gray-600 dark:text-gray-300">
+        {/* Same picker as Add Sale — the native date input this replaced had a
+            different affordance in the two modals for the same field. */}
+        <div className="mt-3 text-xs font-medium text-gray-600 dark:text-gray-300">
           Sale Date
-          <div className="relative mt-1.5">
-            <input
-              type="date"
-              value={saleDate}
-              onChange={(event) => setSaleDate(event.target.value)}
-              className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 pr-9 text-sm text-gray-800 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-            />
-            <LuCalendarDays className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-600 dark:text-gray-400" />
-          </div>
-        </label>
+          <SingleDateField value={saleDate} onChange={setSaleDate} />
+        </div>
 
         <label className="mt-3 block text-xs font-medium text-gray-600 dark:text-gray-300">
           Description
@@ -307,42 +311,58 @@ function EditTransactionModal({
           />
         </div>
         {employee && (
-          <label className="mt-3 block text-xs font-medium text-gray-600 dark:text-gray-300">
-            Commission (PKR)
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={commission}
-              onChange={(event) => {
-                setCommission(event.target.value);
-                setCommissionError("");
-              }}
-              // Clear a leading "0" on focus so it doesn't become "0500".
-              onFocus={() => {
-                if (Number(commission) === 0) setCommission("");
-              }}
-              onBlur={() => {
-                if (commission.trim() === "") setCommission("0");
-              }}
-              placeholder="0"
-              className={`mt-1.5 h-10 w-full rounded-lg border bg-white px-3 text-sm text-gray-800 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 dark:bg-gray-800 dark:text-gray-100 ${
-                commissionError ? "border-red-400" : "border-gray-200 dark:border-gray-700"
-              }`}
+          <>
+          {/* Amount and its currency sit on one row — the figure is meaningless
+              without the unit, so splitting them across two rows read as two
+              unrelated fields. */}
+          <div className="mt-3 grid grid-cols-[1fr_7rem] items-end gap-2">
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">
+              Commission
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={commission}
+                onChange={(event) => {
+                  setCommission(event.target.value);
+                  setCommissionError("");
+                }}
+                // Clear a leading "0" on focus so it doesn't become "0500".
+                onFocus={() => {
+                  if (Number(commission) === 0) setCommission("");
+                }}
+                onBlur={() => {
+                  if (commission.trim() === "") setCommission("0");
+                }}
+                placeholder="0"
+                className={`mt-1.5 h-10 w-full rounded-lg border bg-white px-3 text-sm text-gray-800 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/10 dark:bg-gray-800 dark:text-gray-100 ${
+                  commissionError ? "border-red-400" : "border-gray-200 dark:border-gray-700"
+                }`}
+              />
+            </label>
+            {/* Converted to PKR on save; states what the figure beside it is in. */}
+            <AccountingSelect
+              label="Currency"
+              value={commissionCurrency}
+              options={COMMISSION_CURRENCIES.map((code) => ({ value: code, label: code }))}
+              onChange={(next) => setCommissionCurrency(next as CommissionCurrency)}
             />
-            {commissionError && (
-              <span role="alert" className="mt-1 block text-xs font-normal text-red-500">
-                {commissionError}
-              </span>
-            )}
-            {/* The increment is create-only server-side, so an edit here does
-                NOT move the employee's pending total. Saying so avoids a
-                silent drift the user can't see from this screen. */}
-            <span className="mt-1 block text-[11px] font-normal text-amber-600 dark:text-amber-500">
-              Changing this won&apos;t update the employee&apos;s pending
-              commission — adjust that on the employee record.
-            </span>
-          </label>
+          </div>
+          {commissionError && (
+            <p role="alert" className="mt-1 text-xs font-normal text-red-500">
+              {commissionError}
+            </p>
+          )}
+          {/* Sync is fully reversible server-side: `commissionAdjustments()`
+              nets the change into a delta, reverses the old employee's amount
+              when reassigned, and unwinds it entirely on delete. No manual
+              correction needed, so this is informational rather than a
+              warning. */}
+          <p className="mt-1 text-[11px] font-normal text-gray-400">
+            The employee&apos;s pending commission updates by the difference.
+            Reassigning or clearing it moves the amount too.
+          </p>
+          </>
         )}
 
 
@@ -743,9 +763,14 @@ export default function TransactionsView() {
       <ConfirmActionModal
         isOpen={canWrite && Boolean(deleting)}
         title="Delete transaction?"
+        /* Deleting also reverses any commission it carried, off-screen on the
+           employee record — worth stating before the fact. */
         description={
           deleting
-            ? `${deleting.refId} for ${deleting.clientName} will be permanently deleted.`
+            ? `${deleting.refId} for ${deleting.clientName} will be permanently deleted.` +
+              (deleting.employee && (deleting.commissionAmount ?? 0) > 0
+                ? ` ${deleting.employee.name}'s pending commission will be reduced accordingly.`
+                : "")
             : ""
         }
         confirmLabel="Delete transaction"

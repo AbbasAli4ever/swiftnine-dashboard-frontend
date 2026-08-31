@@ -13,6 +13,8 @@ import {
   type BankAccount,
   type ClientSearchResult,
   type Currency,
+  COMMISSION_CURRENCIES,
+  type CommissionCurrency,
   type EmployeeSearchResult,
 } from "@/services/accounting.service";
 import AccountingSelect from "@/components/accounts/AccountingSelect";
@@ -48,6 +50,10 @@ export default function AddSaleModal({
      appears once an employee is picked, and clearing the employee clears it. */
   const [employee, setEmployee] = useState<EmployeeSearchResult | null>(null);
   const [commission, setCommission] = useState("0");
+  /* The currency the commission is *entered* in. Write-only: the server
+     converts to PKR once and stores that, so it never comes back on a read —
+     and it is independent of the sale's own currency. */
+  const [commissionCurrency, setCommissionCurrency] = useState<CommissionCurrency>("PKR");
   const [commissionError, setCommissionError] = useState("");
   // LOCAL accounts are PKR-only; INTERNATIONAL ones take any currency.
   const isLocalAccount = bankAccount?.accountType === "LOCAL";
@@ -77,6 +83,7 @@ export default function AddSaleModal({
     setBankAccount(null);
     setEmployee(null);
     setCommission("0");
+    setCommissionCurrency("PKR");
     setCreateEmployeeName(null);
     setError("");
     setRefIdError("");
@@ -153,7 +160,11 @@ export default function AddSaleModal({
         description: description.trim() || undefined,
         // Both or neither — sending just one is a 422.
         ...(employee
-          ? { employeeId: employee.id, commissionAmount: numericCommission }
+          ? {
+              employeeId: employee.id,
+              commissionAmount: numericCommission,
+              commissionCurrency,
+            }
           : {}),
       });
       toast.success("Sale recorded");
@@ -327,8 +338,10 @@ export default function AddSaleModal({
             />
           </div>
           {employee && (
-            <label className="mt-3 block text-xs font-medium text-gray-600 dark:text-gray-300">
-              Commission (PKR)
+            <>
+            <div className="mt-3 grid grid-cols-[1fr_7rem] items-end gap-2">
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">
+              Commission
               <input
                 type="number"
                 min="0"
@@ -356,11 +369,21 @@ export default function AddSaleModal({
                   {commissionError}
                 </span>
               )}
-              <span className="mt-1 block text-[11px] font-normal text-gray-400">
-                Added to this employee&apos;s pending commission once. Editing the
-                sale later won&apos;t change it — correct it on the employee record.
-              </span>
             </label>
+            {/* Converted to PKR on save — the stored figure is always PKR, so
+                this only says what the number above is denominated in. */}
+            <AccountingSelect
+              label="Currency"
+              value={commissionCurrency}
+              options={COMMISSION_CURRENCIES.map((code) => ({ value: code, label: code }))}
+              onChange={(next) => setCommissionCurrency(next as CommissionCurrency)}
+            />
+            </div>
+            <p className="mt-1 text-[11px] font-normal text-gray-400">
+              Added to this employee&apos;s pending commission. Editing the sale
+              later adjusts it by the difference.
+            </p>
+            </>
           )}
 
           <p className="mt-5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">

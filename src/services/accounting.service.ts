@@ -62,6 +62,18 @@ export type AccountType = (typeof ACCOUNT_TYPES)[number];
 export const LOCAL_CURRENCY = "PKR" satisfies Currency;
 
 /**
+ * The currencies a **commission** may be entered in.
+ *
+ * Deliberately narrower than {@link CURRENCIES}: the API accepts the full
+ * `CURRENCY_VALUES` enum for `commissionCurrency`, but commission is only ever
+ * paid in USD or PKR, so offering AED/EUR/HKD/CRYPTO would invite entries the
+ * business does not actually make. The server converts whatever is sent to PKR
+ * for storage either way — this is a product constraint, not a server one.
+ */
+export const COMMISSION_CURRENCIES = ["PKR", "USD"] as const satisfies readonly Currency[];
+export type CommissionCurrency = (typeof COMMISSION_CURRENCIES)[number];
+
+/**
  * Currencies a **bank account itself** can be denominated in. INTERNATIONAL
  * excludes PKR, since a PKR-denominated account is by definition a local one.
  * Frontend convention only — the API accepts any pairing.
@@ -176,8 +188,10 @@ export interface EmployeeTransaction {
 
 /**
  * `paidCommission`/`pendingCommission` are two manually entered PKR figures on
- * the employee itself, plus a server-computed sum. Commission is PKR only —
- * there is no currency field anywhere on this model.
+ * the employee itself, plus a server-computed sum. They are **stored** in PKR
+ * only — the model has no currency column — but each carries a `*Usd` sibling
+ * computed at read time from the live rate, for display alongside the PKR
+ * figure. Writes are always PKR.
  *
  * `transactions` is the employee's sales, embedded on **every** response
  * (create, list, get-one, update) — not detail-only — so a list view can show
@@ -193,13 +207,20 @@ export interface AccountingEmployee {
   name: string;
   /** PKR. Manually entered, never negative. */
   paidCommission: number;
+  /** Server-computed USD equivalent of `paidCommission`, at the live rate.
+   *  Optional so an older API build degrades to hiding the USD figure. */
+  paidCommissionUsd?: number;
   /** PKR. Manually entered, never negative. */
   pendingCommission: number;
+  /** Server-computed USD equivalent of `pendingCommission`. */
+  pendingCommissionUsd?: number;
   /**
    * **Read-only.** `paid + pending`, recomputed server-side on every read, so
    * it cannot drift. Sending it is ignored — never put it in a payload.
    */
   totalCommission: number;
+  /** Server-computed USD equivalent of `totalCommission`. */
+  totalCommissionUsd?: number;
   /** How many sales are credited to this employee. */
   _count?: { transactions: number };
   /** The sales themselves, newest first. */
@@ -309,10 +330,15 @@ export interface CreateTransactionPayload {
   /** Who gets credited for this sale. Optional — not every sale has one, but
    *  it must be sent together with `commissionAmount` or not at all (422). */
   employeeId?: string;
-  /** PKR, manually entered — never computed from saleAmount. Paired with
-   *  `employeeId`. Adds to the employee's `pendingCommission` once, here at
-   *  creation; later edits to this transaction never adjust it again. */
+  /** Manually entered — never computed from saleAmount. Paired with
+   *  `employeeId`, and denominated in `commissionCurrency`. */
   commissionAmount?: number;
+  /** The currency `commissionAmount` is entered in; defaults to PKR.
+   *
+   *  Write-only: the server converts once at write time and stores PKR, so this
+   *  never comes back on a read. The transaction's own `currency` is separate —
+   *  a USD sale can carry a PKR commission and vice versa. */
+  commissionCurrency?: CommissionCurrency;
 }
 
 export interface UpdateTransactionPayload {
@@ -331,9 +357,12 @@ export interface UpdateTransactionPayload {
    *  `commissionAmount` or not at all — to clear, send `employeeId: null` and
    *  `commissionAmount: 0` in the same request. */
   employeeId?: string | null;
-  /** PKR. Never adjusts the employee's `pendingCommission` — that happens once,
-   *  at creation. Correcting it after the fact is a manual employee edit. */
+  /** Denominated in `commissionCurrency`. The server re-applies the difference
+   *  against the employee's `pendingCommission` as a delta. */
   commissionAmount?: number | null;
+  /** Currency for `commissionAmount`; the server assumes PKR when omitted.
+   *  Write-only — converted to PKR on save and never returned. */
+  commissionCurrency?: CommissionCurrency;
 }
 
 /** Commission fields are optional and default to `0` — never `null`. */
@@ -675,6 +704,7 @@ export const employeeService = {
       .get<
         PaginatedApiWrapper<AccountingEmployee[]> & {
           totalPendingCommission?: number;
+          totalPendingCommissionUsd?: number;
         }
       >("/employees", {
         params: serializeParams(params),
@@ -687,6 +717,7 @@ export const employeeService = {
            narrows when a search is active. Optional: an older API build leaves
            it undefined, which the view hides rather than showing a wrong 0. */
         totalPendingCommission: r.data.totalPendingCommission,
+        totalPendingCommissionUsd: r.data.totalPendingCommissionUsd,
       })),
 
   /** Word-order-independent name search. Returns a plain array, not paginated. */

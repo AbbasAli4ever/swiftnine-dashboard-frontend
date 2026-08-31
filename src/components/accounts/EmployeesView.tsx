@@ -96,11 +96,27 @@ export default function EmployeesView() {
     error,
     deleteEmployee,
     totalPendingCommission,
+    totalPendingCommissionUsd,
   } = useAccountingEmployees(params);
 
   useEffect(() => {
     if (error) toast.error(error);
   }, [error]);
+
+  /* PKR is the stored figure; the USD sibling is computed server-side at the
+     live rate and shown beneath it, smaller and muted, so the converted value
+     never reads as a second independent amount. Hidden when the API omits it
+     rather than rendering $0. */
+  const money = (pkr: number, usd?: number) => (
+    <>
+      <span className="block">{formatMoney("PKR", pkr)}</span>
+      {usd !== undefined && (
+        <span className="block text-[11px] font-normal text-gray-400">
+          ({formatMoney("USD", usd)})
+        </span>
+      )}
+    </>
+  );
 
   const total = meta?.total ?? 0;
   const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1;
@@ -138,6 +154,11 @@ export default function EmployeesView() {
             <p className="text-lg font-semibold leading-tight">
               {formatMoney("PKR", totalPendingCommission)}
             </p>
+            {totalPendingCommissionUsd !== undefined && (
+              <p className="text-xs font-normal leading-tight text-gray-400">
+                ({formatMoney("USD", totalPendingCommissionUsd)})
+              </p>
+            )}
           </div>
         )}
         <div className="relative w-full sm:w-[262px]">
@@ -237,14 +258,14 @@ export default function EmployeesView() {
                       )}
                     </td>
                     <td className="px-5 text-right whitespace-nowrap">
-                      {formatMoney("PKR", employee.paidCommission)}
+                      {money(employee.paidCommission, employee.paidCommissionUsd)}
                     </td>
                     <td className="px-5 text-right whitespace-nowrap">
-                      {formatMoney("PKR", employee.pendingCommission)}
+                      {money(employee.pendingCommission, employee.pendingCommissionUsd)}
                     </td>
                     {/* Server-computed `paid + pending` — read-only everywhere. */}
                     <td className="px-5 text-right font-medium whitespace-nowrap text-gray-900 dark:text-gray-100">
-                      {formatMoney("PKR", employee.totalCommission)}
+                      {money(employee.totalCommission, employee.totalCommissionUsd)}
                     </td>
                     <td className="px-5">
                       <div className="flex justify-end gap-1">
