@@ -861,3 +861,21 @@ No schema change — all four are computed, not stored, same as `totalCommission
   - A USD sale with `commissionAmount: 50, commissionCurrency: 'USD'` → the stored `commissionAmount` on the transaction row was ≈13,896.76 PKR (the live $50→PKR rate), not `50` — the exact mispricing this change closes. Employee `pendingCommission` increased by that PKR amount; `pendingCommissionUsd` on the employee response increased by ~$50, confirmed within rounding.
   - Updating an existing transaction's commission `2,000 PKR → 5,000 PKR` (same currency) → employee `pendingCommission` delta `+3,000`, exact. Updating it again to `$20 USD` → delta `+558.70` (5,558.70 PKR computed − the previous 5,000 PKR), exact — confirming the reversible-sync logic from the `[2026-08-27]` follow-up correctly incorporates the currency conversion on update too, not just create.
 - Test transactions/employees created during this verification were **left in place** in the "Test" workspace rather than cleaned up — unlike this doc's usual "test data cleaned up after" convention for the shared demo workspace, "Test" (`847e1f05-...`) is the user's own standing scratch workspace for exactly this kind of manual testing, per earlier session instruction.
+
+## Follow-up: [2026-09-01] `Vendor.dueDate`
+
+Added an optional `dueDate` to `Vendor` — when the `pendingPayment` is due. Purely additive, no behavior beyond storing/returning/sorting it: no reminder, notification, or overdue-status logic of any kind.
+
+**Schema** (migration `20260901080000_add_vendor_due_date`): `dueDate DateTime? @map("due_date")` — nullable, no default, purely additive. Applied via `prisma db push` + `prisma migrate resolve --applied`, this repo's established pattern for this dev DB (see the migration-history-drift notes on earlier follow-ups above).
+
+**`vendors.constants.ts`**: `dueDate: true` added to `VENDORS_SELECT`. `VENDORS_SORT_FIELDS` gained `'dueDate'` — lists can now be sorted by it (`sortBy=dueDate`), same as any other field on that whitelist.
+
+**`vendors.service.ts`**: `create()` converts an incoming ISO string to a `Date` (`dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined` — omitted stays `NULL`, matching `Transaction.saleDate`'s own optional-date-string convention). `update()` follows the same nullable-field pattern already used for `Transaction.description`/`employeeId`: `dto.dueDate !== undefined` gates whether the field is touched at all, and `dto.dueDate === null` explicitly clears it — so a vendor's due date can be set, corrected, or removed independently of `name`/`pendingPayment`. `toVendorData()` needed no change — `dueDate` is a plain `Date | null`, passed through the existing `...row` spread exactly like `createdAt`/`updatedAt` already are (no `Decimal`-to-`number` conversion, unlike `pendingPayment`).
+
+**DTOs**: `CreateVendorDto` gained optional `dueDate` (ISO datetime string). `UpdateVendorDto` gained optional, **nullable** `dueDate` (`z.string().datetime().nullable().optional()`) so it can be explicitly cleared — same shape `UpdateTransactionDto.description` already uses for the same reason. `VendorResponseDto` gained `dueDate: Date | null`.
+
+**Controller**: `create`/`findAll`/`update` Swagger operation descriptions updated to mention the new field; no route or guard changes.
+
+### Verification
+- `tsc --noEmit`, `eslint` — clean on every touched file.
+- Live, "Test" workspace, via the actual `VendorsService`/`PrismaService` classes: created a vendor with `dueDate: '2026-09-30T00:00:00.000Z'` → persisted and read back unchanged via `findOne`. Updated it to `2026-10-15T00:00:00.000Z` → confirmed changed. Updated again with `dueDate: null` → confirmed cleared (`null`), while `pendingPayment`/`name` stayed untouched (partial-update semantics unaffected). A separate vendor created with `dueDate` omitted entirely → correctly persisted as `null`, not an error. Test vendors deleted after verification (`scripts/test-vendor-due-date.ts`, kept as a reusable regression check).

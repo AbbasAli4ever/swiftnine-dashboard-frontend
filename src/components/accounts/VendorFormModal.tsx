@@ -7,6 +7,11 @@ import { toast } from "sonner";
 import { parseApiError } from "@/lib/api";
 import { useVendorMutations } from "@/hooks/useAccounting";
 import { fieldErrorsFrom } from "@/components/accounts/validationErrors";
+import { SingleDateField } from "@/components/accounts/accountingFilters";
+import {
+  fromDateInputValue,
+  toDateInputValue,
+} from "@/components/accounts/platformMeta";
 import type {
   AccountingVendor,
   UpdateVendorPayload,
@@ -35,6 +40,8 @@ export default function VendorFormModal({
   const isEditing = vendor !== null;
   const [name, setName] = useState(vendor?.name ?? "");
   const [pending, setPending] = useState("0");
+  /** `YYYY-MM-DD`, or "" for no due date. */
+  const [dueDate, setDueDate] = useState("");
   const [error, setError] = useState("");
   /** Per-input messages from a 422, keyed by the API's `errors[].field`. */
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -44,6 +51,7 @@ export default function VendorFormModal({
     if (!isOpen) return;
     setName(vendor?.name ?? "");
     setPending(String(vendor?.pendingPayment ?? 0));
+    setDueDate(vendor?.dueDate ? toDateInputValue(vendor.dueDate) : "");
     setError("");
     setFieldErrors({});
   }, [isOpen, vendor]);
@@ -82,10 +90,19 @@ export default function VendorFormModal({
       if (isEditing) {
         // Send only what changed — the fields are independent server-side, and
         // an empty body is rejected with a 422, so a no-op edit just closes.
+        /* `dueDate` has three states server-side: a string sets it, an
+           explicit null clears it, and omitting it leaves it alone. Comparing
+           the normalised `YYYY-MM-DD` forms keeps an untouched field out of
+           the patch entirely, so a no-op edit still 422s rather than silently
+           rewriting the date. */
+        const originalDue = vendor.dueDate ? toDateInputValue(vendor.dueDate) : "";
         const patch: UpdateVendorPayload = {
           ...(trimmed !== vendor.name ? { name: trimmed } : {}),
           ...(pendingValue !== vendor.pendingPayment
             ? { pendingPayment: pendingValue }
+            : {}),
+          ...(dueDate !== originalDue
+            ? { dueDate: dueDate ? fromDateInputValue(dueDate) ?? null : null }
             : {}),
         };
         if (Object.keys(patch).length === 0) {
@@ -97,6 +114,8 @@ export default function VendorFormModal({
         saved = await createVendor({
           name: trimmed,
           pendingPayment: pendingValue,
+          // Omitted entirely when blank — the column is nullable.
+          ...(dueDate ? { dueDate: fromDateInputValue(dueDate) } : {}),
         });
       }
       toast.success(isEditing ? "Vendor updated" : `${saved.name} created`);
@@ -194,6 +213,23 @@ export default function VendorFormModal({
             </span>
           )}
         </label>
+
+        {/* Optional — the server stores it and nothing more: no reminder, no
+            notification, no overdue state. Clearing the field clears the date. */}
+        <div className="mt-3 text-xs font-medium text-gray-600 dark:text-gray-300">
+          Due Date <span className="font-normal text-gray-400">(optional)</span>
+          <SingleDateField
+            value={dueDate}
+            onChange={setDueDate}
+            placeholder="No due date"
+            clearable
+          />
+          {fieldErrors.dueDate && (
+            <span role="alert" className="mt-1 block text-xs font-normal text-red-500">
+              {fieldErrors.dueDate}
+            </span>
+          )}
+        </div>
 
         <p className="mt-3 rounded-lg bg-gray-50 px-3 py-2.5 text-[11px] leading-4 text-gray-500 dark:bg-gray-900 dark:text-gray-400">
           Pending payment is entered by hand and always in PKR — it is not

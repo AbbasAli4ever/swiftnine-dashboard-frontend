@@ -455,11 +455,16 @@ export function SingleDateField({
   max,
   onChange,
   placeholder = "Pick a date",
+  clearable = false,
 }: {
   value: string;
   max?: string;
   onChange: (iso: string) => void;
   placeholder?: string;
+  /** Shows an inline clear button once a date is set. Off by default — a sale
+   *  date is required, but an optional field like a vendor's due date needs a
+   *  way back to "none". */
+  clearable?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -486,6 +491,16 @@ export function SingleDateField({
         </span>
         <LuCalendarDays className="h-4 w-4 shrink-0 text-gray-600 dark:text-gray-400" />
       </button>
+      {clearable && value && (
+        <button
+          type="button"
+          aria-label="Clear date"
+          onClick={() => onChange("")}
+          className="absolute right-9 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-905"
+        >
+          <LuX className="h-3.5 w-3.5" />
+        </button>
+      )}
       {open && (
         <div className="absolute right-0 z-40 mt-2 w-[290px] rounded-xl border border-gray-200 bg-white p-3 shadow-xl dark:border-gray-700 dark:bg-gray-901">
           <SingleCalendar

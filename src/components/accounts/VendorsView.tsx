@@ -21,7 +21,7 @@ import type {
   VendorListParams,
 } from "@/services/accounting.service";
 import { avatarColors, initials } from "@/components/accounts/avatar";
-import { formatMoney } from "@/components/accounts/platformMeta";
+import { formatIsoDate, formatMoney } from "@/components/accounts/platformMeta";
 import VendorFormModal from "@/components/accounts/VendorFormModal";
 
 // Same layout constants as EmployeesView — must stay in sync with the markup
@@ -104,7 +104,7 @@ export default function VendorsView() {
   const total = meta?.total ?? 0;
   const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const rangeEnd = Math.min(page * pageSize, total);
-  const columnCount = 3;
+  const columnCount = 4;
 
   const handleDelete = async () => {
     if (!deleting) return;
@@ -183,14 +183,15 @@ export default function VendorsView() {
         </div>
 
         <div className="min-h-0 overflow-auto">
-          <table className="w-full min-w-[560px] table-fixed text-left">
+          <table className="w-full min-w-[680px] table-fixed text-left">
             <thead className="sticky top-0 z-10 bg-white shadow-[0_1px_0_0_var(--color-gray-200)] dark:bg-gray-901 dark:shadow-[0_1px_0_0_var(--color-gray-800)]">
               <tr className="h-10 text-xs text-gray-400">
-                <th className="w-[52%] px-5 font-normal">Vendor</th>
-                <th className="w-[32%] px-5 text-right font-normal">
+                <th className="w-[40%] px-5 font-normal">Vendor</th>
+                <th className="w-[28%] px-5 text-right font-normal">
                   Pending Payment (PKR)
                 </th>
-                <th className="w-[16%] px-5 text-right font-normal">Actions</th>
+                <th className="w-[20%] px-5 font-normal">Due Date</th>
+                <th className="w-[12%] px-5 text-right font-normal">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -217,6 +218,15 @@ export default function VendorsView() {
                     </td>
                     <td className="px-5 text-right font-medium whitespace-nowrap text-gray-900 dark:text-gray-100">
                       {formatMoney("PKR", vendor.pendingPayment)}
+                    </td>
+                    {/* Display only — the server attaches no overdue meaning to
+                        this date, so it is not styled as a warning. */}
+                    <td className="px-5 whitespace-nowrap text-gray-600 dark:text-gray-400">
+                      {vendor.dueDate ? (
+                        formatIsoDate(vendor.dueDate)
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
                     </td>
                     <td className="px-5">
                       <div className="flex justify-end gap-1">

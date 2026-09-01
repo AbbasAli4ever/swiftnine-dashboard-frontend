@@ -195,10 +195,10 @@ export interface EmployeeTransaction {
  *
  * `transactions` is the employee's sales, embedded on **every** response
  * (create, list, get-one, update) — not detail-only — so a list view can show
- * a sale count without a second call. Creating a transaction with a commission
- * increments `pendingCommission` once; editing or deleting that transaction
- * afterwards never adjusts it again, so the two figures are only ever
- * corrected by hand via `PATCH /employees/:id`.
+ * a sale count without a second call. Commission sync is fully reversible: a
+ * transaction's commission is applied on create, re-applied as a delta on
+ * edit, and unwound on delete, so these figures track their transactions
+ * without manual correction.
  *
  * The same shape comes back from create, list, get-one and update.
  */
@@ -248,6 +248,10 @@ export interface AccountingVendor {
   name: string;
   /** PKR. Manually entered, never negative, defaults to 0. */
   pendingPayment: number;
+  /** ISO datetime for when `pendingPayment` is due, or null if none is set.
+   *  Purely informational server-side — no reminder or overdue logic exists,
+   *  so any "overdue" styling is a frontend-only reading of this date. */
+  dueDate: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -389,12 +393,17 @@ export interface UpdateEmployeePayload {
 export interface CreateVendorPayload {
   name: string;
   pendingPayment?: number;
+  /** ISO datetime. Omit for no due date. */
+  dueDate?: string;
 }
 
 /** Both optional and independent — send only what changed. `{}` is a 422. */
 export interface UpdateVendorPayload {
   name?: string;
   pendingPayment?: number;
+  /** ISO datetime to set it, `null` to clear it, omitted to leave it alone —
+   *  the three states the API distinguishes. */
+  dueDate?: string | null;
 }
 
 export interface CreateBankAccountPayload {
@@ -445,7 +454,7 @@ export interface EmployeeListParams extends BaseListParams {
 
 /** Same constraint as employees: `pendingPayment` is not a sortable field. */
 export interface VendorListParams extends BaseListParams {
-  sortBy?: "name" | "createdAt" | "updatedAt";
+  sortBy?: "name" | "dueDate" | "createdAt" | "updatedAt";
 }
 
 export interface TransactionListParams extends BaseListParams {
