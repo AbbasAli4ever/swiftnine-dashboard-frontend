@@ -51,6 +51,7 @@ import {
   LuBookOpen,
   LuPlay,
   LuBotMessageSquare,
+  LuMessageSquare,
   LuKanban,
   LuBriefcase,
   LuBriefcaseBusiness,
@@ -66,13 +67,14 @@ type RailItem = {
   id: string;
   label: string;
   icon: React.ReactNode;
-  panel: "home" | "lms" | "chatbot" | "accounts" | "ai" | "teams" | "clips" | "more";
+  panel: "home" | "lms" | "chat" | "chatbot" | "accounts" | "ai" | "teams" | "clips" | "more";
 };
 
 const railItems: RailItem[] = [
   { id: "accounts", label: "Dashboard", icon: <LuLandmark className="w-5 h-5" />, panel: "accounts" },
   { id: "home", label: "Projects", icon: <LuKanban className="w-5 h-5" />, panel: "home" },
   { id: "lms",  label: "University",  icon: <LuBookOpen className="w-5 h-5" />,      panel: "lms" },
+  { id: "chat", label: "Chat", icon: <LuMessageSquare className="w-5 h-5" />, panel: "chat" },
   { id: "chatbot", label: "SwiftGPT", icon: <LuBotMessageSquare className="w-5 h-5" />, panel: "chatbot" },
 ];
 
@@ -908,9 +910,11 @@ function HomePanelContent() {
         {/* Channels */}
         <ChannelSidebarSection />
 
-        {/* Direct Messages - commented out for now
+        {/* Direct Messages. Also the only mounting point for
+            `useGlobalChatSocket()` — DM socket events for every conversation
+            arrive through here, so unread counts stop working workspace-wide
+            if this is ever removed again. */}
         <DmSidebarSection />
-        */}
       </div>
 
       {/* <div className="border-t border-gray-100 px-1 pt-3 dark:border-gray-800">
@@ -1143,6 +1147,7 @@ const AppSidebar: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => 
   const isSettingsRoute = pathname.startsWith("/settings");
   const isLmsRoute = pathname.startsWith("/university");
   const isChatRoute = pathname.startsWith("/chat");
+  const isWorkspaceChatRoute = pathname.startsWith("/workspace-chat");
   const isAccountsRoute = pathname.startsWith("/accounts");
 
   // Derived directly from the URL on every render — never stored as its own
@@ -1157,11 +1162,13 @@ const AppSidebar: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => 
     ? "settings"
     : isLmsRoute
       ? "lms"
-      : isChatRoute
-        ? "chatbot"
-        : isAccountsRoute
-          ? "accounts"
-          : "home";
+      : isWorkspaceChatRoute
+        ? "chat"
+        : isChatRoute
+          ? "chatbot"
+          : isAccountsRoute
+            ? "accounts"
+            : "home";
   const isSettingsActive = activeRail === "settings";
 
   // Accountants are scoped to accounting, so the other rails are hidden from
@@ -1188,6 +1195,10 @@ const AppSidebar: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => 
     }
     if (id === "accounts") {
       router.push("/accounts");
+      return;
+    }
+    if (id === "chat") {
+      router.push("/workspace-chat");
       return;
     }
     if (id === "chatbot") {
@@ -1303,7 +1314,11 @@ const AppSidebar: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => 
       </div>
       )}
 
-      {/* Right contextual panel */}
+      {/* Right contextual panel.
+          Suppressed for Chat: that module renders its own conversation list,
+          which *is* the sidebar for it — a second panel listing only "All
+          conversations" would duplicate the thing sitting right beside it. */}
+      {activeRail !== "chat" && (
       <div
         className={`w-[264px] bg-[#f9f9f9] dark:bg-gray-901 border-r border-b border-t border-gray-200 dark:border-gray-800 flex flex-col overflow-hidden mb-2 ${
           // Without the rail beside it the panel sits flush against the window
@@ -1323,6 +1338,7 @@ const AppSidebar: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => 
           </>
         )}
       </div>
+      )}
 
       <InvitePeopleModal
         isOpen={inviteOpen}

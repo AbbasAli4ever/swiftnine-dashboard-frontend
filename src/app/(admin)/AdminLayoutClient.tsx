@@ -17,6 +17,7 @@ import ViewUserProfilePanel from "@/components/user-profile/ViewUserProfilePanel
 import { useAccountantLockIn } from "@/hooks/useAccountantLockIn";
 import { useAccountingAccess } from "@/hooks/useAccountingAccess";
 import { useUiStore } from "@/stores/ui.store";
+import { usePathname } from "next/navigation";
 import React, { useEffect } from "react";
 
 export default function AdminLayoutClient({
@@ -30,6 +31,10 @@ export default function AdminLayoutClient({
   // Accountants only ever see the accounting area — bounce them off Board/Inbox/etc.
   const isLockingIn = useAccountantLockIn();
   const { isAccountant } = useAccountingAccess();
+  /* Chat suppresses the sidebar's contextual panel — its own conversation
+     list takes that role — so the content offset drops to the rail alone. */
+  const pathname = usePathname();
+  const hidesSidebarPanel = pathname.startsWith("/workspace-chat");
   useEffect(() => {
     // Only bounce to /signin when we are sure the user has never logged in on
     // this browser. If session_exists is set, AuthContext is still trying to
@@ -71,18 +76,31 @@ export default function AdminLayoutClient({
       <div className="flex flex-1 overflow-hidden">
         <AppSidebar hasHeader={true} />
 
-        {/* Main area — offset by sidebar width */}
-        {/* Sidebar is 72px icon rail (plus its 8px of margins) + 264px panel.
-            Accountants don't get the rail, so the content offset drops to the
-            panel width alone. */}
+        {/* Main area — offset by whatever the sidebar actually renders.
+            Sidebar is 72px icon rail (plus its 8px of margins) + 264px panel.
+            Accountants don't get the rail, so their offset is the panel alone;
+            Chat doesn't get the panel, so its offset is the rail alone. */}
         <div
           className={`flex flex-col flex-1 min-w-0 overflow-hidden ${
-            isAccountant ? "ml-[264px]" : "ml-[336px]"
+            isAccountant
+              ? "ml-[264px]"
+              : hidesSidebarPanel
+                // 72px rail + its own mx-1 (4px each side) = 80px.
+                ? "ml-[80px]"
+                : "ml-[336px]"
           }`}
         >
           {/* Content row: main + profile panels side by side */}
           <div className="flex flex-1 overflow-hidden">
-            <main className="flex-1 border border-r border-b mr-2 mb-2 rounded-tr-lg rounded-br-lg border-gray-200 dark:border-gray-800  overflow-hidden">
+            {/* Only the right corners are rounded normally, because the
+                sidebar panel supplies the left ones. With that panel hidden
+                (Chat), main is the leftmost pane and has to round its own. */}
+            <main
+              className={`flex-1 border border-r border-b mr-2 mb-2 rounded-tr-lg rounded-br-lg border-gray-200 dark:border-gray-800 overflow-hidden ${
+                // rounded-[10px] to match the rail's own corner radius.
+                hidesSidebarPanel ? "rounded-tl-[10px] rounded-bl-[10px]" : ""
+              }`}
+            >
               {children}
             </main>
 
