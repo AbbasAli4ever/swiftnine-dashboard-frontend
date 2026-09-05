@@ -94,15 +94,23 @@ export const notificationService = {
       // If no token or workspace yet (auth still restoring), wait then retry.
       if (!token || !workspaceId) return "reconnect";
 
+      let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
       try {
+        /* The abort is attached to the *reader*, not the fetch. Passing the
+           signal to fetch() makes the browser reject the request itself, and
+           that rejection is reported to the dev overlay regardless of our
+           catch — which is why an ordinary Strict Mode remount surfaced as an
+           uncaught AbortError. Cancelling the reader in `finally` closes the
+           connection just as effectively, without a rejected fetch. */
         const res = await fetch(url, {
           headers: {
             Authorization: `Bearer ${token}`,
             "x-workspace-id": workspaceId,
             Accept: "text/event-stream",
           },
-          signal,
         });
+
+        if (signal.aborted) return "done";
 
         // 401 = expired JWT — refresh and let the retry loop pick up the new token.
         if (res.status === 401) {
@@ -119,12 +127,18 @@ export const notificationService = {
         // Other non-ok (5xx, network hiccup) → reconnect with backoff.
         if (!res.ok || !res.body) return "reconnect";
 
-        const reader = res.body.getReader();
+        reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buf = "";
         // Per-event accumulator — reset on blank line (event boundary)
         let currentEvent = "message";
         let currentData = "";
+
+        /* Without fetch's own signal wiring, an abort has to interrupt the
+           pending read explicitly — otherwise it would block until the server
+           next sends a heartbeat. */
+        const abortRead = () => void reader?.cancel().catch(() => {});
+        signal.addEventListener("abort", abortRead, { once: true });
 
         while (true) {
           const { done, value } = await reader.read();
@@ -151,9 +165,23 @@ export const notificationService = {
             }
           }
         }
-      } catch {
-        if (signal.aborted) return "done";
+      } catch (err) {
+        /* An abort is a normal teardown, not a failure: the effect unmounted
+           (React double-invokes effects in dev, so this fires constantly) or
+           the workspace changed. Match on the error itself as well as the
+           signal — the reader's in-flight read rejects with an AbortError that
+           can surface before `signal.aborted` is observable here. */
+        if (signal.aborted || (err as Error)?.name === "AbortError") {
+          return "done";
+        }
         return "reconnect"; // network error → reconnect
+      } finally {
+        // Release the stream lock so an aborted connection doesn't leak it.
+        try {
+          await reader?.cancel();
+        } catch {
+          // Already torn down — nothing to release.
+        }
       }
     };
 

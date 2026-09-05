@@ -131,7 +131,14 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       ctrl.signal
     );
 
-    return () => { clearTimeout(loadingTimeout); ctrl.abort(); };
+    return () => {
+      clearTimeout(loadingTimeout);
+      /* Bare abort(), matching every other abort site in the app. Passing a
+         reason makes the dev overlay surface that reason as an uncaught error
+         instead of staying quiet — the stream treats any abort as a clean
+         stop either way, so the reason bought nothing. */
+      ctrl.abort();
+    };
   }, [isAuthenticated, user?.id, activeWorkspaceId]);
 
   const unreadCount = useMemo(

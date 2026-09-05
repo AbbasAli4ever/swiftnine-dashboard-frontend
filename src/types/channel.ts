@@ -1,22 +1,10 @@
-import type { ChannelMember } from "@/types/chat";
+import type { ChannelMember, ChatChannel } from "@/types/chat";
 
 export type { ChannelMember };
 
-export type Channel = {
-  id: string;
-  workspaceId: string;
-  kind: "CHANNEL";
-  privacy: "PUBLIC" | "PRIVATE";
-  name: string;
-  description: string | null;
-  projectId: string | null;
-  createdBy: string;
-  createdAt: string;
-  updatedAt: string;
-  isMember: boolean;
-  isMuted: boolean;
-  unreadCount: number;
-  lastReadMessageId: string | null;
-  viewerMembership: ChannelMember | null;
-  members: ChannelMember[];
-};
+/**
+ * @deprecated Use {@link ChatChannel} from `@/types/chat` — DMs and channels
+ * are one shape server-side, discriminated on `kind`. Kept as an alias so the
+ * existing channel components keep compiling during the Chat migration.
+ */
+export type Channel = ChatChannel;

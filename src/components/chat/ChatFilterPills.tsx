@@ -1,7 +1,8 @@
 "use client";
 
 import { LuPlus } from "react-icons/lu";
-import type { ChatFilter } from "./mockChatData";
+/** Which slice of the conversation list is shown. */
+export type ChatFilter = "all" | "unread" | "favourites" | "groups";
 
 const FILTERS: { key: ChatFilter; label: string }[] = [
   { key: "all", label: "All" },

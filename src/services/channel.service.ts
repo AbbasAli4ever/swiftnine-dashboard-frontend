@@ -1,6 +1,25 @@
 import { api } from "@/lib/api";
 import type { Channel } from "@/types/channel";
-import type { ChannelMember } from "@/types/chat";
+import type { ChannelMember, ChatChannel } from "@/types/chat";
+
+/**
+ * Roles as the **write** API expects them — lowercase. Responses come back
+ * uppercase on `ChannelMember.role`; the two are deliberately different
+ * casings server-side, so don't unify them without checking both directions.
+ */
+export type ChannelMemberRoleInput = "admin" | "member";
+
+export type ChannelJoinRequestStatus = "PENDING" | "APPROVED" | "REJECTED";
+
+export type ChannelJoinRequest = {
+  id: string;
+  channelId: string;
+  userId: string;
+  status: ChannelJoinRequestStatus;
+  createdAt: string;
+  updatedAt: string;
+  user?: { id: string; fullName: string; avatarUrl: string | null };
+};
 
 export const channelService = {
   getChannels: async (workspaceId: string): Promise<Channel[]> => {
@@ -21,10 +40,70 @@ export const channelService = {
     return data.data;
   },
 
+  /**
+   * Rename, re-describe, or change a channel's privacy. OWNER/ADMIN only —
+   * each change also emits its own SYSTEM message into the channel.
+   */
+  updateChannel: async (
+    channelId: string,
+    patch: { name?: string; description?: string; privacy?: "PUBLIC" | "PRIVATE" }
+  ): Promise<ChatChannel> => {
+    const { data } = await api.patch<{ data: ChatChannel }>(
+      `/channels/${channelId}`,
+      patch
+    );
+    return data.data;
+  },
+
+  // ── Join requests (PUBLIC channels only — PRIVATE is invite-only) ──────────
+
+  /** 400 if already pending, already a member, or rejected within 24h. */
+  requestToJoin: async (channelId: string): Promise<ChannelJoinRequest> => {
+    const { data } = await api.post<{ data: ChannelJoinRequest }>(
+      `/channels/${channelId}/join-requests`
+    );
+    return data.data;
+  },
+
+  /** OWNER/ADMIN only. */
+  listJoinRequests: async (
+    channelId: string,
+    status?: ChannelJoinRequestStatus
+  ): Promise<ChannelJoinRequest[]> => {
+    const { data } = await api.get<{ data: ChannelJoinRequest[] }>(
+      `/channels/${channelId}/join-requests`,
+      { params: status ? { status } : undefined }
+    );
+    return data.data;
+  },
+
+  /** The caller's own latest request in any state, or null if never asked. */
+  getMyJoinRequest: async (
+    channelId: string
+  ): Promise<ChannelJoinRequest | null> => {
+    const { data } = await api.get<{ data: ChannelJoinRequest | null }>(
+      `/channels/${channelId}/join-requests/me`
+    );
+    return data.data;
+  },
+
+  /** OWNER/ADMIN only. Approving adds the member and emits `member_joined`. */
+  decideJoinRequest: async (
+    channelId: string,
+    requestId: string,
+    decision: "approve" | "reject"
+  ): Promise<ChannelJoinRequest> => {
+    const { data } = await api.patch<{ data: ChannelJoinRequest }>(
+      `/channels/${channelId}/join-requests/${requestId}`,
+      { decision }
+    );
+    return data.data;
+  },
+
   addMember: async (
     channelId: string,
     userId: string,
-    role: "admin" | "member" = "member"
+    role: ChannelMemberRoleInput = "member"
   ): Promise<ChannelMember> => {
     const { data } = await api.post<{ data: ChannelMember }>(
       `/channels/${channelId}/members`,

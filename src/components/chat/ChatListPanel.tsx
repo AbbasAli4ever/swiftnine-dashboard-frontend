@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   LuArchive,
   LuBell,
@@ -15,12 +15,15 @@ import {
 import ChatConversationRow from "./ChatConversationRow";
 import AddPeopleToChannelDialog from "./AddPeopleToChannelDialog";
 import CreateChannelDialog from "./CreateChannelDialog";
-import ChatFilterPills from "./ChatFilterPills";
-import {
-  MOCK_CHANNELS,
-  MOCK_CONVERSATIONS,
-  type ChatFilter,
-} from "./mockChatData";
+import ChatFilterPills, { type ChatFilter } from "./ChatFilterPills";
+import { toast } from "sonner";
+import { channelService } from "@/services/channel.service";
+import { parseApiError } from "@/lib/api";
+import { useChatStore } from "@/stores/chat.store";
+import { useAuthStore } from "@/stores/auth.store";
+import { roomTitle } from "@/lib/chat/format";
+import type { ChatChannel } from "@/types/chat";
+
 
 /**
  * The Chat module's list pane — search, quick filters, channels, and direct
@@ -45,7 +48,8 @@ export default function ChatListPanel({
   const [createChannelOpen, setCreateChannelOpen] = useState(false);
   /* Set once a channel is created, which opens the invite dialog for it. Null
      means no invite prompt is pending. */
-  const [invitingToChannel, setInvitingToChannel] = useState<string | null>(null);
+  const [invitingToChannel, setInvitingToChannel] =
+    useState<ChatChannel | null>(null);
   const inviteTimer = useRef<number | null>(null);
 
   // Leaving Chat before the delay elapses would otherwise set state on an
@@ -57,25 +61,60 @@ export default function ChatListPanel({
     []
   );
 
-  const counts = useMemo(
-    () => ({
-      unread: MOCK_CONVERSATIONS.filter((c) => c.unreadCount).length,
-      groups: MOCK_CONVERSATIONS.filter((c) => c.isGroup).length,
-      favourites: MOCK_CONVERSATIONS.filter((c) => c.isFavourite).length,
-    }),
-    []
+  const selfId = useAuthStore((state) => state.user?.id);
+  const channels = useChatStore((state) => state.channels);
+  const channelsLoading = useChatStore((state) => state.channelsLoading);
+
+  /* Archived rooms are hidden from every view except the Archived one, which
+     is a separate fetch — mirroring the server's own default. */
+  const visible = useMemo(
+    () => channels.filter((room) => !room.isArchived),
+    [channels]
+  );
+  const channelRooms = useMemo(
+    () => visible.filter((room) => room.kind === "CHANNEL"),
+    [visible]
+  );
+  const dmRooms = useMemo(
+    () => visible.filter((room) => room.kind === "DM"),
+    [visible]
+  );
+  const archivedCount = useMemo(
+    () => channels.filter((room) => room.isArchived).length,
+    [channels]
   );
 
-  const conversations = useMemo(() => {
-    const needle = search.trim().toLowerCase();
-    return MOCK_CONVERSATIONS.filter((c) => {
-      if (filter === "unread" && !c.unreadCount) return false;
-      if (filter === "groups" && !c.isGroup) return false;
-      if (filter === "favourites" && !c.isFavourite) return false;
-      if (needle && !c.name.toLowerCase().includes(needle)) return false;
+  const counts = useMemo(
+    () => ({
+      unread: visible.filter((room) => room.unreadCount > 0).length,
+      groups: channelRooms.length,
+      favourites: visible.filter((room) => room.isFavourite).length,
+    }),
+    [visible, channelRooms]
+  );
+
+  const matches = useCallback(
+    (room: ChatChannel) => {
+      if (filter === "unread" && room.unreadCount === 0) return false;
+      if (filter === "groups" && room.kind !== "CHANNEL") return false;
+      if (filter === "favourites" && !room.isFavourite) return false;
+      const needle = search.trim().toLowerCase();
+      if (needle && !roomTitle(room, selfId).toLowerCase().includes(needle)) {
+        return false;
+      }
       return true;
-    });
-  }, [filter, search]);
+    },
+    [filter, search, selfId]
+  );
+
+  const filteredChannels = useMemo(
+    () => channelRooms.filter(matches),
+    [channelRooms, matches]
+  );
+  const conversations = useMemo(
+    () => dmRooms.filter(matches),
+    [dmRooms, matches]
+  );
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -149,7 +188,10 @@ export default function ChatListPanel({
         <p className="px-4 pb-1 pt-2 text-xs font-semibold text-gray-900 dark:text-gray-100">
           Channels
         </p>
-        {MOCK_CHANNELS.map((channel) => {
+        {channelsLoading && filteredChannels.length === 0 && (
+          <p className="px-4 py-2 text-xs text-gray-400">Loading…</p>
+        )}
+        {filteredChannels.map((channel) => {
           const isActive = channel.id === activeId;
           return (
             <button
@@ -163,17 +205,17 @@ export default function ChatListPanel({
                   : "hover:bg-gray-50 dark:hover:bg-gray-905/70"
               }`}
             >
-              {channel.isPrivate ? (
+              {channel.privacy === "PRIVATE" ? (
                 <LuLock className="h-4 w-4 shrink-0 text-gray-400" />
               ) : (
                 <LuHash className="h-4 w-4 shrink-0 text-gray-400" />
               )}
-              <span className="truncate text-sm text-gray-700 dark:text-gray-300">
-                {channel.name}
+              <span className="flex-1 truncate text-sm text-gray-700 dark:text-gray-300">
+                {roomTitle(channel, selfId)}
               </span>
-              {channel.context && (
-                <span className="truncate text-xs text-gray-400">
-                  - {channel.context}
+              {channel.unreadCount > 0 && (
+                <span className="flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-brand-500 px-1 text-[10px] font-medium text-white">
+                  {channel.unreadCount > 99 ? "99+" : channel.unreadCount}
                 </span>
               )}
             </button>
@@ -197,7 +239,7 @@ export default function ChatListPanel({
           <span className="flex-1 text-sm font-medium text-gray-700 dark:text-gray-300">
             Archived
           </span>
-          <span className="text-xs text-gray-400">1</span>
+          <span className="text-xs text-gray-400">{archivedCount}</span>
         </button>
 
         {/* Direct messages */}
@@ -213,6 +255,7 @@ export default function ChatListPanel({
             <ChatConversationRow
               key={conversation.id}
               conversation={conversation}
+              selfUserId={selfId}
               isActive={conversation.id === activeId}
               onClick={() => onSelect(conversation.id)}
             />
@@ -223,14 +266,26 @@ export default function ChatListPanel({
       <CreateChannelDialog
         isOpen={createChannelOpen}
         onClose={() => setCreateChannelOpen(false)}
-        onSubmit={({ name }) => {
-          /* Delayed so the create dialog is visibly gone before this one
-             arrives — chaining them in the same frame reads as the panel
-             abruptly changing its contents rather than a new step. */
-          inviteTimer.current = window.setTimeout(
-            () => setInvitingToChannel(name),
-            320
-          );
+        onSubmit={async ({ name, isPrivate }) => {
+          try {
+            const created = await channelService.createChannel(
+              name,
+              isPrivate ? "PRIVATE" : "PUBLIC"
+            );
+            useChatStore.getState().upsertChannel(created);
+            onSelect(created.id);
+            /* Delayed so the create dialog is visibly gone before the invite
+               one arrives — chaining them in the same frame reads as the panel
+               swapping its contents rather than a new step. */
+            inviteTimer.current = window.setTimeout(
+              () => setInvitingToChannel(created),
+              320
+            );
+          } catch (err) {
+            toast.error(
+              parseApiError(err).message || "Couldn't create that channel."
+            );
+          }
         }}
       />
 
@@ -238,7 +293,8 @@ export default function ChatListPanel({
           inviting is a follow-up action rather than part of the flow. */}
       <AddPeopleToChannelDialog
         isOpen={invitingToChannel !== null}
-        channelName={invitingToChannel ?? ""}
+        channelId={invitingToChannel?.id ?? ""}
+        channelName={invitingToChannel?.name ?? ""}
         onClose={() => setInvitingToChannel(null)}
       />
     </div>

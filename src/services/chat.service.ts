@@ -1,14 +1,34 @@
 import { api } from "@/lib/api";
 import type {
+  ChannelAttachments,
+  ChatChannel,
   ChatMessage,
   DmChannel,
   PaginatedMessages,
   PresignResponse,
 } from "@/types/chat";
 
+/** Toggle result from `POST /chat/messages/:id/reactions`. */
+export type ReactionToggleResult = {
+  action: "added" | "removed";
+  messageId: string;
+  userId: string;
+  emoji: string;
+};
+
 export const chatService = {
-  getDms: async (): Promise<DmChannel[]> => {
-    const { data } = await api.get<{ data: DmChannel[] }>("/chat/dms");
+  /**
+   * The caller's DMs. `archived` defaults to `false` server-side, so omitting
+   * it hides archived rooms; pass `true` for the Archived view. Omit
+   * `favourite` for no filter.
+   */
+  getDms: async (params?: {
+    archived?: boolean;
+    favourite?: boolean;
+  }): Promise<DmChannel[]> => {
+    const { data } = await api.get<{ data: DmChannel[] }>("/chat/dms", {
+      params,
+    });
     return data.data;
   },
 
@@ -102,7 +122,136 @@ export const chatService = {
       throw new Error(`S3 upload failed: ${res.status} ${res.statusText}`);
     }
   },
+
+  // ── Reactions ──────────────────────────────────────────────────────────────
+
+  /**
+   * One route does both directions — sending the same emoji twice removes it.
+   * The response says which happened, so don't assume "added".
+   */
+  toggleReaction: async (
+    messageId: string,
+    emoji: string
+  ): Promise<ReactionToggleResult> => {
+    const { data } = await api.post<{ data: ReactionToggleResult }>(
+      `/chat/messages/${messageId}/reactions`,
+      { emoji }
+    );
+    return data.data;
+  },
+
+  // ── Pinning (channel OWNER/ADMIN only) ─────────────────────────────────────
+
+  pinMessage: async (messageId: string): Promise<ChatMessage> => {
+    const { data } = await api.post<{ data: ChatMessage }>(
+      `/chat/messages/${messageId}/pin`
+    );
+    return data.data;
+  },
+
+  unpinMessage: async (messageId: string): Promise<void> => {
+    await api.delete(`/chat/messages/${messageId}/pin`);
+  },
+
+  getPinnedMessages: async (channelId: string): Promise<ChatMessage[]> => {
+    const { data } = await api.get<{ data: ChatMessage[] }>(
+      `/chat/channels/${channelId}/messages/pinned`
+    );
+    return data.data;
+  },
+
+  // ── Per-viewer room state ──────────────────────────────────────────────────
+  // All four flip a flag on the caller's own membership row only. Archiving or
+  // favouriting a DM is invisible to the other participant.
+
+  setMuted: async (channelId: string, muted: boolean): Promise<void> => {
+    await api.post(`/chat/channels/${channelId}/${muted ? "mute" : "unmute"}`);
+  },
+
+  /** Also backs "Close DM" — there is no separate hide/delete concept. */
+  setArchived: async (channelId: string, archived: boolean): Promise<void> => {
+    await api.post(
+      `/chat/channels/${channelId}/${archived ? "archive" : "unarchive"}`
+    );
+  },
+
+  setFavourite: async (
+    channelId: string,
+    favourite: boolean
+  ): Promise<void> => {
+    await api.post(
+      `/chat/channels/${channelId}/${favourite ? "favourite" : "unfavourite"}`
+    );
+  },
+
+  // ── Attachments ────────────────────────────────────────────────────────────
+
+  /**
+   * Every attachment ever shared in a room, grouped by type.
+   *
+   * Scans the whole message history and signs fresh S3 URLs on each call, so
+   * only fetch it when the user actually opens the media panel — not alongside
+   * every message load. The returned URLs expire in 15 minutes and must not be
+   * cached; call again when the panel reopens.
+   */
+  getChannelAttachments: async (
+    channelId: string
+  ): Promise<ChannelAttachments> => {
+    const { data } = await api.get<{ data: ChannelAttachments }>(
+      `/chat/channels/${channelId}/attachments`
+    );
+    return data.data;
+  },
+
+  // ── Search & jump-to-message ───────────────────────────────────────────────
+
+  /** Case-insensitive substring over `plaintext`, scoped to the caller's rooms. */
+  searchMessages: async (
+    q: string,
+    options?: { channelId?: string; cursor?: string | null; limit?: number }
+  ): Promise<PaginatedMessages> => {
+    const { data } = await api.get<{ data: PaginatedMessages }>(
+      "/chat/search",
+      { params: { q, ...options } }
+    );
+    return data.data;
+  },
+
+  /**
+   * A window of messages around `messageId`, in chronological order — used to
+   * hydrate the thread after jumping to a search hit.
+   */
+  getMessageContext: async (
+    channelId: string,
+    messageId: string,
+    options?: { before?: number; after?: number }
+  ): Promise<{
+    items: ChatMessage[];
+    anchorMessageId: string;
+    hasBefore: boolean;
+    hasAfter: boolean;
+  }> => {
+    const { data } = await api.get<{
+      data: {
+        items: ChatMessage[];
+        anchorMessageId: string;
+        hasBefore: boolean;
+        hasAfter: boolean;
+      };
+    }>(`/chat/channels/${channelId}/messages/context`, {
+      params: { messageId, ...options },
+    });
+    return data.data;
+  },
 };
+
+/**
+ * A DM's title and the person it is with. DMs carry `name: null` server-side,
+ * so both have to be derived from the member list.
+ */
+export function otherDmMember(channel: ChatChannel, selfUserId: string) {
+  return channel.members.find((m) => m.userId !== selfUserId) ?? null;
+}
 
 export function buildContentJson(text: string): Record<string, unknown> {
   return {

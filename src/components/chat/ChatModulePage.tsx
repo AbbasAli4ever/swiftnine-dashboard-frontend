@@ -1,14 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import ChannelThreadPanel from "./ChannelThreadPanel";
+import ChatProfilePanel from "./ChatProfilePanel";
 import ChatListPanel from "./ChatListPanel";
 import ChatThreadPanel from "./ChatThreadPanel";
-import {
-  MOCK_ACTIVE_CONVERSATION,
-  MOCK_CHANNELS,
-  MOCK_CONVERSATIONS,
-} from "./mockChatData";
+import { useChatStore } from "@/stores/chat.store";
 
 /**
  * Chat module — conversation list beside the message thread.
@@ -20,17 +17,21 @@ import {
  * lifted without changing its internals.
  */
 export default function ChatModulePage() {
-  const [activeId, setActiveId] = useState<string | null>(
-    MOCK_ACTIVE_CONVERSATION.id
-  );
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const channels = useChatStore((state) => state.channels);
+  const setActiveChannel = useChatStore((state) => state.setActiveChannel);
 
-  /* Ids are unique across both lists, so the selection resolves to whichever
-     kind matched — a channel renders the multi-author view, a direct message
-     the two-party thread. */
-  const activeChannel = MOCK_CHANNELS.find((c) => c.id === activeId) ?? null;
-  const activeConversation = activeChannel
-    ? null
-    : MOCK_CONVERSATIONS.find((c) => c.id === activeId) ?? null;
+  /* Tells the realtime hook which room is on screen, so its incoming messages
+     don't raise an unread badge. */
+  useEffect(() => {
+    setActiveChannel(activeId);
+    return () => setActiveChannel(null);
+  }, [activeId, setActiveChannel]);
+
+  /* DMs and channels are one entity discriminated by `kind`, so the selected
+     id resolves to whichever thread view suits it. */
+  const active = channels.find((room) => room.id === activeId) ?? null;
 
   return (
     <div className="flex h-full min-h-0 overflow-hidden rounded-[10px] bg-white dark:bg-gray-900">
@@ -41,12 +42,21 @@ export default function ChatModulePage() {
         <ChatListPanel activeId={activeId} onSelect={setActiveId} />
       </aside>
       <section className="min-w-0 flex-1">
-        {activeChannel ? (
-          <ChannelThreadPanel channel={activeChannel} />
+        {active?.kind === "CHANNEL" ? (
+          <ChannelThreadPanel channel={active} />
         ) : (
-          <ChatThreadPanel conversation={activeConversation} />
+          <ChatThreadPanel
+            conversation={active}
+            onOpenProfile={() => setProfileOpen(true)}
+          />
         )}
       </section>
+
+      <ChatProfilePanel
+        room={active}
+        isOpen={profileOpen && active !== null}
+        onClose={() => setProfileOpen(false)}
+      />
     </div>
   );
 }

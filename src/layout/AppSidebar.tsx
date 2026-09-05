@@ -23,8 +23,6 @@ import CreateListModal from "@/components/projects/CreateListModal";
 import ProjectMembersModal from "@/components/projects/ProjectMembersModal";
 import ListContextMenu from "@/components/projects/ListContextMenu";
 import DocsListSidebarSection from "@/components/docs/DocsListSidebarSection";
-import DmSidebarSection from "@/components/dm/DmSidebarSection";
-import ChannelSidebarSection from "@/components/channels/ChannelSidebarSection";
 import ChatbotPanelContent from "@/components/chatbot/ChatbotPanelContent";
 import { ICON_MAP } from "@/components/projects/IconColorPicker";
 import { toast } from "sonner";
@@ -907,14 +905,9 @@ function HomePanelContent() {
         {/* Docs */}
         <DocsListSidebarSection />
 
-        {/* Channels */}
-        <ChannelSidebarSection />
-
-        {/* Direct Messages. Also the only mounting point for
-            `useGlobalChatSocket()` — DM socket events for every conversation
-            arrive through here, so unread counts stop working workspace-wide
-            if this is ever removed again. */}
-        <DmSidebarSection />
+        {/* Channels and Direct Messages moved to the Chat module — they are
+            no longer project-scoped, and their sockets now mount app-wide in
+            AdminLayoutClient rather than from this sidebar. */}
       </div>
 
       {/* <div className="border-t border-gray-100 px-1 pt-3 dark:border-gray-800">

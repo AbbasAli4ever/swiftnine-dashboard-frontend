@@ -11,6 +11,7 @@ import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
 import CreateWorkspaceModal from "@/components/workspace/CreateWorkspaceModal";
 import GlobalTaskDetailModal from "@/components/projects/GlobalTaskDetailModal";
+import ChatRealtimeMount from "@/components/chat/ChatRealtimeMount";
 import NotificationPermissionBanner from "@/components/ui/NotificationPermissionBanner";
 import UserProfilePanel from "@/components/user-profile/UserProfilePanel";
 import ViewUserProfilePanel from "@/components/user-profile/ViewUserProfilePanel";
@@ -113,6 +114,8 @@ export default function AdminLayoutClient({
         </div>
       </div>
 
+      {/* Chat + presence sockets for the whole admin area. */}
+      <ChatRealtimeMount />
       <GlobalTaskDetailModal />
       <CreateWorkspaceModal isOpen={forcedModal} />
     </div>
